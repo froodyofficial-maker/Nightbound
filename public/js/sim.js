@@ -19,7 +19,7 @@ export class Sim {
       bars: M.bars.map(() => 0),
       cages: M.cages.map(() => null), cageBroken: M.cages.map(() => false),
       gates: M.gates.map(() => ({ p: 0, open: false })),
-      spears: [], lanterns: [], lid: 0, dark: 0, chains: [],
+      spears: [], lanterns: [], lid: 0, dark: 0, chains: [], traps: [], tid: 0,
     };
     let si = 0;
     for (const r of roster) {
@@ -34,7 +34,7 @@ export class Sim {
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
-        flash: r.role === 'survivor' ? RULES.flashBattery : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0,
+        flash: r.role === 'survivor' ? RULES.flashBattery : 0, traps: r.role === 'survivor' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 2 : 1) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
       });
     }
@@ -126,6 +126,15 @@ export class Sim {
         const inp = this.inputs.get(b.id); if (inp) { inp.e = false; inp.latch = false; }
         b.tp++;
         this.ev({ k: 'takeover', from: p.id, to: b.id, name: p.name, was });
+        break;
+      }
+      case 'trap': {
+        // Ghost Trap: set it down; the killer stepping on it is stunned
+        if (p.role !== 'survivor' || p.st !== 'ok' || p.act || p.vault || !(p.traps > 0)) return;
+        if (this.S.traps.some(t => Math.hypot(t.x - p.x, t.z - p.z) < 2)) return;
+        p.traps--; const f = fwd(p.yaw);
+        const t = { id: ++this.S.tid, x: p.x + f.x * 0.9, z: p.z + f.z * 0.9, by: p.id };
+        this.S.traps.push(t); this.ev({ k: 'trapset', id: p.id, x: t.x, z: t.z });
         break;
       }
       case 'attack': {
@@ -339,8 +348,12 @@ export class Sim {
       if (p.char === 'harrower' && p.role === 'killer' && p.ammo < KILLERS.harrower.ability.ammo) { p.ammoT += dt; if (p.ammoT >= KILLERS.harrower.ability.reload) { p.ammoT = 0; p.ammo++; } }
     }
 
-    // ---- flashlights ----
+    // ---- flashlights & ghost traps ----
     if (K) this.updateFlashlights(K, dt);
+    if (K && S.traps.length && !K.vault && !(K.act && K.act.k === 'execute')) {
+      const hit = S.traps.find(t => Math.hypot(t.x - K.x, t.z - K.z) < 0.85);
+      if (hit) { S.traps = S.traps.filter(t => t !== hit); this.stunKiller(K, 2.6, false); const by = this.P(hit.by); if (by) by.score.d += 500; this.ev({ k: 'trapped', id: K.id, by: hit.by, x: hit.x, z: hit.z }); }
+    }
 
     // ---- killer attack / abilities ----
     if (K) this.updateKiller(K, dt);

@@ -51,7 +51,7 @@ export class Bots {
     } else if (K && K.bot && K.glare <= 0) this.brain(K).lookAway = null;
     for (const p of S.players) {
       if (!p.bot) continue;
-      if (p.role === 'killer') this.killer(p, dt); else { this.survivor(p, dt); this.flashBot(p, dt); }
+      if (p.role === 'killer') this.killer(p, dt); else { this.survivor(p, dt); this.flashBot(p, dt); if (p.traps > 0 && p.st === 'ok' && K && dist(p, K) < 7 && K.mv && Math.random() < dt * 0.35) this.sim.onMsg(p.id, { t: 'act', a: 'trap' }); }
     }
   }
 

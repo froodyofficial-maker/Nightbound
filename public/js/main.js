@@ -64,6 +64,8 @@ const BIOS = {
   mara: 'A field medic who stopped asking why the roads all lead back here.',
   eli: 'Mechanic. Can coax a dead engine back to life with a bent spoon and a prayer.',
   june: 'A photographer chasing the story of the vanished hikers. Now she is one.',
+  raghuvir: 'Big, steady and impossible to scare. Carries the heaviest proton pack on the team, and two Ghost Traps.',
+  abeer: 'Quick hands, quicker wit. Swears the readings on his PKE meter spell out names. Carries two Ghost Traps.',
   tomas: 'Former park ranger. Knows every trail on the moor, and that none of them lead out.',
 };
 
@@ -383,9 +385,9 @@ function renderInbox() {
     const gift = m.gift ? (profile.claimed[m.id]
       ? `<div class="gift claimed">${icon('check')}${esc(m.gift.label)} · claimed</div>`
       : `<div class="gift">${icon('gift')}${esc(m.gift.label)}<button class="btn primary" data-claim="${m.id}">Claim</button></div>`) : '';
-    return `<div class="msg ${unread ? 'unread' : ''}">${m.banner ? `<div class="msg-banner offal-art" data-announce="1"></div>` : ''}<div class="mtag">${esc(m.tag)} · v${esc(m.version)} · ${esc(m.date)}</div><h3>${esc(m.title)}</h3><ul>${m.body.map(b => `<li>${esc(b)}</li>`).join('')}</ul>${gift}</div>`;
+    return `<div class="msg ${unread ? 'unread' : ''}">${m.banner ? `<div class="msg-banner offal-art" data-announce="offal"></div>` : m.gb ? `<div class="msg-banner gb-mini" data-announce="gb">Ghostbusters <i>×</i> Nightbound</div>` : ''}<div class="mtag">${esc(m.tag)} · v${esc(m.version)} · ${esc(m.date)}</div><h3>${esc(m.title)}</h3><ul>${m.body.map(b => `<li>${esc(b)}</li>`).join('')}</ul>${gift}</div>`;
   }).join('');
-  $('inbox-list').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => showAnnounce());
+  $('inbox-list').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => showAnnounce(b.dataset.announce));
   $('inbox-list').querySelectorAll('[data-claim]').forEach(b => b.onclick = () => {
     const m = INBOX.find(x => x.id === b.dataset.claim);
     if (!m || profile.claimed[m.id]) return;
@@ -839,19 +841,36 @@ setInterval(() => { if (document.hidden && session && session.isHost) { try { se
 addEventListener('resize', () => { if (!session) renderer.setSize(innerWidth, innerHeight); });
 
 // ---------- OFFAL x Nightbound announcement ----------
-function showAnnounce() {
+const AN_OFFAL = $('announce').innerHTML;
+const AN_GB = `<div class="an-bg gb"></div><div class="an-inner">
+  <div class="an-kicker">Fan-made crossover · Two new survivors · Available now</div>
+  <div class="an-banner gb-banner"><div class="gb-slime"></div><img class="gb-l" alt=""><img class="gb-r" alt=""><div class="gb-title">Ghostbusters</div><div class="an-scan"></div></div>
+  <div class="an-x">× <span>Nightbound</span></div>
+  <p class="an-sub">Raghuvir and Abeer suit up and walk into the fog with proton packs on their backs. Who you gonna call when the killer comes? Nobody. Set a <b>Ghost Trap</b> and run.</p>
+  <ul class="an-list"><li>New survivor: <b>Raghuvir</b></li><li>New survivor: <b>Abeer</b></li><li>New item: <b>Ghost Trap</b> (G)</li></ul>
+  <div class="an-actions"><button class="btn primary big" id="an-play">Play as Raghuvir</button><button class="btn big" id="an-play2">Play as Abeer</button><button class="btn" id="an-store">Outfits</button><button class="btn" id="an-close">Close</button></div>
+  <p class="gb-note">Fan-made. Not affiliated with or endorsed by the Ghostbusters rights holders.</p></div>`;
+function showAnnounce(kind = 'offal') {
   closePanel();
-  $('announce').classList.remove('hidden');
-  profile.seen.offal = true; saveProfile();
-  sound.init(); sound.play('caged');
+  const A = $('announce'); A.innerHTML = kind === 'gb' ? AN_GB : AN_OFFAL; A.classList.remove('hidden');
+  const play = ch => { sound.play('click'); hideAnnounce(); profile.survivor.char = ch; saveProfile(); if (menu) menu.setSurvivor(ch, skinId(ch)); navActions['play-survivor'](); };
+  if (kind === 'gb') {
+    A.querySelector('.gb-l').src = art('full', 'raghuvir', 'default', 260, 390); A.querySelector('.gb-r').src = art('full', 'abeer', 'default', 260, 390);
+    $('an-play').onclick = () => play('raghuvir'); $('an-play2').onclick = () => play('abeer');
+    $('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('characters', 'raghuvir'); previewSkin(skinId('raghuvir')); };
+    profile.seen.gb = true;
+  } else {
+    $('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('chapters'); };
+    $('an-play').onclick = () => { sound.play('click'); hideAnnounce(); botsCfg.map = 'meatworks'; navActions['play-survivor'](); $('bots-map').value = 'meatworks'; };
+    profile.seen.offal = true;
+  }
+  $('an-close').onclick = () => { sound.play('click'); hideAnnounce(); };
+  saveProfile(); sound.init(); sound.play('caged');
 }
 function hideAnnounce() { $('announce').classList.add('hidden'); }
-$('an-close').onclick = () => { sound.play('click'); hideAnnounce(); };
-$('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('chapters'); };
-$('an-play').onclick = () => { sound.play('click'); hideAnnounce(); botsCfg.map = 'meatworks'; navActions['play-survivor'](); $('bots-map').value = 'meatworks'; };
-$('news-card').onclick = () => showAnnounce();
+$('news-card').onclick = () => showAnnounce('gb');
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('announce').classList.contains('hidden')) hideAnnounce(); });
-if (!profile.seen.offal) setTimeout(() => { if (!session) showAnnounce(); }, 900);
+if (!profile.seen.gb) setTimeout(() => { if (!session) showAnnounce('gb'); }, 1200);
 
 startBG();
 requestAnimationFrame(loop);

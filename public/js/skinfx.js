@@ -215,6 +215,16 @@ const BODY = {
     g.add(mk(TO(b.w * 0.97, 0.02, Math.PI * 2, 24), std(0x2a1a10), 0, b.hip + 0.04, 0, Math.PI / 2, 0, 0, 1, b.d / b.w * 1.2, 1));
     for (let i = 0; i < 4; i++) { const a = -0.6 + i * 0.45, x = Math.sin(a) * b.w, z = Math.cos(a) * b.d; g.add(mk(C(0.006, 0.006, 0.18, 4), m, x, b.hip - 0.06, z)); g.add(mk(TO(0.045, 0.009, Math.PI * 1.4, 10), m, x, b.hip - 0.18, z, 0, a, 0.6)); }
     return g; },
+  protonpack(b) { const g = new THREE.Group(), dark = std(0x2a2c2e, { m: 0.5, r: 0.5 }), steel = std(0x9a9ca0, { m: 0.85, r: 0.3 }), z = b.back - 0.13;
+    g.add(mk(B(b.w * 1.25, 0.5, 0.2), dark, 0, b.cy - 0.02, z)); g.add(mk(B(b.w * 1.4, 0.06, 0.24), std(0x1a1a1a), 0, b.cy - 0.27, z));
+    g.add(mk(C(0.07, 0.07, 0.36, 12), steel, -b.w * 0.35, b.cy + 0.06, z - 0.1)); g.add(mk(C(0.09, 0.09, 0.08, 14), std(0x3a3a3a, { m: 0.6 }), b.w * 0.3, b.cy - 0.14, z - 0.11, Math.PI / 2));
+    const cyc = mk(C(0.05, 0.05, 0.03, 12), std(0x220000, { e: 0xff3010, ei: 2 }), b.w * 0.3, b.cy - 0.14, z - 0.16, Math.PI / 2); g.add(cyc);
+    for (let i = 0; i < 4; i++) g.add(mk(B(0.03, 0.02, 0.01), std(0x111111, { e: i % 2 ? 0xffa020 : 0x30ff40, ei: 1.5 }), -b.w * 0.05 + i * 0.045, b.cy + 0.16, z - 0.105));
+    g.add(mk(TO(0.12, 0.018, Math.PI, 10), std(0x1a1a1a, { r: 0.8 }), b.w * 0.75, b.cy - 0.1, (z + b.front) / 2, Math.PI / 2, 0, -Math.PI / 2));
+    g.add(glow(0xff3010, 0.18, b.w * 0.3, b.cy - 0.14, z - 0.19, 0.9));
+    for (const s of [-1, 1]) g.add(mk(B(0.05, 0.45, 0.02), std(0x2a2620), s * b.w * 0.5, b.cy + 0.1, b.front + 0.01));
+    return g; },
+  nametag(b) { const g = new THREE.Group(); g.add(mk(B(0.1, 0.035, 0.01), std(0xe8e0d0, { r: 0.6 }), b.w * 0.45, b.cy + 0.13, b.front + 0.012)); g.add(mk(B(0.07, 0.07, 0.01), std(0xc02020, { r: 0.5 }), -b.w * 0.55, b.cy + 0.12, b.front + 0.012)); return g; },
   axe(b) { const g = new THREE.Group();
     g.add(mk(C(0.018, 0.022, 0.75, 8), std(0x6a3a1a, { r: 0.8 }), 0.05, b.cy + 0.05, b.back - 0.08, 0, 0, 0.5)); g.add(mk(B(0.03, 0.14, 0.18), std(0xa01a10, { m: 0.5, r: 0.4 }), 0.05 - Math.sin(0.5) * 0.36, b.cy + 0.05 + Math.cos(0.5) * 0.36, b.back - 0.08, 0, 0, 0.5)); return g; },
 };
@@ -233,6 +243,9 @@ const HAND = {
     for (let i = -1; i <= 1; i++) g.add(mk(CO(0.012, 0.32, 6), m, i * 0.03, -0.24, 0.04, 0.15, 0, i * 0.08)); return g; },
   lamp(o) { const g = new THREE.Group(); const c = o.color ?? 0xff6a20;
     g.add(mk(S(0.09, 12, 10), std(0x110300, { e: c, ei: 2.5, t: true, op: 0.9 }), 0, -0.2, 0.05)); const f = glow(c, 0.5, 0, -0.2, 0.05, 0.9); f.userData.flame = true; f.userData.base = 0.5; g.add(f); return g; },
+  wand() { const g = new THREE.Group(), m = std(0x2a2c2e, { m: 0.5, r: 0.45 });
+    g.add(mk(B(0.06, 0.08, 0.42), m, 0, -0.12, 0.16)); g.add(mk(C(0.025, 0.03, 0.18, 10), std(0x9a9ca0, { m: 0.85, r: 0.3 }), 0, -0.1, 0.44, Math.PI / 2));
+    g.add(mk(B(0.02, 0.03, 0.04), std(0x111111, { e: 0xffa020, ei: 2 }), 0.035, -0.08, 0.1)); return g; },
   hookbig(o) { const g = new THREE.Group(), m = std(o.color ?? 0xd8b040, { m: 0.95, r: 0.2 });
     g.add(mk(TO(0.16, 0.022, Math.PI * 1.35, 16), m, 0, -0.45, 0.05, 0, 0, Math.PI * 0.85)); g.add(mk(C(0.016, 0.016, 0.28, 6), m, 0, -0.23, 0.03)); return g; },
 };

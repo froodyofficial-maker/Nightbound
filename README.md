@@ -63,6 +63,10 @@ Executions (**F**) work on a downed survivor who has been caged twice or on the 
 
 Pick the map (or Random) in the bot-match setup or the online lobby. Every map is free.
 
+## Ghostbusters × Nightbound (fan-made)
+
+Two extra survivors, **Raghuvir** and **Abeer**, wear khaki flight suits with proton packs and each carry two Ghost Traps (other survivors carry one). This is a fan-made crossover, not affiliated with or endorsed by the Ghostbusters rights holders.
+
 ## Store & Inbox
 
 - **Store** (DbD-style, full screen), paid in **Embers**, which you earn by playing matches:
@@ -87,6 +91,7 @@ There are three difficulties (Easy, Normal, Hard).
 | Interact (hold) | E: repair, heal, free from cage, open gate, snuff lantern | E: pick up, cage, damage generator, break barricade |
 | Context | Space: vault, drop barricade, skill check | Space: vault |
 | Flashlight | RMB (hold) | – |
+| Ghost Trap | G: set a trap that stuns the killer when he steps on it | – |
 | After dying | T: take over a bot survivor, LMB: switch spectated player | – |
 | Attack / power | – | LMB / RMB (R: Shadow Step) |
 | Execute | – | F |

@@ -122,7 +122,7 @@ export class MenuScene {
     this.survRigs = [];
     const order = [char, ...Object.keys(SURVIVORS).filter(c => c !== char)];
     order.forEach((c, i) => {
-      const seat = this.seats[i];
+      const seat = this.seats[i]; if (!seat) return;
       const rig = makeSurvivor(SURVIVORS[c], i === 0 ? skinOf(c, skin) : {});
       rig.root.position.set(seat.x, 0, seat.z);
       rig.root.rotation.y = Math.atan2(-seat.x, -seat.z) + (seat.stand ? 0.3 : 0);

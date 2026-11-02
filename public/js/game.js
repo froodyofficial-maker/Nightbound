@@ -302,6 +302,7 @@ export class Game {
       if (e.code === 'Escape') { if (this.endShown) return; this.pause(!this.paused); return; }
       if (e.code === 'Space') this.onSpace();
       if (e.code === 'KeyQ') this.send({ t: 'act', a: 'drop-carry' });
+      if (e.code === 'KeyG') this.send({ t: 'act', a: 'trap' });
       if (e.code === 'KeyR' && this.mine() && this.mine().char === 'lamplighter') this.send({ t: 'act', a: 'teleport', yaw: this.mine().yaw });
       if (e.code === 'KeyR' && this.mine() && this.mine().char === 'foreman') this.send({ t: 'act', a: 'ability2' });
       if (e.code === 'KeyF' && this.mine() && this.mine().role === 'killer') { const ex = findExecute(this.M, this.S, this.mine()); if (ex) this.send({ t: 'act', a: 'execute', id: ex.id }); }
@@ -401,6 +402,7 @@ export class Game {
     this.handleLocal(dt, S, me);
     this.updateChars(dt, S, me);
     this.updateTorchLight();
+    this.updateTraps(S);
     this.updateSpears(dt, S);
     this.updateChains(S);
     this.updateLanterns(dt, S, me);
@@ -913,6 +915,24 @@ export class Game {
     this.torchBest = Infinity; this.torchFrom = null;
   }
 
+  // ghost traps on the ground: a striped box with a glowing slot
+  updateTraps(S) {
+    this.trapMeshes ||= new Map();
+    const live = new Set((S.traps || []).map(t => t.id));
+    for (const [id, m] of this.trapMeshes) if (!live.has(id)) { this.scene.remove(m); this.trapMeshes.delete(id); }
+    for (const t of S.traps || []) {
+      if (this.trapMeshes.has(t.id)) { const m = this.trapMeshes.get(t.id); m.userData.glow.material.opacity = 0.5 + Math.sin(this.t * 6) * 0.3; continue; }
+      const g = new THREE.Group(); g.position.set(t.x, 0, t.z);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.3), new THREE.MeshStandardMaterial({ color: 0x2a2c2e, metalness: 0.6, roughness: 0.4 })); body.position.y = 0.07; g.add(body);
+      for (const s of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.06), new THREE.MeshStandardMaterial({ color: 0xe0b020 })); st.position.set(0, 0.145, s * 0.1); g.add(st); }
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.012, 0.05), new THREE.MeshBasicMaterial({ color: 0xffe080, toneMapped: false })); slot.position.y = 0.152; g.add(slot);
+      const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.6, 4), new THREE.MeshStandardMaterial({ color: 0x111111 })); cord.rotation.z = Math.PI / 2; cord.position.set(0.5, 0.02, 0); g.add(cord);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex ||= (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })(), color: 0xffd060, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      glow.scale.setScalar(0.7); glow.position.y = 0.2; g.add(glow); g.userData.glow = glow;
+      this.scene.add(g); this.trapMeshes.set(t.id, g);
+    }
+  }
+
   // the bot this fallen player could take over: the one being watched, else the first alive
   takeoverTarget() {
     const S = this.S, me = this.mine();
@@ -1009,6 +1029,13 @@ export class Game {
     for (const e of evs) {
       switch (e.k) {
         case 'swing': { const p = S && playerById(S, e.id); if (p) sound.play('swing', p.x, p.z); break; }
+        case 'trapset': if (e.id === this.myId) this.feed('Ghost Trap set.'); sound.play('click', e.x, e.z); break;
+        case 'trapped': {
+          const by = S && playerById(S, e.by);
+          this.feed(`The killer stepped in ${by ? by.name + "'s" : 'a'} Ghost Trap!`, e.by === this.myId || e.id === this.myId ? 'big' : '');
+          this.sparks.spawn(e.x, 0.4, e.z, 80, 0xffe080, 3, 1.2, 0.3, 1.5); this.sparks.spawn(e.x, 0.6, e.z, 60, 0x60c0ff, 2.5, 1.6, -0.5, 1.2);
+          sound.play('fade', e.x, e.z, { on: false }); break;
+        }
         case 'blind': {
           const by = S && playerById(S, e.by);
           this.feed(`${by ? by.name : 'A survivor'} blinded the killer${e.save ? ' and saved their friend' : ''}!`, e.id === this.myId || e.by === this.myId ? 'big' : '');
@@ -1149,7 +1176,7 @@ export class Game {
     const k = (x) => `<kbd>${x}</kbd>`;
     $('controls-hint').innerHTML = me.role === 'killer'
       ? `${k('WASD')} move · ${k('LMB')} strike · ${k('RMB')} ${esc(KILLERS[me.char].ability.name)}${me.char === 'lamplighter' ? ` · ${k('R')} Shadow Step` : me.char === 'foreman' ? ` · ${k('R')} Lights Out` : ''} · ${k('E')} interact · ${k('F')} execute · ${k('Space')} vault · ${k('Q')} drop · ${k('Tab')} status`
-      : `${k('WASD')} move · ${k('Shift')} run · ${k('Ctrl')} crouch · ${k('E')} interact · ${k('RMB')} flashlight · ${k('Space')} vault / barricade / skill check · ${k('Tab')} status`;
+      : `${k('WASD')} move · ${k('Shift')} run · ${k('Ctrl')} crouch · ${k('E')} interact · ${k('RMB')} flashlight · ${k('G')} ghost trap · ${k('Space')} vault / barricade / skill check · ${k('Tab')} status`;
     $('controls-hint').classList.remove('fade');
     clearTimeout(this.hintT); this.hintT = setTimeout(() => $('controls-hint').classList.add('fade'), 14000);
     $('fps').classList.toggle('hidden', !this.settings.showFps);

@@ -480,3 +480,15 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .char.locked { opacity: .55; }
 .char.locked:hover { opacity: .8; }
 .msg-banner { height: 150px; margin: -4px -4px 12px; border: 1px solid rgba(232,53,43,.4); cursor: pointer; }
+
+/* ===== Ghostbusters fan crossover ===== */
+#announce .an-bg.gb { background: radial-gradient(ellipse at 50% 35%, rgba(30,110,40,.5), rgba(3,6,4,.97) 65%), #030503; }
+.gb-banner { background: radial-gradient(ellipse at 50% 60%, #1a4a1e, #050a06 70%); }
+.gb-banner .gb-slime { position: absolute; inset: 0; background: radial-gradient(circle at 30% 80%, rgba(120,255,90,.25), transparent 40%), radial-gradient(circle at 75% 20%, rgba(120,255,90,.18), transparent 35%); animation: anZoom 9s ease-in-out infinite alternate; }
+.gb-banner img { position: absolute; bottom: -2%; height: 104%; }
+.gb-banner .gb-l { left: 6%; } .gb-banner .gb-r { right: 6%; }
+.gb-banner .gb-title { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font-family: var(--display); font-size: clamp(48px, 9vw, 120px); letter-spacing: .08em; color: #f2f2ee; text-shadow: 0 0 30px rgba(120,255,90,.6), 0 4px 0 #a01010; }
+.gb-note { margin-top: 12px; font-size: 12px; color: #6a7a68; letter-spacing: .06em; }
+.gb-mini { display: grid; place-items: center; height: 118px; font-family: var(--display); font-size: 40px; letter-spacing: .08em; color: #f0f0ea; text-shadow: 0 0 18px rgba(120,255,90,.7), 0 3px 0 #a01010; background: radial-gradient(ellipse at 50% 60%, #1e5a22, #050a06 75%); }
+.gb-mini i { font-style: normal; color: #e8352b; }
+.msg-banner.gb-mini { font-size: 34px; }
