@@ -156,14 +156,14 @@ export const SKINS = {
     { id: 'searchlight', name: 'Search & Rescue', price: 4000, shirt: 0xd86a10, pants: 0x1a1a22, desc: 'Helmet lamp, hi-vis vest and a radio pack with a blinking beacon.', fx: [['hardhat', { color: 0xf0f0f0, lamp: true }], ['hivis', { color: 0xe8e020 }], ['backpack', { color: 0xc04010, radio: true }]] },
   ],
   raghuvir: [
-    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Who you gonna call?', fx: ['fringehair', 'specs', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
-    { id: 'street', name: 'Beige Puffer', price: 1500, shirt: 0xb8a48a, pants: 0x1a1a1e, desc: 'Off duty: beige puffer jacket with a black hood and sleeves.', fx: ['fringehair', 'specs', ['puffer', { color: 0xb8a48a }]] },
-    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: ['fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
+    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Who you gonna call?', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
+    { id: 'street', name: 'Beige Puffer', price: 1500, shirt: 0xb8a48a, pants: 0x1a1a1e, desc: 'Off duty: beige puffer jacket with a black hood and sleeves.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['puffer', { color: 0xb8a48a }]] },
+    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
   abeer: [
-    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Ready to bust.', fx: ['mophair', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
-    { id: 'street', name: 'Navy Jacket', price: 1500, shirt: 0x161c30, pants: 0x1a1c22, desc: 'Off duty: navy hooded jacket with a red stripe.', fx: ['mophair', ['stripe', { color: 0xc01e1e }]] },
-    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'Covered in ectoplasm, faintly glowing.', fx: ['mophair', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
+    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Ready to bust.', fx: [['face', { kind: 'a', skin: 0xa87650 }], 'mophair', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
+    { id: 'street', name: 'Navy Jacket', price: 1500, shirt: 0x161c30, pants: 0x1a1c22, desc: 'Off duty: navy hooded jacket with a red stripe.', fx: [['face', { kind: 'a', skin: 0xa87650 }], 'mophair', ['stripe', { color: 0xc01e1e }]] },
+    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'Covered in ectoplasm, faintly glowing.', fx: [['face', { kind: 'a', skin: 0xa87650 }], 'mophair', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
   butcher: [
     { id: 'default', name: 'Slaughterhouse', price: 0 },

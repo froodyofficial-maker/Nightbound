@@ -175,6 +175,24 @@ const HEAD = {
     for (const sx of [-1, 1]) g.add(mk(S(h.r * 0.5, 10, 8), m, sx * h.r * 0.93, h.cy + h.r * 0.15, -h.r * 0.2, 0, 0, 0, 0.42, 1, 1.1));
     for (const sx of [-1, 1]) g.add(mk(B(h.r * 0.34, h.r * 0.07, h.r * 0.05), m, sx * h.eyeX * 1.05, h.eyeY + h.r * 0.22, h.front + h.r * 0.01, 0, 0, -sx * 0.08));
     return g; },
+  // sculpted face: almond eyes with lids, nose, lips, cheeks/jaw (o.kind 'r' = Raghuvir: rounder face, broader nose; 'a' = Abeer: slimmer, hooded serious eyes)
+  face(h, o) { const g = new THREE.Group(), R = o.kind === 'r';
+    const sk = std(o.skin ?? 0xa87650, { r: 0.6 }), dark = std(new THREE.Color(o.skin ?? 0xa87650).multiplyScalar(0.62).getHex(), { r: 0.55 });
+    const white = std(0xe8e2d8, { r: 0.3 }), iris = std(0x1a0e08, { r: 0.15, m: 0.1 }), lip = std(new THREE.Color(o.skin ?? 0xa87650).lerp(new THREE.Color(0x7a3a34), 0.45).getHex(), { r: 0.45 });
+    const ey = h.eyeY, fz = h.front;
+    for (const s of [-1, 1]) {
+      const ex = s * h.eyeX * 0.95;
+      g.add(mk(S(h.r * 0.13, 12, 8), white, ex, ey, fz - h.r * 0.07, 0, 0, 0, 1.35, R ? 0.72 : 0.6, 0.5));
+      g.add(mk(S(h.r * 0.075, 10, 8), iris, ex, ey - h.r * 0.005, fz - h.r * 0.03, 0, 0, 0, 1, 1, 0.55));
+      g.add(mk(S(h.r * 0.15, 10, 8), sk, ex, ey + h.r * (R ? 0.07 : 0.05), fz - h.r * 0.075, 0.25, 0, 0, 1.3, 0.45, 0.6)); // upper lid
+      g.add(mk(S(h.r * 0.2, 10, 8), sk, s * h.eyeX * (R ? 1.45 : 1.3), ey - h.r * 0.38, fz - h.r * (R ? 0.22 : 0.28), 0, 0, 0, 1, R ? 0.85 : 0.7, 0.7)); // cheek
+    }
+    g.add(mk(S(h.r * 0.12, 10, 8), sk, 0, ey - h.r * 0.33, fz + h.r * 0.02, -0.2, 0, 0, R ? 1.25 : 0.95, 1.5, 0.9)); // nose
+    for (const s of [-1, 1]) g.add(mk(S(h.r * 0.05, 8, 6), dark, s * h.r * (R ? 0.09 : 0.075), ey - h.r * 0.46, fz - h.r * 0.0, 0, 0, 0, 1, 0.6, 0.6)); // nostrils
+    g.add(mk(S(h.r * 0.17, 12, 8), lip, 0, ey - h.r * 0.68, fz - h.r * 0.06, 0, 0, 0, 1.3, 0.32, 0.5)); // upper lip
+    g.add(mk(S(h.r * 0.16, 12, 8), lip, 0, ey - h.r * 0.77, fz - h.r * 0.07, 0, 0, 0, 1.2, 0.38, 0.5)); // lower lip
+    g.add(mk(S(h.r * (R ? 0.42 : 0.3), 12, 8), sk, 0, ey - h.r * 0.98, fz - h.r * (R ? 0.3 : 0.24), 0, 0, 0, R ? 1.5 : 1.05, 0.7, 0.85)); // chin / jaw
+    return g; },
   // clear-framed glasses
   specs(h) { const g = new THREE.Group(), frame = std(0xd8d4cc, { r: 0.3, t: true, op: 0.75 }), lens = std(0xe8f0f4, { r: 0.05, m: 0.2, t: true, op: 0.18 });
     for (const s of [-1, 1]) { g.add(mk(TO(h.r * 0.25, h.r * 0.035, Math.PI * 2, 4), frame, s * h.eyeX * 1.12, h.eyeY, h.front + h.r * 0.06, 0, 0, Math.PI / 4, 1.25, 0.95, 1)); g.add(mk(new THREE.CircleGeometry(h.r * 0.24, 16), lens, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.055, 0, 0, 0, 1.12, 0.85, 1));
