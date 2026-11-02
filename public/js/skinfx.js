@@ -159,18 +159,18 @@ const HEAD = {
     return g; },
   // Abeer: big, thick, shaggy black mop: volume on top, fringe to the eyebrows, over the ears, long at the nape
   mophair(h) { const g = new THREE.Group(), m = std(0x0a0807, { r: 0.9 });
-    g.add(mk(S(h.r * 1.2, 18, 12), m, 0, h.cy + h.r * 0.42, -h.r * 0.1, 0, 0, 0, 1.15, 0.95, 1.12));
+    g.add(mk(S(h.r * 1.2, 18, 12), m, 0, h.cy + h.r * 0.62, -h.r * 0.32, 0, 0, 0, 1.12, 0.85, 1.0));
     let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 16; i++) { const a = r() * 6.28, el = 0.3 + r() * 0.9; g.add(mk(S(h.r * (0.32 + r() * 0.18), 7, 5), m, Math.cos(a) * h.r * 0.95 * Math.cos(el - 0.4), h.cy + h.r * (0.55 + Math.sin(el) * 0.45), Math.sin(a) * h.r * 0.9 - h.r * 0.1, r(), r() * 3, r())); }
-    for (let i = 0; i < 9; i++) { const a = -1.0 + i * 0.25; g.add(mk(S(h.r * 0.3, 7, 5), m, Math.sin(a) * h.r * 0.92, h.cy + h.r * (0.66 - Math.abs(a) * 0.32), Math.cos(a) * h.r * 0.88, 0.5, a, 0, 0.85, 1.1, 0.55)); }
+    for (let i = 0; i < 16; i++) { const a = r() * 6.28, el = 0.3 + r() * 0.9; g.add(mk(S(h.r * (0.32 + r() * 0.18), 7, 5), m, Math.cos(a) * h.r * 0.95 * Math.cos(el - 0.4), h.cy + h.r * (0.75 + Math.sin(el) * 0.4), Math.sin(a) * h.r * 0.85 - h.r * 0.2, r(), r() * 3, r())); }
+    for (let i = 0; i < 9; i++) { const a = -1.0 + i * 0.25; g.add(mk(S(h.r * 0.3, 7, 5), m, Math.sin(a) * h.r * 0.92, h.cy + h.r * (0.8 - Math.abs(a) * 0.2), Math.cos(a) * h.r * 0.86, 0.5, a, 0, 0.85, 0.9, 0.55)); }
     for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.add(mk(S(h.r * 0.36, 7, 5), m, sx * h.r * 1.0, h.cy + h.r * (0.25 - k * 0.3), -h.r * 0.2 + k * h.r * 0.1, 0, 0, sx * 0.3, 0.7, 1.15, 1));
     g.add(mk(S(h.r * 1.0, 14, 10), m, 0, h.cy - h.r * 0.05, -h.r * 0.5, 0, 0, 0, 1.15, 1.2, 0.85));
     for (const sx of [-1, 1]) g.add(mk(B(h.r * 0.36, h.r * 0.07, h.r * 0.05), m, sx * h.eyeX * 1.05, h.eyeY + h.r * 0.2, h.front + h.r * 0.01, 0, 0, -sx * 0.12));
     return g; },
   // Raghuvir: thick black hair, voluminous on top, fringe swept to one side, short at the sides
   fringehair(h) { const g = new THREE.Group(), m = std(0x0a0807, { r: 0.85 });
-    g.add(mk(S(h.r * 1.13, 18, 12), m, 0, h.cy + h.r * 0.45, -h.r * 0.08, 0, 0, 0, 1.08, 0.9, 1.12));
-    for (let i = 0; i < 8; i++) { const a = -0.9 + i * 0.24; g.add(mk(S(h.r * 0.34, 8, 6), m, Math.sin(a) * h.r * 0.88 + h.r * 0.08, h.cy + h.r * (0.6 - (a + 0.9) * 0.12), Math.cos(a) * h.r * 0.84, 0.55, a, -0.25, 1.05, 1.0, 0.55)); }
+    g.add(mk(S(h.r * 1.13, 18, 12), m, 0, h.cy + h.r * 0.62, -h.r * 0.3, 0, 0, 0, 1.08, 0.85, 1.0));
+    for (let i = 0; i < 8; i++) { const a = -0.9 + i * 0.24; g.add(mk(S(h.r * 0.34, 8, 6), m, Math.sin(a) * h.r * 0.88 + h.r * 0.08, h.cy + h.r * (0.8 - (a + 0.9) * 0.08), Math.cos(a) * h.r * 0.84, 0.55, a, -0.25, 1.05, 0.85, 0.55)); }
     for (let i = 0; i < 6; i++) g.add(mk(S(h.r * 0.38, 8, 6), m, (i - 2.5) * h.r * 0.32, h.cy + h.r * 0.95, -h.r * 0.1 + (i % 2) * h.r * 0.2, 0.2, i, 0, 1, 0.75, 1));
     for (const sx of [-1, 1]) g.add(mk(S(h.r * 0.5, 10, 8), m, sx * h.r * 0.93, h.cy + h.r * 0.15, -h.r * 0.2, 0, 0, 0, 0.42, 1, 1.1));
     for (const sx of [-1, 1]) g.add(mk(B(h.r * 0.34, h.r * 0.07, h.r * 0.05), m, sx * h.eyeX * 1.05, h.eyeY + h.r * 0.22, h.front + h.r * 0.01, 0, 0, -sx * 0.08));
