@@ -15,6 +15,12 @@ const CRACKS = (() => { let t = null; return () => { if (t) return t; const c = 
   for (let i = 0; i < 70; i++) { let px = r() * 256, py = r() * 256; x.strokeStyle = `rgba(255,${150 + r() * 80 | 0},60,${0.5 + r() * 0.5})`; x.lineWidth = 0.8 + r() * 2.2; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 6; k++) { px += (r() - 0.5) * 50; py += (r() - 0.5) * 50; x.lineTo(px, py); } x.stroke(); }
   t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }; })();
 
+const LOGO = (() => { let t = null; return () => { if (t) return t; const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  x.fillStyle = '#f4f2ec'; x.beginPath(); x.arc(64, 64, 62, 0, 7); x.fill();
+  x.fillStyle = '#ffffff'; x.strokeStyle = '#111'; x.lineWidth = 5; x.beginPath(); x.moveTo(38, 100); x.quadraticCurveTo(30, 40, 62, 30); x.quadraticCurveTo(96, 28, 92, 70); x.quadraticCurveTo(90, 98, 70, 104); x.quadraticCurveTo(60, 92, 52, 104); x.quadraticCurveTo(44, 94, 38, 100); x.fill(); x.stroke();
+  x.fillStyle = '#111'; x.beginPath(); x.ellipse(56, 58, 6, 9, 0, 0, 7); x.ellipse(76, 58, 6, 9, 0, 0, 7); x.fill(); x.beginPath(); x.ellipse(68, 80, 7, 5, 0, 0, 7); x.fill();
+  x.strokeStyle = '#d0141a'; x.lineWidth = 12; x.beginPath(); x.arc(64, 64, 55, 0, 7); x.stroke(); x.beginPath(); x.moveTo(26, 26); x.lineTo(102, 102); x.stroke();
+  t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }; })();
 function mk(geo, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
   const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.scale.set(sx, sy, sz); m.castShadow = true; return m;
 }
@@ -151,21 +157,27 @@ const HEAD = {
   eyes(h, o) { const g = new THREE.Group(), c = o.color ?? 0x7affd0;
     for (const s of [-1, 1]) { g.add(mk(S(h.r * 0.07, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(4), toneMapped: false }), s * h.eyeX, h.eyeY, h.front + h.r * 0.02)); g.add(glow(c, h.r * 1.0, s * h.eyeX, h.eyeY, h.front + h.r * 0.1, 0.85)); }
     return g; },
-  // Abeer: a thick, shaggy black mop over the forehead and ears
-  mophair(h) { const g = new THREE.Group(), m = std(0x0c0908, { r: 0.85 });
-    g.add(mk(S(h.r * 1.14, 18, 12), m, 0, h.cy + h.r * 0.32, -h.r * 0.08, 0, 0, 0, 1.12, 0.92, 1.12));
-    for (let i = 0; i < 9; i++) { const a = -1.15 + i * 0.29; g.add(mk(S(h.r * 0.34, 8, 6), m, Math.sin(a) * h.r * 0.95, h.cy + h.r * (0.62 - Math.abs(a) * 0.3), Math.cos(a) * h.r * 0.86, 0.35, a, 0, 0.9, 1.05, 0.6)); }
-    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) g.add(mk(S(h.r * 0.38, 8, 6), m, s * h.r * 1.0, h.cy + h.r * (0.2 - k * 0.32), -h.r * 0.15 + k * h.r * 0.12, 0, 0, s * 0.3, 0.7, 1.2, 1));
-    g.add(mk(S(h.r * 1.0, 14, 10), m, 0, h.cy + h.r * 0.05, -h.r * 0.45, 0, 0, 0, 1.1, 1.05, 0.9)); return g; },
-  // Raghuvir: thick black hair with a heavy fringe, shorter at the sides
-  fringehair(h) { const g = new THREE.Group(), m = std(0x0c0908, { r: 0.8 });
-    g.add(mk(S(h.r * 1.1, 18, 12), m, 0, h.cy + h.r * 0.36, -h.r * 0.06, 0, 0, 0, 1.06, 0.82, 1.1));
-    for (let i = 0; i < 7; i++) { const a = -0.8 + i * 0.27; g.add(mk(S(h.r * 0.33, 8, 6), m, Math.sin(a) * h.r * 0.9, h.cy + h.r * (0.52 - Math.abs(a) * 0.12), Math.cos(a) * h.r * 0.84, 0.5, a, 0, 1, 1.0, 0.55)); }
-    for (const s of [-1, 1]) g.add(mk(S(h.r * 0.5, 10, 8), m, s * h.r * 0.92, h.cy + h.r * 0.15, -h.r * 0.2, 0, 0, 0, 0.45, 1, 1.1));
+  // Abeer: big, thick, shaggy black mop: volume on top, fringe to the eyebrows, over the ears, long at the nape
+  mophair(h) { const g = new THREE.Group(), m = std(0x0a0807, { r: 0.9 });
+    g.add(mk(S(h.r * 1.2, 18, 12), m, 0, h.cy + h.r * 0.42, -h.r * 0.1, 0, 0, 0, 1.15, 0.95, 1.12));
+    let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 16; i++) { const a = r() * 6.28, el = 0.3 + r() * 0.9; g.add(mk(S(h.r * (0.32 + r() * 0.18), 7, 5), m, Math.cos(a) * h.r * 0.95 * Math.cos(el - 0.4), h.cy + h.r * (0.55 + Math.sin(el) * 0.45), Math.sin(a) * h.r * 0.9 - h.r * 0.1, r(), r() * 3, r())); }
+    for (let i = 0; i < 9; i++) { const a = -1.0 + i * 0.25; g.add(mk(S(h.r * 0.3, 7, 5), m, Math.sin(a) * h.r * 0.92, h.cy + h.r * (0.66 - Math.abs(a) * 0.32), Math.cos(a) * h.r * 0.88, 0.5, a, 0, 0.85, 1.1, 0.55)); }
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.add(mk(S(h.r * 0.36, 7, 5), m, sx * h.r * 1.0, h.cy + h.r * (0.25 - k * 0.3), -h.r * 0.2 + k * h.r * 0.1, 0, 0, sx * 0.3, 0.7, 1.15, 1));
+    g.add(mk(S(h.r * 1.0, 14, 10), m, 0, h.cy - h.r * 0.05, -h.r * 0.5, 0, 0, 0, 1.15, 1.2, 0.85));
+    for (const sx of [-1, 1]) g.add(mk(B(h.r * 0.36, h.r * 0.07, h.r * 0.05), m, sx * h.eyeX * 1.05, h.eyeY + h.r * 0.2, h.front + h.r * 0.01, 0, 0, -sx * 0.12));
+    return g; },
+  // Raghuvir: thick black hair, voluminous on top, fringe swept to one side, short at the sides
+  fringehair(h) { const g = new THREE.Group(), m = std(0x0a0807, { r: 0.85 });
+    g.add(mk(S(h.r * 1.13, 18, 12), m, 0, h.cy + h.r * 0.45, -h.r * 0.08, 0, 0, 0, 1.08, 0.9, 1.12));
+    for (let i = 0; i < 8; i++) { const a = -0.9 + i * 0.24; g.add(mk(S(h.r * 0.34, 8, 6), m, Math.sin(a) * h.r * 0.88 + h.r * 0.08, h.cy + h.r * (0.6 - (a + 0.9) * 0.12), Math.cos(a) * h.r * 0.84, 0.55, a, -0.25, 1.05, 1.0, 0.55)); }
+    for (let i = 0; i < 6; i++) g.add(mk(S(h.r * 0.38, 8, 6), m, (i - 2.5) * h.r * 0.32, h.cy + h.r * 0.95, -h.r * 0.1 + (i % 2) * h.r * 0.2, 0.2, i, 0, 1, 0.75, 1));
+    for (const sx of [-1, 1]) g.add(mk(S(h.r * 0.5, 10, 8), m, sx * h.r * 0.93, h.cy + h.r * 0.15, -h.r * 0.2, 0, 0, 0, 0.42, 1, 1.1));
+    for (const sx of [-1, 1]) g.add(mk(B(h.r * 0.34, h.r * 0.07, h.r * 0.05), m, sx * h.eyeX * 1.05, h.eyeY + h.r * 0.22, h.front + h.r * 0.01, 0, 0, -sx * 0.08));
     return g; },
   // clear-framed glasses
   specs(h) { const g = new THREE.Group(), frame = std(0xd8d4cc, { r: 0.3, t: true, op: 0.75 }), lens = std(0xe8f0f4, { r: 0.05, m: 0.2, t: true, op: 0.18 });
-    for (const s of [-1, 1]) { g.add(mk(TO(h.r * 0.24, h.r * 0.025, Math.PI * 2, 18), frame, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.06, 0, 0, 0, 1.12, 0.85, 1)); g.add(mk(new THREE.CircleGeometry(h.r * 0.24, 16), lens, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.055, 0, 0, 0, 1.12, 0.85, 1));
+    for (const s of [-1, 1]) { g.add(mk(TO(h.r * 0.25, h.r * 0.035, Math.PI * 2, 4), frame, s * h.eyeX * 1.12, h.eyeY, h.front + h.r * 0.06, 0, 0, Math.PI / 4, 1.25, 0.95, 1)); g.add(mk(new THREE.CircleGeometry(h.r * 0.24, 16), lens, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.055, 0, 0, 0, 1.12, 0.85, 1));
       g.add(mk(B(h.r * 0.03, h.r * 0.03, h.r * 1.0), frame, s * h.r * 0.86, h.eyeY + h.r * 0.03, h.front - h.r * 0.45)); }
     g.add(mk(B(h.r * 0.16, h.r * 0.025, h.r * 0.025), frame, 0, h.eyeY + h.r * 0.04, h.front + h.r * 0.07)); return g; },
   hairnet(h) { return mk(S(h.r * 1.08, 18, 10, 0, 6.3, 0, 1.7), std(0xf0f0f0, { r: 0.9, t: true, op: 0.85 }), 0, h.cy + h.r * 0.15, -h.r * 0.03); },
@@ -232,20 +244,35 @@ const BODY = {
     g.add(mk(TO(b.w * 0.97, 0.02, Math.PI * 2, 24), std(0x2a1a10), 0, b.hip + 0.04, 0, Math.PI / 2, 0, 0, 1, b.d / b.w * 1.2, 1));
     for (let i = 0; i < 4; i++) { const a = -0.6 + i * 0.45, x = Math.sin(a) * b.w, z = Math.cos(a) * b.d; g.add(mk(C(0.006, 0.006, 0.18, 4), m, x, b.hip - 0.06, z)); g.add(mk(TO(0.045, 0.009, Math.PI * 1.4, 10), m, x, b.hip - 0.18, z, 0, a, 0.6)); }
     return g; },
-  protonpack(b) { const g = new THREE.Group(), dark = std(0x2a2c2e, { m: 0.5, r: 0.5 }), steel = std(0x9a9ca0, { m: 0.85, r: 0.3 }), z = b.back - 0.13;
-    g.add(mk(B(b.w * 1.25, 0.5, 0.2), dark, 0, b.cy - 0.02, z)); g.add(mk(B(b.w * 1.4, 0.06, 0.24), std(0x1a1a1a), 0, b.cy - 0.27, z));
-    g.add(mk(C(0.07, 0.07, 0.36, 12), steel, -b.w * 0.35, b.cy + 0.06, z - 0.1)); g.add(mk(C(0.09, 0.09, 0.08, 14), std(0x3a3a3a, { m: 0.6 }), b.w * 0.3, b.cy - 0.14, z - 0.11, Math.PI / 2));
-    const cyc = mk(C(0.05, 0.05, 0.03, 12), std(0x220000, { e: 0xff3010, ei: 2 }), b.w * 0.3, b.cy - 0.14, z - 0.16, Math.PI / 2); g.add(cyc);
-    for (let i = 0; i < 4; i++) g.add(mk(B(0.03, 0.02, 0.01), std(0x111111, { e: i % 2 ? 0xffa020 : 0x30ff40, ei: 1.5 }), -b.w * 0.05 + i * 0.045, b.cy + 0.16, z - 0.105));
-    g.add(mk(TO(0.12, 0.018, Math.PI, 10), std(0x1a1a1a, { r: 0.8 }), b.w * 0.75, b.cy - 0.1, (z + b.front) / 2, Math.PI / 2, 0, -Math.PI / 2));
-    g.add(glow(0xff3010, 0.18, b.w * 0.3, b.cy - 0.14, z - 0.19, 0.9));
-    for (const s of [-1, 1]) g.add(mk(B(0.05, 0.45, 0.02), std(0x2a2620), s * b.w * 0.5, b.cy + 0.1, b.front + 0.01));
+  protonpack(b) { const g = new THREE.Group(), dark = std(0x2a2c2e, { m: 0.45, r: 0.5 }), steel = std(0x9a9ca0, { m: 0.85, r: 0.3 }), web = std(0x1c1a16, { r: 0.85 });
+    const z = b.back - 0.075, w = b.w * 0.92;
+    // slim pack on an aluminium frame, hugging the back
+    g.add(mk(B(w, 0.44, 0.13), dark, 0, b.cy + 0.02, z)); g.add(mk(B(w * 1.05, 0.03, 0.15), steel, 0, b.cy - 0.21, z));
+    g.add(mk(C(0.045, 0.045, 0.3, 12), steel, -w * 0.3, b.cy + 0.06, z - 0.08)); g.add(mk(C(0.06, 0.06, 0.05, 14), std(0x3a3a3a, { m: 0.6 }), w * 0.28, b.cy - 0.1, z - 0.07, Math.PI / 2));
+    g.add(mk(C(0.035, 0.035, 0.02, 12), std(0x220000, { e: 0xff3010, ei: 2.2 }), w * 0.28, b.cy - 0.1, z - 0.1, Math.PI / 2)); g.add(glow(0xff3010, 0.14, w * 0.28, b.cy - 0.1, z - 0.12, 0.9));
+    for (let i = 0; i < 4; i++) g.add(mk(B(0.025, 0.018, 0.008), std(0x111111, { e: i % 2 ? 0xffa020 : 0x30ff40, ei: 1.6 }), -w * 0.05 + i * 0.035, b.cy + 0.15, z - 0.068));
+    // straps: over each shoulder and down the chest, a chest strap and a waist belt
+    for (const sx of [-1, 1]) {
+      const x = sx * b.w * 0.38;
+      g.add(mk(B(0.045, 0.012, b.front - b.back), web, x, b.top - 0.005, (b.front + b.back) / 2));
+      g.add(mk(B(0.045, b.top - b.cy + 0.12, 0.012), web, x, (b.top + b.cy - 0.12) / 2, b.front + 0.006));
+      g.add(mk(B(0.045, b.top - b.cy + 0.12, 0.012), web, x, (b.top + b.cy - 0.12) / 2, b.back - 0.006));
+    }
+    g.add(mk(B(b.w * 0.82, 0.03, 0.012), web, 0, b.cy + 0.12, b.front + 0.008));
+    g.add(mk(TO(b.w * 1.0, 0.018, Math.PI * 2, 28), web, 0, b.hip + 0.07, (b.front + b.back) / 2, Math.PI / 2, 0, 0, 1, b.d / b.w * 1.15, 1));
+    g.add(mk(TO(0.08, 0.012, Math.PI, 10), std(0x1a1a1a, { r: 0.8 }), w * 0.55, b.cy - 0.12, (z + b.front) / 2, Math.PI / 2, 0, -Math.PI / 2));
+    return g; },
+  // name badge on the chest, ghost-logo patch on the left shoulder
+  nametag(b) { const g = new THREE.Group();
+    g.add(mk(B(0.1, 0.035, 0.008), std(0xe8e0d0, { r: 0.6 }), -b.w * 0.42, b.cy + 0.16, b.front + 0.012));
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(0.065, 24), new THREE.MeshStandardMaterial({ map: LOGO(), roughness: 0.6 }));
+    logo.position.set(b.w * 0.42, b.cy + 0.15, b.front + 0.014); g.add(logo);
+    const arm = logo.clone(); arm.position.set(b.w * 0.98, b.top - 0.1, 0.02); arm.rotation.y = Math.PI / 2; arm.scale.setScalar(0.85); g.add(arm);
     return g; },
   stripe(b, o) { const g = new THREE.Group(); g.add(mk(B(0.07, b.top - 0.12, 0.01), std(o.color ?? 0xc01e1e, { r: 0.7 }), -0.05, b.cy + 0.02, b.front + 0.03)); g.add(mk(TO(b.w * 0.5, 0.05, Math.PI * 2, 16), std(0x14182a, { r: 0.9 }), 0, b.neck - 0.03, -0.01, Math.PI / 2)); return g; },
   puffer(b, o) { const g = new THREE.Group(), m = std(o.color ?? 0xb8a48a, { r: 0.75 });
     for (let i = 0; i < 4; i++) g.add(mk(TO(b.w * 0.86, 0.02, Math.PI * 2, 24), m, 0, b.cy - 0.15 + i * 0.1, (b.front + b.back) / 2, Math.PI / 2, 0, 0, 1, b.d / b.w * 1.15, 1));
     g.add(mk(TO(b.w * 0.55, 0.06, Math.PI * 2, 16), std(0x111111, { r: 0.6 }), 0, b.neck - 0.04, -0.02, Math.PI / 2)); g.add(mk(B(0.02, b.top - 0.1, 0.01), std(0x111111), 0, b.cy, b.front + 0.04)); return g; },
-  nametag(b) { const g = new THREE.Group(); g.add(mk(B(0.1, 0.035, 0.01), std(0xe8e0d0, { r: 0.6 }), b.w * 0.45, b.cy + 0.13, b.front + 0.012)); g.add(mk(B(0.07, 0.07, 0.01), std(0xc02020, { r: 0.5 }), -b.w * 0.55, b.cy + 0.12, b.front + 0.012)); return g; },
   axe(b) { const g = new THREE.Group();
     g.add(mk(C(0.018, 0.022, 0.75, 8), std(0x6a3a1a, { r: 0.8 }), 0.05, b.cy + 0.05, b.back - 0.08, 0, 0, 0.5)); g.add(mk(B(0.03, 0.14, 0.18), std(0xa01a10, { m: 0.5, r: 0.4 }), 0.05 - Math.sin(0.5) * 0.36, b.cy + 0.05 + Math.cos(0.5) * 0.36, b.back - 0.08, 0, 0, 0.5)); return g; },
 };
