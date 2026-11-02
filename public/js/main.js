@@ -320,7 +320,7 @@ function charactersHTML() {
     const act = locked ? `<button class="btn primary" data-tab="chapters">Get the ${esc(CHAPTERS.find(c => c.killer === storeChar).name)} chapter</button>`
       : eq ? '<span class="of-p eq" style="font-size:16px">Equipped</span>' : own ? `<button class="btn primary" data-eq="${sel.id}">Equip</button>`
       : `<span class="ch-price">${price(sel.price)}</span><button class="btn primary" data-buy="${sel.id}">Buy</button>`;
-    detail = `<div class="cs-detail ${r}"><div class="rk">${r === 'base' ? 'Default outfit' : r}</div><h3>${esc(sel.name)}</h3><p>${esc(charName(storeChar))}</p><div class="row">${act}</div></div>`;
+    detail = `<div class="cs-detail ${r}"><div class="rk">${r === 'base' ? 'Default outfit' : r}</div><h3>${esc(sel.name)}</h3><p>${esc(charName(storeChar))}${sel.desc ? ` · ${esc(sel.desc)}` : ''}</p><div class="row">${act}</div></div>`;
   }
   return `<div class="cs-wrap"><div class="cs-roles"><button data-role="survivor" class="${storeRole === 'survivor' ? 'on' : ''}">Survivors</button><button data-role="killer" class="${storeRole === 'killer' ? 'on' : ''}">Killers</button></div>
     <div class="cs-grid">${grid}</div>

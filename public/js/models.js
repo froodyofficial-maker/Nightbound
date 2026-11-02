@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { tex } from './textures.js';
 import { makeForemanGlb, animateGlb } from './foremanGlb.js';
+import { applySkinFx } from './skinfx.js';
 
 // ---------- aura material ----------
 const auraMats = new Map();
@@ -251,11 +252,12 @@ export function makeSurvivor(def, sk = {}) {
     light: group([part('spine', 0.04, 0.32, -0.108, 0.05, 0.12, 0.02, 0.3), part('spine', 0.158, 0.16, 0.02, 0.02, 0.09, 0.06), part('shL', 0.03, -0.16, 0.035, 0.03, 0.07, 0.03), part('spine', -0.06, 0.12, -0.1, 0.07, 0.05, 0.02, -0.4)]),
     heavy: group([part('spine', 0.02, 0.22, 0.106, 0.09, 0.14, 0.02, 0.2), part('lgR', 0.02, -0.22, 0.066, 0.035, 0.13, 0.025), part('handL', 0, -0.05, 0.01, 0.045, 0.055, 0.03), part('head', 0.05, 0.16, 0.08, 0.025, 0.05, 0.02, -0.5), part('kn' + 'L', 0.0, -0.12, 0.05, 0.03, 0.1, 0.02)]),
   };
+  applySkinFx(R, sk);
   return R;
 }
 
 export function makeKiller(id, sk = {}) {
-  if (id === 'foreman') { const g = makeForemanGlb(sk, DETAIL.lite); if (g) return g; }
+  if (id === 'foreman') { const g = makeForemanGlb(sk, DETAIL.lite); if (g) { applySkinFx(g, sk); return g; } }
   const R = new Rig();
   if (id === 'foreman') {
     // The Foreman (OFFAL crossover): tall, starved, ribs showing, mask of bone, a jaw full of teeth, hook and blade
@@ -376,13 +378,16 @@ export function makeKiller(id, sk = {}) {
     R.hunch = 0.25;
   }
   R.kind = 'killer'; R.killer = id;
-  return R.finalize();
+  R.finalize();
+  applySkinFx(R, sk);
+  return R;
 }
 
 // ---------- animation ----------
 const lerp = (a, b, k) => a + (b - a) * k;
 // s: { anim, speed, crouch, injured, t, atk, vaultF, ... }
 export function animate(R, s, dt) {
+  if (R.fxTick) R.fxTick(dt, (R.t || 0) + dt);
   if (R.glb) return animateGlb(R, s, dt);
   R.t += dt;
   const t = R.t;

@@ -130,57 +130,57 @@ export const DIFFICULTY = {
 export const SKINS = {
   mara: [
     { id: 'default', name: 'Field Jacket', price: 0 },
-    { id: 'nightshift', name: 'Night Shift', price: 1500, shirt: 0x2a2e38, pants: 0x15171c, hair: 0x0e0b0a },
-    { id: 'crimson', name: 'Crimson Hood', price: 2500, shirt: 0x6a0d10, pants: 0x222222, hood: true },
-    { id: 'medic', name: 'Trauma Medic', price: 4000, shirt: 0xd8d4c8, pants: 0x2a3a4a, vest: 0x2a5a8a },
+    { id: 'nightshift', name: 'Night Shift', price: 1500, shirt: 0x2a2e38, pants: 0x15171c, hair: 0x0e0b0a, desc: 'Ball cap, head torch and a scarf against the cold.', fx: [['cap', { color: 0x1a1e26 }], 'headlamp', ['scarf', { color: 0x4a1a1a }]] },
+    { id: 'crimson', name: 'Crimson Hood', price: 2500, shirt: 0x6a0d10, pants: 0x222222, desc: 'A blood-red riding cloak, hood up. Not all of the red is dye.', fx: [['hood', { color: 0x6a0a0c }], ['cloak', { color: 0x6a0a0c, flare: 1.8 }], 'blood'] },
+    { id: 'medic', name: 'Trauma Medic', price: 4000, shirt: 0xd8d4c8, pants: 0x2a3a4a, desc: 'Gas mask, plate carrier and a field medic pack. Ready for anything.', fx: [['gasmask', { color: 0x2a2e2a }], ['armor', { color: 0x3a4a3a, patch: 0xd02020 }], ['backpack', { color: 0xd8d4c8, cross: true }]] },
   ],
   eli: [
     { id: 'default', name: 'Hoodie', price: 0 },
-    { id: 'overalls', name: 'Grease Monkey', price: 1500, shirt: 0x2f4a6a, pants: 0x2f4a6a, beanie: 0x8a2a1a },
-    { id: 'hazard', name: 'Hazard Crew', price: 2500, shirt: 0x3a3a3a, pants: 0x2a2a2a, vest: 0xe0a020 },
-    { id: 'midnight', name: 'Midnight Run', price: 4000, shirt: 0x14141c, pants: 0x14141c, hood: true, glasses: true },
+    { id: 'overalls', name: 'Grease Monkey', price: 1500, shirt: 0x2f4a6a, pants: 0x2f4a6a, desc: 'Beanie, welding goggles and a belt full of tools.', fx: [['beanie', { color: 0x8a2a1a }], ['goggles', { color: 0x3a8a9a }], 'toolbelt'] },
+    { id: 'hazard', name: 'Hazard Crew', price: 2500, shirt: 0x3a3a3a, pants: 0x2a2a2a, desc: 'Hard hat with a lamp, respirator and a hi-vis vest.', fx: [['hardhat', { color: 0xe0b020, lamp: true }], ['respirator', { filter: 0xd06020 }], ['hivis', { color: 0xf0a020 }]] },
+    { id: 'midnight', name: 'Midnight Run', price: 4000, shirt: 0x14141c, pants: 0x14141c, desc: 'Hood up, hockey mask down, eyes that catch the light.', fx: [['hood', { color: 0x14141c }], ['hockey', { color: 0xe8e4d8, chevron: 0xc01a1a }], ['eyes', { color: 0x6affff }]] },
   ],
   june: [
     { id: 'default', name: 'Knit Sweater', price: 0 },
-    { id: 'autumn', name: 'Autumn Coat', price: 1500, shirt: 0x8a4a20, pants: 0x2a2018 },
-    { id: 'ghost', name: 'Ghost Story', price: 2500, shirt: 0xdedad2, pants: 0x3a3a40, hair: 0xe8e0c8, glasses: true },
-    { id: 'reporter', name: 'Field Reporter', price: 4000, shirt: 0x4a5a3a, pants: 0x1c1c18, beanie: 0x3a3a3a },
+    { id: 'autumn', name: 'Autumn Coat', price: 1500, shirt: 0x8a4a20, pants: 0x2a2018, desc: 'Long wool coat, beanie and her camera.', fx: [['coat', { color: 0x6a3a1a }], ['beanie', { color: 0xa06030 }], 'camera'] },
+    { id: 'ghost', name: 'Ghost Story', price: 2500, shirt: 0xdedad2, pants: 0x3a3a40, hair: 0xe8e0c8, desc: 'She went into the lake to get the photo. Something came back out.', fx: [['ghost', { color: 0xa8d8ff, op: 0.55 }], ['veil', { color: 0xdfe8ff, op: 0.4, len: 7, wide: 2.4 }], ['eyes', { color: 0x9ae0ff }]] },
+    { id: 'reporter', name: 'Field Reporter', price: 4000, shirt: 0x4a5a3a, pants: 0x1c1c18, desc: 'Press vest, head torch, camera and a pack full of tapes.', fx: [['armor', { color: 0x3a4a6a, patch: 0xe8e8e8 }], 'headlamp', 'camera', ['backpack', { color: 0x3a3a2a, radio: true }]] },
   ],
   tomas: [
     { id: 'default', name: 'Ranger', price: 0 },
-    { id: 'camo', name: 'Woodland Camo', price: 1500, shirt: 0x3a4a2a, pants: 0x2a3020 },
-    { id: 'firewatch', name: 'Firewatch', price: 2500, shirt: 0xb04020, pants: 0x2a2018, beanie: 0x1a1a1a },
-    { id: 'searchlight', name: 'Search & Rescue', price: 4000, shirt: 0xd86a10, pants: 0x1a1a22, vest: 0xd8d020 },
+    { id: 'camo', name: 'Woodland Camo', price: 1500, shirt: 0x3a4a2a, pants: 0x2a3020, desc: 'Boonie hat, ghillie strips and a heavy pack.', fx: [['boonie', { color: 0x4a5236 }], ['moss', { color: 0x4a5a2a, glow: 0x000000 }], ['backpack', { color: 0x3a4228 }]] },
+    { id: 'firewatch', name: 'Firewatch', price: 2500, shirt: 0xb04020, pants: 0x2a2018, desc: 'Red helmet, smoke goggles and a fire axe across his back.', fx: [['hardhat', { color: 0xb02010 }], ['goggles', { color: 0xd08020, down: true }], 'axe', ['scarf', { color: 0xd8c8a0 }]] },
+    { id: 'searchlight', name: 'Search & Rescue', price: 4000, shirt: 0xd86a10, pants: 0x1a1a22, desc: 'Helmet lamp, hi-vis vest and a radio pack with a blinking beacon.', fx: [['hardhat', { color: 0xf0f0f0, lamp: true }], ['hivis', { color: 0xe8e020 }], ['backpack', { color: 0xc04010, radio: true }]] },
   ],
   butcher: [
     { id: 'default', name: 'Slaughterhouse', price: 0 },
-    { id: 'freshcut', name: 'Fresh Cut', price: 2000, apron: 0xd8d0c8 },
-    { id: 'hogmask', name: 'Hog Mask', price: 3500, mask: 0xd89a9a, apron: 0x6a4a3a },
-    { id: 'pale', name: 'Pale Rider', price: 6000, skin: 0x9aa0a4, mask: 0x3a3a3a, apron: 0x1a1a1a },
+    { id: 'freshcut', name: 'Fresh Cut', price: 2000, apron: 0xd8d0c8, desc: 'Clean whites, a hairnet and a polished cleaver. For about a minute.', fx: [['coat', { color: 0xe8e4dc }], 'hairnet', ['cleaver', { blood: true }], 'blood'] },
+    { id: 'hogmask', name: 'Hog Mask', price: 3500, apron: 0x6a4a3a, desc: 'A real pig\'s head, stitched shut, and a belt of meat hooks.', fx: ['pighead', 'hooks', ['chains', { color: 0x5a5a58 }]] },
+    { id: 'pale', name: 'Pale Rider', price: 6000, skin: 0x9aa0a4, mask: 0x3a3a3a, apron: 0x1a1a1a, desc: 'Skull, horns, a tattered black cloak and a scythe. Cold blue eyes.', fx: [['skull', { color: 0xd8d0c0 }], ['horns', { color: 0x141210 }], ['cloak', { color: 0x0a0a0c, tatter: true, flare: 2.4 }], ['eyes', { color: 0x6ac8ff }], ['scythe', { glow: 0x2a6aff }]], scale: 1.06 },
   ],
   wisp: [
     { id: 'default', name: 'Drowned Bride', price: 0 },
-    { id: 'mourning', name: 'Mourning Veil', price: 2000, dress: 0x16161a, eye: 0xff4030 },
-    { id: 'lakemoss', name: 'Lake Moss', price: 3500, dress: 0x4a6a4a, eye: 0xb0ff60 },
-    { id: 'bloodmoon', name: 'Blood Moon', price: 6000, dress: 0x6a0a0a, eye: 0xffd040 },
+    { id: 'mourning', name: 'Mourning Veil', price: 2000, dress: 0x16161a, eye: 0xff4030, desc: 'A black veil to the floor and a crown of burning candles.', fx: [['veil', { color: 0x08080a, op: 0.85, len: 10, wide: 3.4 }], ['candles', { color: 0xffa040 }], ['claws', { both: true }]] },
+    { id: 'lakemoss', name: 'Lake Moss', price: 3500, dress: 0x4a6a4a, eye: 0xb0ff60, desc: 'Weed and algae from the lake bed, glowing faintly green.', fx: [['tint', { color: 0x4a7a4a, k: 0.45, e: 0x0a3a14, ei: 0.6 }], ['moss', { color: 0x3a6a2a, glow: 0x1a5a14 }], ['eyes', { color: 0xb0ff60 }]] },
+    { id: 'bloodmoon', name: 'Blood Moon', price: 6000, dress: 0x6a0a0a, eye: 0xffd040, desc: 'A crimson moon rises behind her. Long black claws.', fx: [['halo', { color: 0xff2a10 }], ['claws', { both: true, color: 0x0a0202 }], 'blood', ['eyes', { color: 0xffd040 }]] },
   ],
   harrower: [
     { id: 'default', name: 'Bone Hunter', price: 0 },
-    { id: 'charred', name: 'Charred', price: 2000, bone: 0x2a2420, eye: 0xff8a20 },
-    { id: 'winter', name: 'Winter Pelt', price: 3500, fur: 0xd8d4cc, bone: 0xeeeae0, eye: 0x60c0ff },
-    { id: 'gilded', name: 'Gilded Trophy', price: 6000, bone: 0xc8a050, fur: 0x1a1210, eye: 0xffe080 },
+    { id: 'charred', name: 'Charred', price: 2000, bone: 0x2a2420, eye: 0xff8a20, desc: 'Burnt to the bone. Embers still glow through the cracks.', fx: [['embers', { color: 0xff5a10 }], ['eyes', { color: 0xff8a20 }]] },
+    { id: 'winter', name: 'Winter Pelt', price: 3500, fur: 0xd8d4cc, bone: 0xeeeae0, eye: 0x60c0ff, desc: 'Frozen solid, crowned with antlers of clear ice, shoulders spiked with frost.', fx: ['frost', ['antlers', { ice: true, size: 1.6 }], ['spikes', { color: 0xbfe8ff }], ['eyes', { color: 0x60c0ff }]] },
+    { id: 'gilded', name: 'Gilded Trophy', price: 6000, bone: 0xc8a050, fur: 0x1a1210, eye: 0xffe080, desc: 'Gold bones, a gold crown, gold chains and a gold spear.', fx: [['metal', { match: 0xc8a050 }], ['crown', { color: 0xd8b040, gem: 0xff2020 }], ['chains', { color: 0xd8b040, cross: true }], ['spear', { color: 0xd8b040 }]] },
   ],
   lamplighter: [
     { id: 'default', name: 'Lamplighter', price: 0 },
-    { id: 'ember', name: 'Ember Lamp', price: 2000, lamp: 0xff8a3a },
-    { id: 'bloodlamp', name: 'Blood Lamp', price: 3500, lamp: 0xff2a2a, coat: 0x2a0a0a },
-    { id: 'spectral', name: 'Spectral', price: 6000, lamp: 0x8ad0ff, coat: 0x1a2030 },
+    { id: 'ember', name: 'Ember Lamp', price: 2000, lamp: 0xff8a3a, desc: 'His coat smoulders. A second lantern burns in his other hand.', fx: [['embers', { color: 0xff7a20 }], ['lamp', { color: 0xff8a3a }]] },
+    { id: 'bloodlamp', name: 'Blood Lamp', price: 3500, lamp: 0xff2a2a, coat: 0x2a0a0a, desc: 'A skull for a face, a blood-red cloak and lamps that bleed light.', fx: [['skull', { color: 0xe0d0c0 }], ['cloak', { color: 0x5a0808, flare: 2.0 }], ['lamp', { color: 0xff2020 }], ['eyes', { color: 0xff2a2a }]] },
+    { id: 'spectral', name: 'Spectral', price: 6000, lamp: 0x8ad0ff, coat: 0x1a2030, desc: 'Half here, half somewhere else: a translucent, glowing shade.', fx: [['ghost', { color: 0x8ad0ff, op: 0.45 }], ['halo', { color: 0x6ac8ff }], ['eyes', { color: 0x9ae0ff }]] },
   ],
   foreman: [
     { id: 'default', name: 'Night Shift', price: 0 },
-    { id: 'overtime', name: 'Overtime', price: 2000, flesh: 0x9a8a88, apron: 0x2a1a14, blood: 0x6a0a06 },
-    { id: 'quota', name: 'Quota Met', price: 3500, bone: 0xc8a050, eye: 0xff3a20 },
-    { id: 'reassigned', name: 'Reassigned', price: 6000, flesh: 0x7a8a8a, bone: 0x2a2a2a, eye: 0x7affd0, apron: 0x101418 },
+    { id: 'overtime', name: 'Overtime', price: 2000, flesh: 0x9a8a88, apron: 0x2a1a14, blood: 0x6a0a06, desc: 'Hard hat and a hi-vis vest over the apron. Safety first.', fx: [['hardhat', { color: 0xe0b020, lamp: true }], ['hivis', { color: 0xf09020 }]] },
+    { id: 'quota', name: 'Quota Met', price: 3500, bone: 0xc8a050, eye: 0xff3a20, desc: 'Employee of the month: a gold mask, a gold hook and gold chains.', fx: [['metal', { names: ['Foreman_8', 'Foreman_14'], color: 0xd8b040 }], ['chains', { color: 0xd8b040, cross: true }], ['crown', { color: 0xd8b040 }]] },
+    { id: 'reassigned', name: 'Reassigned', price: 6000, flesh: 0x7a8a8a, bone: 0x2a2a2a, eye: 0x7affd0, apron: 0x101418, desc: 'Moved to the cold store, and never came back out. A gas-masked teal ghost in chains.', fx: [['ghost', { color: 0x7affd0, op: 0.55 }], ['gasmask', { color: 0x1a1c1e, eye: 0x7affd0, filter: 0x2a2a2a }], ['chains', { color: 0x4a4a4a }]] },
   ],
 };
 // ---------------- Store: chapters (DLC) ----------------
@@ -199,8 +199,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.5.1';
+export const VERSION = '2.6.0';
 export const INBOX = [
+  {
+    id: 'v2.6', version: '2.6.0', date: 'Nov 2026', title: 'Outfits That Actually Change You', tag: 'Update',
+    gift: { embers: 1000, label: 'Update gift: 1,000 Embers' },
+    body: [
+      'Every outfit now transforms its character instead of just recolouring it: masks, helmets, hoods, veils, crowns, horns and antlers; cloaks, coats, armour, hi-vis vests, chains and packs; new weapons; and full-body effects.',
+      'Highlights: the Pale Rider Butcher (skull, horns, tattered cloak, scythe), the Charred Harrower (embers glowing through cracks), Winter Pelt (ice antlers), Spectral Lamplighter and Ghost Story June (translucent ghosts), Blood Moon Wisp (a crimson halo), Reassigned Foreman (a teal ghost in a gas mask).',
+      'Every outfit has a description in the Store, and the portraits show the whole look.',
+    ],
+  },
   {
     id: 'v2.5.1', version: '2.5.1', date: 'Nov 2026', title: 'The Meatworks, Remastered', tag: 'Update',
     gift: { embers: 500, label: 'Update gift: 500 Embers' },

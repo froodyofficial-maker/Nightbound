@@ -64,7 +64,7 @@ Pick the map (or Random) in the bot-match setup or the online lobby. Every map i
 
 - **Store** (DbD-style, full screen), paid in **Embers**, which you earn by playing matches:
   - **Chapters**: *OFFAL × Nightbound* unlocks playing as The Foreman (5,000 Embers). The base-game chapters are owned by everyone. Anyone can play the Meatworks map and face the Foreman as a bot.
-  - **Characters**: a portrait grid of every character, outfit tiles by rarity, and a live 3D preview.
+  - **Characters**: a portrait grid of every character, outfit tiles by rarity, and a live 3D preview. Outfits transform the character: masks, headgear, cloaks, armour, weapons and effects such as embers, ghosts, frost or gold.
   - **Collections**: every outfit for one character at 25% off.
 - **Inbox** (envelope icon, top right): the changes in every version, plus claimable Ember gifts.
 

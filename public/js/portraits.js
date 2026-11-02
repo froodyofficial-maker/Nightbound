@@ -54,6 +54,8 @@ export function art(kind, char, skin = 'default', w = 256, h = 256) {
       // aim left of the character so it stands right of centre, leaving room for the title
       cam.position.set(-1.05, H * 0.5, 2.5 + H * 0.38);
       cam.lookAt(-1.05, H * 0.52, 0);
+    } else if (kind === 'full') {
+      cam.position.set(0.6, H * 0.55, H * 2.3); cam.lookAt(0, H * 0.5, 0);
     } else {
       // killers: head to waist so outfits (apron, arms, weapon) read; survivors: head and shoulders
       const top = H * (isK ? 0.9 : 0.95);
