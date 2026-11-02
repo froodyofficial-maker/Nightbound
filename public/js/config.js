@@ -33,6 +33,7 @@ export const RULES = {
   terror: 32,
   stunBarricade: 2.0,
   execTime: 4.2,
+  flashBattery: 12, flashRange: 9, flashTime: 1.0, flashStun: 1.6, blindTime: 2.4, blindImmune: 12, // survivor flashlights
   teleTime: 1.2, teleCd: 18, lanternRadius: 9, snuffTime: 2.5,           // length of a killer's execution finisher
 };
 
@@ -110,7 +111,7 @@ export const KILLER_PERKS = {
   rust:       { name: 'Rusted Locks',  icon: '⛓', desc: 'Cage timers run 20% faster and rescuing a survivor takes twice as long.' },
   sentry:     { name: 'Sentry',        icon: '◎', desc: 'When a generator is completed, the survivors who finished it are revealed for 6 seconds.' },
   fury:       { name: 'Endgame Fury',  icon: '♨', desc: 'Once the exit gates are powered, gain +8% movement speed.' },
-  warrant:    { name: 'Death Warrant', icon: '✠', desc: 'You may execute ANY downed survivor (F), not only those who have already been caged twice.' },
+  irongrip:   { name: 'Iron Grip',     icon: '✠', desc: 'Survivors you carry struggle free 30% slower.' },
   stalker:    { name: 'Stalker',       icon: '◐', desc: 'Terror radius -14m. Your lunge reaches 20% farther.' },
 };
 
@@ -185,8 +186,19 @@ export const SKINS = {
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.3.0';
+export const VERSION = '2.4.0';
 export const INBOX = [
+  {
+    id: 'v2.4', version: '2.4.0', date: 'Nov 2026', title: 'Flashlights & Smooth Online', tag: 'Update',
+    gift: { embers: 2000, label: 'Update gift: 2,000 Embers' },
+    body: [
+      'Flashlights: every survivor carries one. Hold RMB and keep the beam on the killer\'s face to blind and stun him, and free a friend he is carrying. 12s of battery, and he is immune for a while after a blind.',
+      'Online play rebuilt: other players now move smoothly instead of stuttering, snapshots are 4x smaller (much kinder to the relays), lag spikes no longer desync your position, and killer hits are lag-compensated.',
+      'Died with bots still in the match? Press T to take over a bot survivor and keep playing, offline or online.',
+      'The Foreman now uses his real rigged model, with his own idle, walk, stalk, run, attack, grab and stun animations.',
+      'Death Warrant removed: no more executing survivors on their first down. It is replaced by Iron Grip (carried survivors struggle free 30% slower).',
+    ],
+  },
   {
     id: 'v2.3', version: '2.3.0', date: 'Nov 2026', title: 'Chains, Blood & a Steady Camera', tag: 'Update',
     gift: { embers: 1500, label: 'Update gift: 1,500 Embers' },

@@ -133,6 +133,7 @@ export class MenuScene {
     });
   }
   setKiller(char, skin = 'default') {
+    this.killerChar = char; this.killerSkin = skin;
     if (this.killerRig) this.scene.remove(this.killerRig.root);
     if (this.lanternLight) { this.scene.remove(this.lanternLight); this.lanternLight = null; }
     const rig = makeKiller(char, skinOf(char, skin));

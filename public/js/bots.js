@@ -42,10 +42,34 @@ export class Bots {
   update(dt) {
     const S = this.sim.S;
     if (S.phase !== 'play') return;
+    // a bot killer with a torch in his eyes turns his face away (more often on higher difficulty)
+    const K = killerOf(S);
+    if (K && K.bot && K.glare > 0.35 && !K.atk) {
+      const b = this.brain(K);
+      if (b.lookAway == null) b.lookAway = Math.random() < this.sim.diff.react * -0.6 + 0.75 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+      if (b.lookAway) K.yaw += b.lookAway * dt * 4;
+    } else if (K && K.bot && K.glare <= 0) this.brain(K).lookAway = null;
     for (const p of S.players) {
       if (!p.bot) continue;
-      if (p.role === 'killer') this.killer(p, dt); else this.survivor(p, dt);
+      if (p.role === 'killer') this.killer(p, dt); else { this.survivor(p, dt); this.flashBot(p, dt); }
     }
+  }
+
+  // flashlight saves: blind the killer when he carries or picks up a teammate (sometimes mid-chase)
+  flashBot(p, dt) {
+    const sim = this.sim, S = sim.S, K = killerOf(S), b = this.brain(p);
+    let want = false;
+    if (K && p.st === 'ok' && !p.act && !p.vault && p.flash > 0 && K.blindImm <= 0 && K.stun <= 0) {
+      const d = dist(p, K), kf = fwd(K.yaw);
+      const facing = d > 0.01 ? -((K.x - p.x) * kf.x + (K.z - p.z) * kf.z) / d : 0;
+      const save = K.carry != null || (K.act && K.act.k === 'pickup');
+      if (d > 12) b.flashRoll = undefined;
+      b.flashRoll ??= Math.random(); // one decision per encounter: does this bot try to blind him head-on?
+      const bold = b.flashRoll < sim.diff.skill - 0.86 && d < 5 && facing > 0.75;
+      want = d > 1.2 && d < 7.5 && facing > 0.3 && (save || bold) && !losBlocked(sim.M, p.x, p.z, K.x, K.z, 1.2);
+      if (want) p.yaw = Math.atan2(K.x - p.x, K.z - p.z) + (Math.random() - 0.5) * (1 - sim.diff.aim) * 0.25;
+    }
+    if (want !== !!p.flashOn) sim.onMsg(p.id, { t: 'in', e: !!b.e, aim: false, flash: want });
   }
 
   setE(p, b, on) {

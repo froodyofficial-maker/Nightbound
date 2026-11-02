@@ -34,6 +34,7 @@ export class Sim {
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
+        flash: r.role === 'survivor' ? RULES.flashBattery : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
       });
     }
@@ -57,7 +58,12 @@ export class Sim {
         if (p.role === 'survivor' && p.st !== 'ok' && p.st !== 'down') return;
         if (p.act || p.stun > 0) { p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); return; }
         const nx = num(m.x, p.x), nz = num(m.z, p.z);
-        if (Math.hypot(nx - p.x, nz - p.z) < 6) { p.x = nx; p.z = nz; }
+        // accept anything the player could have covered since their last update (lag spikes
+        // included); otherwise pull them back to where the host has them instead of desyncing
+        const since = Math.min(2, S.t - (p.posT ?? S.t)) + 0.25;
+        if (Math.hypot(nx - p.x, nz - p.z) <= 2 + since * 9) { p.x = nx; p.z = nz; }
+        else p.tp++;
+        p.posT = S.t;
         p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); p.mv = m.mv | 0; p.cr = m.cr ? 1 : 0;
         p.vault = m.v ? { remote: true } : null;
         break;
@@ -66,6 +72,7 @@ export class Sim {
         const inp = this.inputs.get(id);
         inp.e = !!m.e;
         if (!inp.e) inp.latch = false;
+        if ('flash' in m && p.role === 'survivor') p.flashOn = !!m.flash && p.flash > 0 && p.st === 'ok' && !p.act && !p.vault;
         if (p.role === 'killer' && p.char === 'foreman') p.aim = !!m.aim && p.abCd <= 0 && !p.pull && p.carry == null && !p.act && p.stun <= 0;
         if (p.role === 'killer' && p.char === 'harrower') p.aim = !!m.aim && p.abCd <= 0 && p.ammo > 0 && p.carry == null && !p.act && p.stun <= 0;
         break;
@@ -108,6 +115,19 @@ export class Sim {
         }
         break;
       }
+      case 'takeover': {
+        // a fallen survivor steps into a bot's body and plays on
+        if (p.role !== 'survivor' || p.st !== 'dead' || p.bot) return;
+        const b = this.P(m.id);
+        if (!b || !b.bot || b.role !== 'survivor' || !['ok', 'down', 'carried', 'caged'].includes(b.st)) return;
+        const was = b.name.replace(/ \(bot\)$/, '');
+        b.bot = false; b.name = p.name;
+        for (const k in p.score) { b.score[k] = (b.score[k] || 0) + p.score[k]; p.score[k] = 0; }
+        const inp = this.inputs.get(b.id); if (inp) { inp.e = false; inp.latch = false; }
+        b.tp++;
+        this.ev({ k: 'takeover', from: p.id, to: b.id, name: p.name, was });
+        break;
+      }
       case 'attack': {
         if (p.role !== 'killer' || p.atk || p.stun > 0 || p.carry != null || p.act || p.vault) return;
         if (p.char === 'wisp' && p.ab !== 0) return;
@@ -115,6 +135,8 @@ export class Sim {
         if (p.tele) return;
         p.atkAmbush = p.char === 'wisp' && p.ambush > 0;
         p.atk = 1; p.atkT = RULES.lungeTime * (has(p, 'stalker') ? 1.2 : 1) * (p.atkAmbush ? 1.4 : 1); p.atkHit = false;
+        // lag compensation: an online killer swung at survivors as they appeared on their screen
+        this.rewind = typeof m.rt === 'number' && isFinite(m.rt) ? Math.max(0, Math.min(0.4, this.S.t - m.rt)) : 0;
         this.ev({ k: 'swing', id: p.id });
         break;
       }
@@ -185,7 +207,7 @@ export class Sim {
       }
       case 'wig': {
         if (p.st !== 'carried') return;
-        p.wig += RULES.wiggleRate * (has(p, 'resolve') ? 1.4 : 1);
+        p.wig += RULES.wiggleRate * (has(p, 'resolve') ? 1.4 : 1) * (has(this.P(p.carriedBy) || {}, 'irongrip') ? 0.7 : 1);
         if (p.wig >= RULES.wiggleNeed) {
           const k = this.P(p.carriedBy);
           if (k) this.releaseCarry(k, true);
@@ -296,6 +318,13 @@ export class Sim {
     if (S.phase !== 'play') return;
     S.t += dt;
     const K = killerOf(S);
+    // short position history of every survivor, for lag-compensated hits
+    this.hist ||= new Map();
+    for (const p of S.players) if (p.role === 'survivor') {
+      let h = this.hist.get(p.id); if (!h) this.hist.set(p.id, h = []);
+      h.push({ t: S.t, x: p.x, z: p.z });
+      while (h.length && h[0].t < S.t - 0.6) h.shift();
+    }
 
     for (const p of S.players) {
       p.boost = Math.max(0, p.boost - dt);
@@ -309,6 +338,9 @@ export class Sim {
       if (p.char === 'butcher' && p.role === 'killer' && p.charges < KILLERS.butcher.ability.charges) { p.chargeT += dt; if (p.chargeT >= KILLERS.butcher.ability.cooldown) { p.chargeT = 0; p.charges++; } }
       if (p.char === 'harrower' && p.role === 'killer' && p.ammo < KILLERS.harrower.ability.ammo) { p.ammoT += dt; if (p.ammoT >= KILLERS.harrower.ability.reload) { p.ammoT = 0; p.ammo++; } }
     }
+
+    // ---- flashlights ----
+    if (K) this.updateFlashlights(K, dt);
 
     // ---- killer attack / abilities ----
     if (K) this.updateKiller(K, dt);
@@ -384,6 +416,48 @@ export class Sim {
     if (alive.length === 0) this.endMatch();
   }
 
+  // survivors shine their torch in the killer's eyes: hold the beam on his face to blind and stun him
+  updateFlashlights(K, dt) {
+    const S = this.S, M = this.M;
+    let lit = null;
+    for (const s of S.players) {
+      if (s.role !== 'survivor' || !s.flashOn) continue;
+      if (s.st !== 'ok' || s.act || s.vault) { s.flashOn = false; continue; }
+      s.flash = Math.max(0, s.flash - dt);
+      if (s.flash <= 0) { s.flashOn = false; this.ev({ k: 'flashdead', id: s.id }); continue; }
+      const dx = K.x - s.x, dz = K.z - s.z, d = Math.hypot(dx, dz);
+      if (d > RULES.flashRange || d < 0.3) continue;
+      const f = fwd(s.yaw), kf = fwd(K.yaw);
+      if ((dx * f.x + dz * f.z) / d < 0.95) continue;        // beam on the killer
+      if (-(dx * kf.x + dz * kf.z) / d < 0.3) continue;      // and he is looking into it
+      if (losBlocked(M, s.x, s.z, K.x, K.z, 1.2)) continue;
+      lit = s;
+    }
+    K.blind = Math.max(0, K.blind - dt);
+    K.blindImm = Math.max(0, K.blindImm - dt);
+    const canBlind = K.blindImm <= 0 && !(K.act && K.act.k === 'execute') && !(K.char === 'wisp' && K.ab === 1);
+    if (lit && canBlind) {
+      K.glare = Math.min(1, K.glare + dt / RULES.flashTime);
+      if (K.glare >= 1) {
+        const save = K.carry != null || (K.act && K.act.k === 'pickup');
+        K.glare = 0; K.blind = RULES.blindTime; K.blindImm = RULES.blindImmune;
+        this.stunKiller(K, RULES.flashStun, false);
+        lit.score.d += save ? 700 : 350;
+        this.ev({ k: 'blind', id: K.id, by: lit.id, save });
+      }
+    } else K.glare = Math.max(0, K.glare - dt * 1.5);
+  }
+
+  posAt(id, t) {
+    const h = this.hist && this.hist.get(id);
+    if (!h || !h.length) return null;
+    for (let i = h.length - 1; i > 0; i--) if (h[i - 1].t <= t) {
+      const a = h[i - 1], b = h[i], f = Math.max(0, Math.min(1, (t - a.t) / Math.max(1e-4, b.t - a.t)));
+      return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
+    }
+    return h[0];
+  }
+
   updateKiller(K, dt) {
     const S = this.S, M = this.M;
     // lunge / recovery
@@ -391,13 +465,18 @@ export class Sim {
       K.atkT -= dt;
       const range = RULES.hitRange * (has(K, 'stalker') ? 1.2 : 1) * (K.atkAmbush ? 1.6 : 1);
       const f = fwd(K.yaw);
+      const inReach = (sx, sz) => {
+        const dx = sx - K.x, dz = sz - K.z, d = Math.hypot(dx, dz);
+        if (d > range) return false;
+        const dot = d > 0.01 ? (dx * f.x + dz * f.z) / d : 1;
+        if (dot < 0.62 && d > 0.9) return false;
+        return !losBlocked(M, K.x, K.z, sx, sz, 1.0);
+      };
       for (const s of S.players) {
         if (s.role !== 'survivor' || s.st !== 'ok') continue;
-        const dx = s.x - K.x, dz = s.z - K.z, d = Math.hypot(dx, dz);
-        if (d > range) continue;
-        const dot = d > 0.01 ? (dx * f.x + dz * f.z) / d : 1;
-        if (dot < 0.62 && d > 0.9) continue;
-        if (losBlocked(M, K.x, K.z, s.x, s.z, 1.0)) continue;
+        let ok = inReach(s.x, s.z);
+        if (!ok && this.rewind > 0) { const h = this.posAt(s.id, S.t - this.rewind); ok = !!h && inReach(h.x, h.z); }
+        if (!ok) continue;
         this.damage(s, K, false);
         K.atk = 2; K.atkHit = true; K.atkT = RULES.hitCooldown * (has(K, 'relentless') ? 0.65 : 1);
         break;

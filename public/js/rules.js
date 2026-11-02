@@ -96,10 +96,10 @@ export function findInteraction(M, S, p) {
 }
 
 // Executions: a killer can finish a downed survivor who has already been caged twice,
-// the last survivor standing, or anyone with the Death Warrant perk.
+// or the last survivor standing.
 export function canExecuteTarget(S, k, s) {
   if (s.role !== 'survivor' || s.st !== 'down') return false;
-  if (has(k, 'warrant') || s.stage >= 2) return true;
+  if (s.stage >= 2) return true;
   const alive = S.players.filter(o => o.role === 'survivor' && ['ok', 'down', 'carried', 'caged', 'exec'].includes(o.st));
   return alive.length === 1;
 }

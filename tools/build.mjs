@@ -34,7 +34,9 @@ let html = await readFile(join(pub, 'index.html'), 'utf8');
 html = html.replace(/<link rel="stylesheet" href="css\/style.css">/, () => `<style>${css}</style>`);
 html = html.replace(/<script type="importmap">[\s\S]*?<\/script>\s*/, '');
 const peer = (await readFile(join(pub, 'vendor/peerjs.min.js'), 'utf8')).replace(/<\/script/gi, '<\\/script');
-html = html.replace(/<script type="module" src="js\/main.js"><\/script>/, () => `<script>${peer}</script>\n<script>${js}</script>`);
+// the Foreman's rigged model as base64 in an inert tag placed before the game script (read by foremanGlb.js)
+const glb = (await readFile(join(pub, 'models/foreman.glb'))).toString('base64');
+html = html.replace(/<script type="module" src="js\/main.js"><\/script>/, () => `<script id="nb-foreman-glb" type="application/octet-stream">${glb}</script>\n<script>${peer}</script>\n<script>${js}</script>`);
 html = html.replace('<title>Nightbound</title>', '<title>Nightbound</title>\n  <!-- Built file: everything is inlined. Source lives in public/. -->');
 await writeFile(join(root, 'Nightbound.html'), html);
 await writeFile(join(root, 'index.html'), html); // GitHub Pages entry point

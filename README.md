@@ -2,7 +2,7 @@
 
 A 3D 1-versus-4 asymmetric horror game that runs in your browser. One player is the killer. Up to four survivors repair generators, power the exit gates and escape before the night takes them.
 
-Everything is procedural: the map (forest, trails, ruins, lamp posts, ground fog), characters, textures and audio are generated in code. three.js and PeerJS are bundled, and the fonts are local.
+Almost everything is procedural: the map (forest, trails, ruins, lamp posts, ground fog), characters, textures and audio are generated in code. The Foreman (OFFAL crossover) uses a rigged, animated model (`public/models/foreman.glb`). three.js and PeerJS are bundled, and the fonts are local.
 
 ## Play
 
@@ -30,6 +30,8 @@ No server is needed. The host listens two ways at once:
 
 Joining players try the direct connection first and switch to the relay automatically.
 
+The host runs the match and sends compact snapshots 20 times a second (a full keyframe once a second). Clients draw other players slightly in the past, interpolated between snapshots, so late or bunched packets don't cause stutter. Killer hits are lag-compensated against what the killer saw.
+
 When the page is served by `node server.js`, everyone on that server uses its built-in WebSocket relay instead. Empty slots can be filled with bots, and a bot takes over if a player disconnects.
 
 ## Killers
@@ -42,7 +44,12 @@ When the page is served by `node server.js`, everyone on that server uses its bu
 | **The Lamplighter** | *Cursed Lanterns* reveal nearby survivors | *Shadow Step* (R): teleport to a lantern | Last Light |
 | **The Foreman** *(OFFAL crossover)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
 
-Executions (**F**) work on a downed survivor who has been caged twice, on the last survivor alive, or on anyone if you have the *Death Warrant* perk.
+Executions (**F**) work on a downed survivor who has been caged twice or on the last survivor alive.
+
+## Flashlights & taking over bots
+
+- Every survivor carries a **flashlight** (hold **RMB**). Keep the beam on the killer's face for a second to blind and stun him. That also frees a survivor he is carrying. The battery lasts 12 seconds, and the killer can't be blinded again for 12 seconds after a blind.
+- If you die while bot survivors are still alive, press **T** to take over a bot and keep playing. This works in bot matches and online.
 
 ## Store & Inbox
 
@@ -64,6 +71,8 @@ There are three difficulties (Easy, Normal, Hard).
 | Run / crouch | Shift / Ctrl or C | – |
 | Interact (hold) | E: repair, heal, free from cage, open gate, snuff lantern | E: pick up, cage, damage generator, break barricade |
 | Context | Space: vault, drop barricade, skill check | Space: vault |
+| Flashlight | RMB (hold) | – |
+| After dying | T: take over a bot survivor, LMB: switch spectated player | – |
 | Attack / power | – | LMB / RMB (R: Shadow Step) |
 | Execute | – | F |
 

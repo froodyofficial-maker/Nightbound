@@ -18,6 +18,16 @@ import { icon, STATE_ICON, POWER_ICON } from './icons.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// flashlight beam: an open cone fading with distance and toward its edges (additive, cheap)
+const BEAM_GEO = new THREE.CylinderGeometry(1.35, 0.035, 9, 20, 1, true).translate(0, 4.5, 0).rotateX(Math.PI / 2);
+const BEAM_MAT = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: `varying float vY; varying vec3 vN; varying vec3 vV;
+    void main(){ vY = uv.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `varying float vY; varying vec3 vN; varying vec3 vV;
+    void main(){ float e = abs(dot(normalize(vN), normalize(vV))); float a = pow(1.0 - vY, 1.5) * 0.16 * (0.55 + 0.45 * (1.0 - e)); gl_FragColor = vec4(1.0, 0.95, 0.82, a); }`,
+});
+
 const PostShader = {
   uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.01 }, pulse: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
@@ -172,6 +182,12 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
     this.scene.add(this.camera);
     this.sparks = new Particles(this.scene, THREE.AdditiveBlending, 0.12);
+    // one shared spotlight for flashlights (kept in the scene so the light count never changes)
+    if (this.settings.quality === 'medium' || this.settings.quality === 'high') {
+      this.torchLight = new THREE.SpotLight(0xfff0d0, 0, 16, 0.32, 0.55, 1.2);
+      this.scene.add(this.torchLight, this.torchLight.target);
+      this.torchBest = Infinity;
+    }
     this.blood = new Particles(this.scene, THREE.NormalBlending, 0.055, 900, 'droplet');
     const lite = this.settings.quality === 'potato' || this.settings.quality === 'low';
     this.decals = new BloodDecals(this.scene, { potato: 40, low: 80, medium: 160, high: 240 }[this.settings.quality] || 120, lite);
@@ -293,6 +309,7 @@ export class Game {
         if (e.code !== this.lastWigKey) { this.lastWigKey = e.code; this.send({ t: 'act', a: 'wig' }); this.wigFlash = 0.15; }
       }
       if (e.code === 'KeyF' || e.code === 'Digit1') this.cycleSpectate();
+      if (e.code === 'KeyT') { const b = this.takeoverTarget(); if (b) this.send({ t: 'act', a: 'takeover', id: b.id }); }
     } else this.keys.delete(e.code);
   }
   onMouse(e, down) {
@@ -318,9 +335,13 @@ export class Game {
           this.send({ t: 'act', a: 'ability' });
         }
       }
+    } else if (e.button === 2) {
+      // survivor flashlight: hold to shine
+      const on = down && me.flash > 0 && me.st === 'ok';
+      if (on !== !!this.flashHeld) { this.flashHeld = on; this.sendIn(); }
     } else if (e.button === 0 && down && (me.st === 'dead' || me.st === 'out')) this.cycleSpectate();
   }
-  sendIn() { this.send({ t: 'in', e: this.eHeld, aim: this.aimHeld }); }
+  sendIn() { this.send({ t: 'in', e: this.eHeld, aim: this.aimHeld, flash: !!this.flashHeld }); }
   send(m) { this.session.send(m); }
 
   onSpace() {
@@ -379,6 +400,7 @@ export class Game {
     const me = this.mine();
     this.handleLocal(dt, S, me);
     this.updateChars(dt, S, me);
+    this.updateTorchLight();
     this.updateSpears(dt, S);
     this.updateChains(S);
     this.updateLanterns(dt, S, me);
@@ -426,10 +448,13 @@ export class Game {
       const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -Math.cos(yaw), rz = Math.sin(yaw);
       let mx = fx * mi.f + rx * mi.r, mz = fz * mi.f + rz * mi.r;
       const m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; }
-      const sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+      const flashing = me.role === 'survivor' && this.flashHeld && me.flash > 0 && me.st === 'ok' && !me.act;
+      if (this.flashHeld && !flashing && (me.flash <= 0 || me.st !== 'ok')) { this.flashHeld = false; this.sendIn(); }
+      const sprint = !flashing && (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'));
       const crouch = this.keys.has('ControlLeft') || this.keys.has('KeyC');
       const px = me.x, pz = me.z;
       stepMover(this.M, S, me, { mx, mz, sprint, crouch }, dt);
+      if (flashing && !me.vault) me.yaw = this.camYaw;
       if (me.bump && me.char === 'butcher' && me.ab === 1 && !this.bumpSent) { this.bumpSent = true; this.send({ t: 'act', a: 'bump' }); }
       if (!(me.char === 'butcher' && me.ab === 1)) this.bumpSent = false;
       // footsteps for myself
@@ -515,10 +540,11 @@ export class Game {
       const hidden = p.st === 'dead' || p.st === 'out' || (local && p.role === 'killer' && !execing);
       R.root.visible = !hidden;
       // smoothing
-      const jump = Math.hypot(p.x - c.x, p.z - c.z);
+      const jump = Math.hypot(p.x - c.x, p.z - c.z), ox = c.x, oz = c.z;
       if (local || jump > 4) { c.x = p.x; c.z = p.z; }
-      else { const k = 1 - Math.exp(-dt * 14); c.x += (p.x - c.x) * k; c.z += (p.z - c.z) * k; }
-      const spd = Math.min(9, jump / Math.max(dt, 1e-3));
+      else { const k = 1 - Math.exp(-dt * 16); c.x += (p.x - c.x) * k; c.z += (p.z - c.z) * k; }
+      // speed of the smoothed motion (not of raw network updates, which arrive in steps)
+      const spd = jump > 4 ? c.spd : Math.min(9, Math.hypot(c.x - ox, c.z - oz) / Math.max(dt, 1e-3));
       c.spd += (spd - c.spd) * Math.min(1, dt * 8);
       c.yaw += angDiff(c.yaw, p.yaw) * (local ? 1 : 1 - Math.exp(-dt * 12));
       if (hidden) continue;
@@ -546,20 +572,23 @@ export class Game {
         else if (vaulting) { anim = 'vault'; const d = p.vault.d || 0.7; y = Math.sin(Math.min(1, c.vaultT / d) * Math.PI) * 0.55; }
         else if (p.act) anim = p.act.k === 'repair' ? 'repair' : (p.act.k === 'heal' || p.act.k === 'self') ? 'heal' : 'work';
         else if (p.cr) anim = c.spd > 0.3 ? 'crouchwalk' : 'crouch';
-        else anim = c.spd > 3.0 ? 'run' : c.spd > 0.3 ? 'walk' : 'idle';
+        else if (!local && (p.mv === 1 || p.mv === 2)) anim = p.mv === 2 ? 'run' : 'walk'; // what the player is doing, not network jitter
+        else anim = c.spd > 3.0 ? 'run' : c.spd > (local ? 0.3 : 0.8) ? 'walk' : 'idle';
         st.struggle = p.st === 'carried';
       } else {
-        anim = vaulting ? 'vault' : c.spd > 0.3 ? 'walk' : 'idle';
+        anim = vaulting ? 'vault' : (c.spd > 0.3 || (!local && p.mv >= 1 && p.mv <= 2)) ? 'walk' : 'idle';
         if (vaulting) { const d = p.vault.d || 1.7; y = Math.sin(Math.min(1, c.vaultT / d) * Math.PI) * 0.5; }
         if (execing) st.exec = { f: p.act.t / RULES.execTime, char: p.char, role: 'killer' };
         st.carry = p.carry != null; st.atk = p.atk; st.stun = p.stun > 0; st.act = p.act && p.act.k; st.aim = p.aim; st.rampage = p.char === 'butcher' && p.ab === 1;
         if (p.atk === 1) { c.atkT = (c.atkPrev === 1 ? c.atkT + dt : 0); st.atkF = c.atkT / (RULES.lungeTime * (p.atkAmbush ? 1.4 : 1)); }
         c.atkPrev = p.atk;
-        st.atkHit = p.atkHit; st.tele = !!p.tele;
+        st.atkHit = p.atkHit; st.tele = !!p.tele; st.dark = p.char === 'foreman' && p.ab === 1;
         if (p.atk === 2) { const tot = p.atkHit ? (p.char === 'butcher' && !p.atkT ? 2.2 : RULES.hitCooldown * (has(p, 'relentless') ? 0.65 : 1)) : RULES.missCooldown; st.recF = Math.max(0, Math.min(1, 1 - p.atkT / tot)); }
         c.st = st;
       }
       st.anim = anim;
+      const flashOn = p.role === 'survivor' && p.st === 'ok' && !p.act && p.flash > 0 && (local ? !!this.flashHeld : p.flashOn);
+      st.flash = flashOn;
       animate(R, st, dt);
       // placement
       R.root.position.set(c.x, y, c.z);
@@ -595,6 +624,7 @@ export class Game {
         const cg = this.M.cages[p.cage];
         if (cg) { R.root.position.set(cg.x, 0.2, cg.z); }
       }
+      if (p.role === 'survivor') this.placeTorch(c, R, p, flashOn && R.root.visible);
       // wisp fade
       if (p.role === 'killer' && p.char === 'wisp') {
         const o = p.ab === 1 ? (viewerKiller ? 0.35 : 0.04 + Math.max(0, Math.sin(this.t * 3)) * 0.04) : p.ab ? 0.4 : 1;
@@ -845,6 +875,61 @@ export class Game {
     }
   }
 
+  // flashlight: a torch in the right hand with a soft volumetric beam (and a real spotlight on
+  // medium/high for the beam nearest the camera)
+  placeTorch(c, R, p, on) {
+    if (!c.torch) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.2, 10), new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.6, roughness: 0.4 }));
+      body.rotation.x = Math.PI / 2; g.add(body);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.03, 12), new THREE.MeshBasicMaterial({ color: 0xfff4d0, toneMapped: false }));
+      lens.position.z = 0.101; g.add(lens);
+      const beam = new THREE.Mesh(BEAM_GEO, BEAM_MAT);
+      beam.position.z = 0.1; beam.frustumCulled = false; g.add(beam);
+      g.userData = { lens, beam };
+      this.scene.add(g); c.torch = g;
+    }
+    const g = c.torch;
+    g.visible = on;
+    if (!on) return;
+    const hand = R.j && R.j.handR;
+    if (hand) hand.getWorldPosition(g.position); else g.position.set(p.x, 1.2, p.z);
+    g.rotation.set(0, p.yaw, 0, 'YXZ');
+    g.rotateX(0.06);
+    if (this.torchLight) {
+      const cam = this.camera.position, d = (cam.x - g.position.x) ** 2 + (cam.z - g.position.z) ** 2;
+      if (d < this.torchBest) { this.torchBest = d; this.torchFrom = g; }
+    }
+  }
+  updateTorchLight() {
+    if (!this.torchLight) return;
+    const L = this.torchLight, g = this.torchFrom;
+    L.intensity = g ? 40 : 0;
+    if (g) {
+      L.position.copy(g.position);
+      const f = new THREE.Vector3(0, 0, 9).applyQuaternion(g.quaternion);
+      L.target.position.copy(g.position).add(f);
+    }
+    this.torchBest = Infinity; this.torchFrom = null;
+  }
+
+  // the bot this fallen player could take over: the one being watched, else the first alive
+  takeoverTarget() {
+    const S = this.S, me = this.mine();
+    if (!S || !me || me.role !== 'survivor' || me.st !== 'dead' || S.phase !== 'play') return null;
+    const ok = p => p && p.bot && p.role === 'survivor' && ['ok', 'down', 'carried', 'caged'].includes(p.st);
+    if (this.spectate && ok(playerById(S, this.spectate.id))) return playerById(S, this.spectate.id);
+    return S.players.find(ok) || null;
+  }
+  switchTo(id) {
+    this.myId = id;
+    if (this.session) this.session.myId = id;
+    this.me = null; this.spectate = null; this.myTp = -1;
+    const p = this.mine();
+    if (p) { this.camYaw = p.yaw; this.camPitch = 0.15; this.buildStaticHUD(this.S); }
+    sound.play('heal');
+  }
+
   cycleSpectate(auto) {
     const S = this.S, me = this.mine();
     if (!S || !me || me.role !== 'survivor' || (me.st !== 'dead' && me.st !== 'out')) return;
@@ -924,6 +1009,17 @@ export class Game {
     for (const e of evs) {
       switch (e.k) {
         case 'swing': { const p = S && playerById(S, e.id); if (p) sound.play('swing', p.x, p.z); break; }
+        case 'blind': {
+          const by = S && playerById(S, e.by);
+          this.feed(`${by ? by.name : 'A survivor'} blinded the killer${e.save ? ' and saved their friend' : ''}!`, e.id === this.myId || e.by === this.myId ? 'big' : '');
+          const k = S && playerById(S, e.id); if (k) { this.sparks.spawn(k.x, 2.1, k.z, 40, 0xfff6d8, 2.2, 0.6, 0.2); sound.play('fade', k.x, k.z, { on: false }); }
+          break;
+        }
+        case 'flashdead': if (e.id === this.myId) { this.feed('Your flashlight battery is dead.'); this.flashHeld = false; } break;
+        case 'takeover':
+          if (e.from === this.myId) this.switchTo(e.to);
+          this.feed(`${e.name} took over ${e.was}.`, e.to === this.myId ? 'big' : '');
+          break;
         case 'hit': {
           const hc = this.chars.get(e.id); if (hc) hc.hitAt = this.t;
           if (e.by === this.myId) { this.shake = 0.45; this.hitStop = 0.08; this.splat(); }
@@ -1045,13 +1141,15 @@ export class Game {
     $('perks').innerHTML = me.perks.map(k => perkDefs[k] ? `<div class="diamond ${me.role === 'killer' ? 'k' : ''}" title="${esc(perkDefs[k].name)}: ${esc(perkDefs[k].desc)}">${icon(k)}</div>` : '').join('');
     $('power').classList.toggle('hidden', me.role !== 'killer');
     $('crosshair').classList.toggle('hidden', me.role !== 'killer');
+    $('item').classList.toggle('hidden', me.role !== 'survivor');
+    $('item').innerHTML = `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">Flashlight</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
     $('team').innerHTML = S.players.filter(p => p.role === 'survivor').map(p =>
       `<div class="tm ${p.id === this.myId ? 'me' : ''}" id="tm-${esc(p.id)}"><div class="tm-por">${icon('healthy')}</div><div class="tm-body"><div class="tm-name">${esc(p.name)}${p.bot ? '<small>BOT</small>' : ''}${p.id === this.myId ? '<small>YOU</small>' : ''}</div><div class="tm-stage"><i></i><i></i></div><div class="tm-bar"><div></div></div></div></div>`).join('');
     this.hudCache = {};
     const k = (x) => `<kbd>${x}</kbd>`;
     $('controls-hint').innerHTML = me.role === 'killer'
       ? `${k('WASD')} move · ${k('LMB')} strike · ${k('RMB')} ${esc(KILLERS[me.char].ability.name)}${me.char === 'lamplighter' ? ` · ${k('R')} Shadow Step` : me.char === 'foreman' ? ` · ${k('R')} Lights Out` : ''} · ${k('E')} interact · ${k('F')} execute · ${k('Space')} vault · ${k('Q')} drop · ${k('Tab')} status`
-      : `${k('WASD')} move · ${k('Shift')} run · ${k('Ctrl')} crouch · ${k('E')} interact · ${k('Space')} vault / barricade / skill check · ${k('Tab')} status`;
+      : `${k('WASD')} move · ${k('Shift')} run · ${k('Ctrl')} crouch · ${k('E')} interact · ${k('RMB')} flashlight · ${k('Space')} vault / barricade / skill check · ${k('Tab')} status`;
     $('controls-hint').classList.remove('fade');
     clearTimeout(this.hintT); this.hintT = setTimeout(() => $('controls-hint').classList.add('fade'), 14000);
     $('fps').classList.toggle('hidden', !this.settings.showFps);
@@ -1098,6 +1196,16 @@ export class Game {
 
   updateHUD(dt, S, me) {
     if (!me) return;
+    // flashlight battery, and the killer's view whiting out when a torch is in his eyes
+    if (me.role === 'survivor') {
+      const bar = $('item').querySelector('.itb div');
+      if (bar) bar.style.width = (Math.max(0, me.flash) / RULES.flashBattery * 100).toFixed(1) + '%';
+      $('item').classList.toggle('active', !!this.flashHeld && me.flash > 0);
+      $('item').classList.toggle('empty', me.flash <= 0);
+      $('crosshair').classList.toggle('hidden', !(this.flashHeld && me.flash > 0));
+    }
+    const glare = me.role === 'killer' ? Math.max((me.glare || 0) * 0.75, me.blind > 0 ? Math.min(1, me.blind / 1.2) : 0) : 0;
+    if (Math.abs(glare - (this.glareShown || 0)) > 0.01) { this.glareShown = glare; $('glare').style.opacity = glare.toFixed(2); }
     // objective
     const left = Math.max(0, S.gensNeeded - S.gensDone);
     const obj = !S.gatesPowered
@@ -1163,7 +1271,9 @@ export class Game {
           status = `Caged<small>${Math.ceil(me.cageT)}s left${me.stage === 1 && me.esc < 3 ? ` · <kbd>Space</kbd> escape attempt (${3 - me.esc} left)` : me.stage >= 2 ? ' · the next caging is fatal' : ''}</small>`;
           prog = me.cageT / me.cageMax; label = 'Struggle phase';
         } else if (me.st === 'dead' || me.st === 'out') {
-          status = (me.st === 'out' ? 'You escaped' : 'You were ' + esc(me.outcome || 'sacrificed')) + (this.spectate ? `<small>Spectating ${esc(this.spectate.name)} · click to switch</small>` : '');
+          const tb = this.takeoverTarget();
+          status = (me.st === 'out' ? 'You escaped' : 'You were ' + esc(me.outcome || 'sacrificed')) + (this.spectate ? `<small>Spectating ${esc(this.spectate.name)} · click to switch</small>` : '')
+            + (tb ? `<small class="takeover"><kbd>T</kbd> Take over ${esc(tb.name.replace(/ \(bot\)$/, ''))} and keep playing</small>` : '');
         }
       } else {
         if (me.act) { prog = me.prog; label = { pickup: 'Picking up', cage: 'Caging', kick: 'Damaging generator', break: 'Breaking barricade', execute: KILLERS[me.char].exec.name }[me.act.k] || ''; }

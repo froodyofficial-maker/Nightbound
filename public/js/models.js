@@ -2,6 +2,7 @@
 // "aura" twin (fresnel glow, drawn through walls) that can be toggled on.
 import * as THREE from 'three';
 import { tex } from './textures.js';
+import { makeForemanGlb, animateGlb } from './foremanGlb.js';
 
 // ---------- aura material ----------
 const auraMats = new Map();
@@ -254,6 +255,7 @@ export function makeSurvivor(def, sk = {}) {
 }
 
 export function makeKiller(id, sk = {}) {
+  if (id === 'foreman') { const g = makeForemanGlb(sk, DETAIL.lite); if (g) return g; }
   const R = new Rig();
   if (id === 'foreman') {
     // The Foreman (OFFAL crossover): tall, starved, ribs showing, mask of bone, a jaw full of teeth, hook and blade
@@ -381,6 +383,7 @@ export function makeKiller(id, sk = {}) {
 const lerp = (a, b, k) => a + (b - a) * k;
 // s: { anim, speed, crouch, injured, t, atk, vaultF, ... }
 export function animate(R, s, dt) {
+  if (R.glb) return animateGlb(R, s, dt);
   R.t += dt;
   const t = R.t;
   const P = { hipsY: 0, tiltX: 0, tiltY: 0, spineX: R.hunch || 0, spineY: 0, headX: 0, shL: 0.08, shR: 0.08, shLz: 0.08, shRz: -0.08, elL: -0.15, elR: -0.15, lgL: 0, lgR: 0, knL: 0.05, knR: 0.05, lgLz: 0, lgRz: 0 };
@@ -431,6 +434,7 @@ export function animate(R, s, dt) {
     P.tiltX = 0.55; P.lgL = -1.5; P.lgR = -1.1; P.knL = 1.7; P.knR = 1.2; P.shL = -1.6; P.shR = -1.4; P.hipsY = 0;
   }
   if (s.injured && (a === 'walk' || a === 'run' || a === 'idle')) { P.spineX += 0.12; P.shL = -0.55; P.elL = -1.7; P.shLz = -0.2; }
+  if (s.flash && R.kind !== 'killer') { P.shR = -1.45; P.elR = -0.12; P.shRz = -0.05; } // torch held out in front
   // hit reaction: jolt forward, arch back, arms flung out
   if (s.hitF != null && s.hitF < 1 && a !== 'down') {
     const j = Math.sin(s.hitF * Math.PI);

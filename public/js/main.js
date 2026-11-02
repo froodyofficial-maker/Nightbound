@@ -7,6 +7,8 @@ import { Game } from './game.js';
 import { QUALITY } from './world.js';
 import { setDetail } from './models.js';
 import { MenuScene } from './menu.js';
+import { loadForeman, onForemanReady } from './foremanGlb.js';
+import { packSnap, SnapReader } from './snap.js';
 import { icon, POWER_ICON } from './icons.js';
 import { sound } from './audio.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
@@ -45,6 +47,9 @@ const profile = Object.assign({
 profile.owned ||= {}; profile.skins ||= {}; profile.claimed ||= {}; profile.readInbox ||= {};
 const skinId = char => (profile.skins[char] && (profile.owned[char + ':' + profile.skins[char]] || profile.skins[char] === 'default')) ? profile.skins[char] : 'default';
 if (!KILLERS[profile.killer.char]) profile.killer.char = 'butcher';
+// drop perks that no longer exist (Death Warrant was removed in 2.4)
+profile.killer.perks = (profile.killer.perks || []).filter(k => KILLER_PERKS[k]);
+profile.survivor.perks = (profile.survivor.perks || []).filter(k => SURV_PERKS[k]);
 const saveSettings = () => store.set('settings', settings);
 const saveProfile = () => store.set('profile', profile);
 saveSettings();
@@ -97,6 +102,8 @@ function startBG() {
   menu.setMode(menuMode);
   renderShowcase();
 }
+loadForeman();
+onForemanReady(() => { if (menu && menu.killerChar === 'foreman') menu.setKiller('foreman', menu.killerSkin); });
 function stopBG() { if (menu) { menu.dispose(); menu = null; } }
 function setScene(mode) { menuMode = mode; if (menu) menu.setMode(mode); renderShowcase(); }
 
@@ -360,16 +367,8 @@ $('btn-bots-start').addEventListener('click', () => {
 // ---------- sessions ----------
 let session = null;
 
-// round numbers to keep snapshots small
-function pack(v) {
-  if (typeof v === 'number') return Math.round(v * 1000) / 1000;
-  if (Array.isArray(v)) return v.map(pack);
-  if (v && typeof v === 'object') { const o = {}; for (const k in v) o[k] = pack(v[k]); return o; }
-  return v;
-}
-
 class HostSession {
-  constructor(roster, opts) { this.roster = roster; this.opts = opts; this.net = opts.net; this.myId = opts.myId; this.isHost = true; this.snapT = 0; this.pending = []; }
+  constructor(roster, opts) { this.roster = roster; this.opts = opts; this.net = opts.net; this.myId = opts.myId; this.isHost = true; this.snapT = 0; this.kfT = 0; this.pending = []; }
   start() {
     this.seed = Math.floor(Math.random() * 1e9);
     this.M = buildMap(this.seed);
@@ -381,7 +380,9 @@ class HostSession {
   }
   state() { return this.sim.S; }
   send(m) { this.sim.onMsg(this.myId, m); }
-  remote(id, m) { if (m && (m.t === 'pos' || m.t === 'in' || m.t === 'act')) this.sim.onMsg(id, m); }
+  // connection id -> the player it controls (changes when a fallen survivor takes over a bot)
+  pidOf(peer) { return (this.ctrl && this.ctrl.get(peer)) || peer; }
+  remote(id, m) { if (m && (m.t === 'pos' || m.t === 'in' || m.t === 'act')) this.sim.onMsg(this.pidOf(id), m); }
   simTick(dt) {
     // fixed-size sub-steps keep the simulation real-time even at low frame rates
     const n = Math.max(1, Math.ceil(dt / 0.034)), h = dt / n;
@@ -391,15 +392,32 @@ class HostSession {
     this.bots.update(dt);
     this.sim.update(dt);
     const ev = this.sim.takeEvents();
-    if (ev.length) { this.bots.onEvents(ev); this.game.onEvents(ev); }
+    if (ev.length) {
+      for (const e of ev) if (e.k === 'takeover') {
+        this.ctrl ||= new Map();
+        let peer = e.from;
+        for (const [k, v] of this.ctrl) if (v === e.from) peer = k;
+        this.ctrl.set(peer, e.to);
+      }
+      this.bots.onEvents(ev); this.game.onEvents(ev);
+    }
     if (this.net) {
       if (ev.length) this.pending.push(...ev);
       this.snapT -= dt;
-      if (this.snapT <= 0) { this.snapT = 1 / (this.net.mode === 'online' ? 15 : SNAP_RATE); this.net.broadcast({ t: 's', s: pack(this.sim.S), e: this.pending }); this.pending = []; }
+      this.kfT -= dt;
+      if (this.snapT <= 0) {
+        this.snapT = 1 / SNAP_RATE;
+        // a full keyframe (names, perks, scores) every second and whenever the match isn't in play
+        const kf = this.kfT <= 0 || this.sim.S.phase !== 'play';
+        if (kf) this.kfT = 1;
+        this.net.broadcast({ t: 's', s: packSnap(this.sim.S, kf), e: this.pending });
+        this.pending = [];
+      }
     }
   }
   tick(dt, realDt) { this.simTick(realDt); this.game.frame(dt); }
   playerLeft(id) {
+    id = this.pidOf(id);
     const p = this.sim.P(id);
     if (!p) return;
     p.bot = true;
@@ -410,14 +428,16 @@ class HostSession {
 }
 
 class ClientSession {
-  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed); this.S = null; this.game = null; this.queued = []; }
+  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed); this.S = null; this.game = null; this.queued = []; this.reader = new SnapReader(); }
   onMsg(m) {
     if (m.t !== 's') return;
-    this.S = m.s;
-    if (this.game) this.game.onEvents(m.e); else if (m.e) this.queued.push(...m.e);
+    const s = this.reader.read(m.s);
+    if (s) this.S = s;
+    // events still count when the snapshot itself had to wait for a keyframe
+    if (this.game) this.game.onEvents(m.e || []); else if (m.e) this.queued.push(...m.e);
   }
-  state() { return this.S; }
-  send(m) { this.net.send(m); }
+  state() { if (this.S) this.reader.interpolate(this.S, this.myId); return this.S; }
+  send(m) { if (m.t === 'act' && this.reader.rt != null) m.rt = +this.reader.rt.toFixed(3); this.net.send(m); }
   tick(dt) {
     if (!this.S) return;
     if (!this.game) {
