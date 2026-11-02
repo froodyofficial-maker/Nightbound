@@ -185,7 +185,7 @@ const HEAD = {
       g.add(mk(S(h.r * 0.13, 12, 8), white, ex, ey, fz - h.r * 0.07, 0, 0, 0, 1.35, R ? 0.72 : 0.6, 0.5));
       g.add(mk(S(h.r * 0.075, 10, 8), iris, ex, ey - h.r * 0.005, fz - h.r * 0.03, 0, 0, 0, 1, 1, 0.55));
       g.add(mk(S(h.r * 0.15, 10, 8), sk, ex, ey + h.r * (R ? 0.07 : 0.05), fz - h.r * 0.075, 0.25, 0, 0, 1.3, 0.45, 0.6)); // upper lid
-      g.add(mk(S(h.r * 0.2, 10, 8), sk, s * h.eyeX * (R ? 1.45 : 1.3), ey - h.r * 0.38, fz - h.r * (R ? 0.22 : 0.28), 0, 0, 0, 1, R ? 0.85 : 0.7, 0.7)); // cheek
+      g.add(mk(S(h.r * 0.16, 10, 8), sk, s * h.eyeX * (R ? 1.4 : 1.3), ey - h.r * 0.38, fz - h.r * (R ? 0.34 : 0.38), 0, 0, 0, 1, R ? 0.8 : 0.65, 0.6)); // cheek, set into the face
     }
     g.add(mk(S(h.r * 0.12, 10, 8), sk, 0, ey - h.r * 0.33, fz + h.r * 0.02, -0.2, 0, 0, R ? 1.25 : 0.95, 1.5, 0.9)); // nose
     for (const s of [-1, 1]) g.add(mk(S(h.r * 0.05, 8, 6), dark, s * h.r * (R ? 0.09 : 0.075), ey - h.r * 0.46, fz - h.r * 0.0, 0, 0, 0, 1, 0.6, 0.6)); // nostrils
