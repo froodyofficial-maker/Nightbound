@@ -19,7 +19,7 @@ export class Sim {
       bars: M.bars.map(() => 0),
       cages: M.cages.map(() => null), cageBroken: M.cages.map(() => false),
       gates: M.gates.map(() => ({ p: 0, open: false })),
-      spears: [], lanterns: [], lid: 0, dark: 0,
+      spears: [], lanterns: [], lid: 0, dark: 0, chains: [],
     };
     let si = 0;
     for (const r of roster) {
@@ -33,7 +33,7 @@ export class Sim {
         reveal: 0, sixT: 0, chase: 0, mark: 0,
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : 0, ammoT: 0,
-        ambush: 0, atkAmbush: false, tele: null, teleCd: 0,
+        ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
       });
     }
@@ -66,6 +66,7 @@ export class Sim {
         const inp = this.inputs.get(id);
         inp.e = !!m.e;
         if (!inp.e) inp.latch = false;
+        if (p.role === 'killer' && p.char === 'foreman') p.aim = !!m.aim && p.abCd <= 0 && !p.pull && p.carry == null && !p.act && p.stun <= 0;
         if (p.role === 'killer' && p.char === 'harrower') p.aim = !!m.aim && p.abCd <= 0 && p.ammo > 0 && p.carry == null && !p.act && p.stun <= 0;
         break;
       }
@@ -159,6 +160,21 @@ export class Sim {
         this.ev({ k: 'tele', id: p.id, x: p.x, z: p.z, to: best.id });
         break;
       }
+      case 'chain': {
+        if (p.role !== 'killer' || p.char !== 'foreman' || p.abCd > 0 || p.stun > 0 || p.carry != null || p.act || p.pull || p.atk) return;
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw);
+        S.chains.push({ by: p.id, x: p.x + f.x * 0.5, z: p.z + f.z * 0.5, dx: f.x, dz: f.z, d: 0, st: 'fly', t: 0, tgt: null });
+        p.abCd = KILLERS.foreman.ability.cooldown; p.aim = false;
+        this.ev({ k: 'chainthrow', id: p.id, x: p.x, z: p.z });
+        break;
+      }
+      case 'ability2': {
+        if (p.role === 'killer' && p.char === 'foreman' && !p.ab && p.ab2Cd <= 0 && !p.act && p.stun <= 0 && !p.tele) {
+          p.ab = 1; p.abT = KILLERS.foreman.ability2.duration; S.dark = p.abT;
+          this.ev({ k: 'lightsout', id: p.id, on: true });
+        }
+        break;
+      }
       case 'bump': {
         if (p.char === 'butcher' && p.ab === 1) { this.endRampage(p); this.stunKiller(p, 2.0, false); }
         break;
@@ -210,10 +226,6 @@ export class Sim {
     } else if (p.char === 'wisp') {
       if (p.ab === 0 && p.abCd <= 0 && !p.atk) { p.ab = 2; p.abT = 0.7; this.ev({ k: 'fade', id: p.id, on: true }); }
       else if (p.ab === 1) { p.ab = 3; p.abT = 1.0; this.ev({ k: 'fade', id: p.id, on: false }); }
-    } else if (p.char === 'foreman') {
-      if (p.ab || p.abCd > 0 || p.atk) return;
-      p.ab = 1; p.abT = KILLERS.foreman.ability.duration; this.S.dark = p.abT;
-      this.ev({ k: 'lightsout', id: p.id, on: true });
     } else if (p.char === 'lamplighter') {
       if (p.abCd > 0 || p.atk) return;
       const mine = this.S.lanterns;
@@ -290,6 +302,7 @@ export class Sim {
       p.reveal = Math.max(0, p.reveal - dt);
       if (p.stun > 0) p.stun = Math.max(0, p.stun - dt);
       if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt);
+      if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
       if (p.teleCd > 0) p.teleCd = Math.max(0, p.teleCd - dt);
       if (p.ambush > 0) p.ambush = Math.max(0, p.ambush - dt);
       if (p.mark > 0) p.mark = Math.max(0, p.mark - dt);
@@ -414,8 +427,15 @@ export class Sim {
         K.abT -= dt; S.dark = Math.max(0, K.abT);
         // hunts by sound: running survivors nearby give themselves away
         for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && s.mv === 2 && !s.cr && dist(s, K) < 24) s.reveal = Math.max(s.reveal, 0.5);
-        if (K.abT <= 0) { K.ab = 0; K.abCd = KILLERS.foreman.ability.cooldown; S.dark = 0; this.ev({ k: 'lightsout', id: K.id, on: false }); }
+        if (K.abT <= 0) { K.ab = 0; K.ab2Cd = KILLERS.foreman.ability2.cooldown; S.dark = 0; this.ev({ k: 'lightsout', id: K.id, on: false }); }
       }
+      // hunts by sound: running survivors ping their position
+      K.soundT -= dt;
+      if (K.soundT <= 0) {
+        K.soundT = 2.2;
+        for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && s.mv === 2 && !s.cr && dist(s, K) < 22 && !has(s, 'hushed')) this.noise(s.x + (Math.random() - 0.5) * 2, s.z + (Math.random() - 0.5) * 2);
+      }
+      this.updateChains(K, dt);
     } else if (K.char === 'lamplighter') {
       if (K.tele) {
         K.tele.t += dt;
@@ -439,7 +459,7 @@ export class Sim {
   }
 
   damage(s, K, instantDown) {
-    if (K && K.char === 'foreman' && K.ab === 1) instantDown = true; // one hit from the hook, in the dark
+    if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true; // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;
@@ -530,7 +550,8 @@ export class Sim {
     p.act = { k: it.k, id: it.id, t: 0 };
     p.prog = 0;
     if (it.k === 'repair') { S.gens[it.id].reg = false; }
-    if (it.k === 'kick' || it.k === 'break' || it.k === 'pickup' || it.k === 'cage') {
+    if ((it.k === 'kick' || it.k === 'break' || it.k === 'pickup' || it.k === 'cage') && p.bot) {
+      // bots turn to face what they interact with; a human killer keeps control of their own view
       // face the target
       const tgt = it.k === 'pickup' ? this.P(it.id) : it.k === 'cage' ? M.cages[it.id] : it.k === 'kick' ? M.gens[it.id] : M.bars[it.id];
       if (tgt) p.yaw = Math.atan2(tgt.x - p.x, tgt.z - p.z);
@@ -644,6 +665,66 @@ export class Sim {
         S.bars[a.id] = 2; p.score.a += 100;
         this.ev({ k: 'break', id: a.id });
         break;
+      }
+    }
+  }
+
+  // ---- the Foreman's chain hook: fly, then either reel a survivor in or yank him to a wall ----
+  updateChains(K, dt) {
+    const S = this.S, M = this.M, range = KILLERS.foreman.ability.range;
+    // survivor being reeled in
+    for (const s of S.players) if (s.reel) {
+      s.reel.t += dt;
+      const f = Math.min(1, s.reel.t / 0.45), e = 1 - (1 - f) * (1 - f);
+      s.x = s.reel.x0 + (s.reel.x1 - s.reel.x0) * e; s.z = s.reel.z0 + (s.reel.z1 - s.reel.z0) * e;
+      if (f >= 1) { s.reel = null; s.tp++; }
+    }
+    // killer yanked to a wall
+    if (K.pull) {
+      K.pull.t += dt;
+      const f = Math.min(1, K.pull.t / K.pull.d), e = f * f * (3 - 2 * f);
+      K.x = K.pull.x0 + (K.pull.x1 - K.pull.x0) * e; K.z = K.pull.z0 + (K.pull.z1 - K.pull.z0) * e;
+      if (f >= 1) { K.pull = null; K.tp++; }
+    }
+    for (let i = S.chains.length - 1; i >= 0; i--) {
+      const c = S.chains[i];
+      c.t += dt;
+      if (c.st === 'fly') {
+        const step = 34 * dt, n = 4;
+        for (let k = 0; k < n && c.st === 'fly'; k++) {
+          const px = c.x, pz = c.z;
+          c.x += c.dx * step / n; c.z += c.dz * step / n; c.d += step / n;
+          for (const s of S.players) {
+            if (s.role !== 'survivor' || s.st !== 'ok' || s.reel) continue;
+            if (Math.hypot(s.x - c.x, s.z - c.z) < 0.45) {
+              this.chainDmg = true; this.damage(s, K, false); this.chainDmg = false;
+              if (s.st === 'ok') { const dd = Math.hypot(s.x - K.x, s.z - K.z) || 1, keep = Math.max(2.6, dd * 0.55); const tx = K.x + (s.x - K.x) / dd * keep, tz = K.z + (s.z - K.z) / dd * keep; const spot = this.safeSpot(tx, tz, s.x, s.z); s.reel = { t: 0, x0: s.x, z0: s.z, x1: spot.x, z1: spot.z }; s.act = null; s.tp++; }
+              K.score.b += 300;
+              c.st = 'reel'; c.tgt = s.id; c.t = 0;
+              this.ev({ k: 'chainhit', id: s.id, x: s.x, z: s.z });
+              break;
+            }
+          }
+          if (c.st !== 'fly') break;
+          if (losBlocked(M, px, pz, c.x, c.z, 1.0)) {
+            // caught a wall: yank the Foreman across to it
+            const back = 0.9, gx = c.x - c.dx * back, gz = c.z - c.dz * back;
+            const dd = Math.hypot(gx - K.x, gz - K.z);
+            if (dd > 2.5 && K.carry == null) { K.pull = { t: 0, d: Math.max(0.25, dd / 16), x0: K.x, z0: K.z, x1: gx, z1: gz }; K.atk = 0; this.ev({ k: 'chaingrab', id: K.id, x: c.x, z: c.z }); }
+            c.st = 'back'; c.t = 0; c.x = gx; c.z = gz;
+            break;
+          }
+          if (c.d > range) { c.st = 'back'; c.t = 0; }
+        }
+      } else if (c.st === 'reel') {
+        const s = this.P(c.tgt);
+        if (s) { c.x = s.x; c.z = s.z; }
+        if (!s || !s.reel) S.chains.splice(i, 1);
+      } else {
+        // retract
+        const dd = Math.hypot(c.x - K.x, c.z - K.z) || 1, step = 40 * dt;
+        if (dd < step + 0.5 || c.t > 1.2) { S.chains.splice(i, 1); continue; }
+        c.x += (K.x - c.x) / dd * step; c.z += (K.z - c.z) / dd * step;
       }
     }
   }

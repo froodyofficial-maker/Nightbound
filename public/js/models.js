@@ -240,7 +240,17 @@ export function makeSurvivor(def, sk = {}) {
   R.mesh('spine', G.cyl(0.038, 0.038, 0.24, 10), mat(0x5a5040, { map: 'cloth', rough: 1 }), 0, 0.5, -0.17, 0, 0, Math.PI / 2, 1, 1, 1, false);
   for (const s of [-1, 1]) R.mesh('spine', G.box(0.03, 0.3, 0.012), mat(0x2a2218, { rough: 0.8 }), s * 0.09, 0.35, 0.11, 0, 0, 0, 1, 1, 1, false);
   R.kind = 'survivor';
-  return R.finalize();
+  R.finalize();
+  // wounds: wet blood on clothes and skin, shown when injured / dying (not merged so they can toggle)
+  const bloodM = new THREE.MeshStandardMaterial({ color: 0x6a0606, emissive: 0x2a0000, roughness: 0.18, metalness: 0.08 });
+  const ws = new THREE.SphereGeometry(1, 10, 8);
+  const part = (jn, x, y, z, sx, sy, sz, rz = 0) => { const m = new THREE.Mesh(ws, bloodM); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.z = rz; m.visible = false; R.j[jn].add(m); return m; };
+  const group = list => ({ set visible(v) { for (const m of list) m.visible = v; } });
+  R.wounds = {
+    light: group([part('spine', 0.04, 0.32, -0.108, 0.05, 0.12, 0.02, 0.3), part('spine', 0.158, 0.16, 0.02, 0.02, 0.09, 0.06), part('shL', 0.03, -0.16, 0.035, 0.03, 0.07, 0.03), part('spine', -0.06, 0.12, -0.1, 0.07, 0.05, 0.02, -0.4)]),
+    heavy: group([part('spine', 0.02, 0.22, 0.106, 0.09, 0.14, 0.02, 0.2), part('lgR', 0.02, -0.22, 0.066, 0.035, 0.13, 0.025), part('handL', 0, -0.05, 0.01, 0.045, 0.055, 0.03), part('head', 0.05, 0.16, 0.08, 0.025, 0.05, 0.02, -0.5), part('kn' + 'L', 0.0, -0.12, 0.05, 0.03, 0.1, 0.02)]),
+  };
+  return R;
 }
 
 export function makeKiller(id, sk = {}) {
@@ -567,6 +577,10 @@ export function makeViewModel(id) {
     tip.position.set(0, 0.1, -1.2); base.position.set(0, 0, -0.6);
   }
   arm.add(tip); arm.add(base);
+  // blood smear on the business end, revealed after a hit
+  const bloodMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshStandardMaterial({ color: 0x5a0505, roughness: 0.15, transparent: true, opacity: 0 }));
+  bloodMesh.position.copy(tip.position).lerp(base.position, 0.3); bloodMesh.scale.set(0.035, 0.07, 0.12); bloodMesh.visible = false; bloodMesh.renderOrder = 6;
+  arm.add(bloodMesh); g.userData.bloodMesh = bloodMesh;
   // left hand (holds the lantern for the Lamplighter)
   const left = new THREE.Group(); g.add(left);
   add(left, lathe(0.4, [[0, 0.03 * bk], [0.3, 0.04 * bk], [0.75, 0.05 * bk], [1, 0.055 * bk]]), armM, 0, 0, 0.03, -Math.PI / 2, 0, 0);
@@ -579,7 +593,7 @@ export function makeViewModel(id) {
     add(lant, G.cone(0.09, 0.06, 4), mat(0x2a2a28), 0, 0.11, 0, 0, Math.PI / 4, 0);
     g.userData.lantern = lant;
   }
-  g.userData = { ...g.userData, arm, left, tip, base, pose: null, id };
+  g.userData = { ...g.userData, arm, left, tip, base, pose: null, id, bloodMesh };
   g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.renderOrder = 5; } });
   return g;
 }

@@ -73,8 +73,9 @@ export const KILLERS = {
     id: 'foreman', name: 'The Foreman', speed: 4.5, terror: 34, weapon: 'Meat Hook', crossover: 'OFFAL',
     lore: 'Still on shift at the Hollow Pines Meatworks. Headcount must be maintained. He hunts by sound and by light.',
     exec: { name: 'Reassignment', desc: 'Hooks the survivor under the jaw, hoists them off their feet and drags them backward into the dark.' },
-    ability: { name: 'Lights Out', cooldown: 30, duration: 8, desc: 'Kill every light on the map for 8s: generator lamps die, the fog closes in and you go silent (no terror radius).' },
-    feature: { name: 'Hunts by Sound', desc: 'During Lights Out, anyone running within 24m is revealed to you, and one hit from your hook puts a survivor straight down.' },
+    ability: { name: 'Chain Hook', cooldown: 9, range: 18, desc: 'Hold to aim, release to fling your hook on its chain. Catch a survivor and they are injured and reeled back to you. Catch a wall and you are yanked across to it.' },
+    ability2: { name: 'Lights Out', key: 'R', cooldown: 45, duration: 9, desc: 'Kill every light on the map for 9s: the fog closes in, you go silent, runners are revealed and one strike of your hook puts a survivor down.' },
+    feature: { name: 'Hunts by Sound', desc: 'Survivors running within 22m of you give away their position with a noise ping, lights or no lights.' },
     color: 0xd8ccbc,
   },
 };
@@ -184,8 +185,19 @@ export const SKINS = {
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.2.0';
+export const VERSION = '2.3.0';
 export const INBOX = [
+  {
+    id: 'v2.3', version: '2.3.0', date: 'Nov 2026', title: 'Chains, Blood & a Steady Camera', tag: 'Update',
+    gift: { embers: 1500, label: 'Update gift: 1,500 Embers' },
+    body: [
+      'The Foreman reworked. Chain Hook (RMB): fling your hook to reel a survivor in, or catch a wall and yank yourself across.',
+      'Lights Out moved to R: 9s of darkness where one strike of the hook puts a survivor down.',
+      'Hunts by Sound is now always on: survivors running near the Foreman ping their position.',
+      'Gore overhaul: wet blood pools and splatters that dry over time, directional blood spray, drag trails from the dying, visible wounds and bloodied weapons.',
+      'Fixed: the killer camera could suddenly snap or flip while turning.',
+    ],
+  },
   {
     id: 'v2.2', version: '2.2.0', date: 'Nov 2026', title: 'The Meatworks Crossover', tag: 'Crossover',
     gift: { embers: 3000, label: 'Crossover gift: 3,000 Embers' },

@@ -209,6 +209,49 @@ export function tex(name) {
       out = { map, normalMap: null };
       break;
     }
+    case 'bloodatlas': {
+      // 2x2 atlas: splatter, pool, directional spray, smear. RGB = blood colour, A = coverage.
+      const S2 = 512, c = canvas(S2), ctx = c.getContext('2d');
+      const R2 = rng(4242);
+      const blob = (cx, cy, r, irregular = 0.35, pts = 22) => {
+        ctx.beginPath();
+        for (let i = 0; i <= pts; i++) { const a = i / pts * Math.PI * 2, rr = r * (1 + (R2() - 0.5) * irregular); const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+        ctx.closePath(); ctx.fill();
+      };
+      const col = (k) => { const r = 130 + k * 70, g = 8 + k * 14, b = 8 + k * 10; return `rgba(${r | 0},${g | 0},${b | 0},`; };
+      // cell 0: splatter with satellites
+      ctx.save(); ctx.translate(0, 0);
+      ctx.fillStyle = col(0.3) + '0.95)'; blob(128, 128, 46, 0.5, 30);
+      for (let i = 0; i < 26; i++) { const a = R2() * 6.28, d = 50 + R2() * 70, r = 3 + R2() * 10; ctx.fillStyle = col(R2()) + '0.9)'; blob(128 + Math.cos(a) * d, 128 + Math.sin(a) * d, r, 0.4, 10); }
+      for (let i = 0; i < 9; i++) { const a = R2() * 6.28, d0 = 40, d1 = 70 + R2() * 50; ctx.strokeStyle = col(0.2) + '0.85)'; ctx.lineWidth = 3 + R2() * 5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(128 + Math.cos(a) * d0, 128 + Math.sin(a) * d0); ctx.lineTo(128 + Math.cos(a) * d1, 128 + Math.sin(a) * d1); ctx.stroke(); }
+      ctx.restore();
+      // cell 1: pool (dark centre, lighter wet rim)
+      ctx.save(); ctx.translate(256, 0);
+      ctx.fillStyle = col(0.55) + '0.9)'; blob(128, 128, 104, 0.22, 40);
+      ctx.fillStyle = col(0.1) + '0.97)'; blob(128, 128, 88, 0.22, 36);
+      ctx.fillStyle = 'rgba(40,2,2,0.6)'; blob(122, 132, 50, 0.3, 24);
+      ctx.restore();
+      // cell 2: directional spray (arterial)
+      ctx.save(); ctx.translate(0, 256);
+      for (let i = 0; i < 60; i++) { const t = R2(), x = 20 + t * 220, y = 128 + (R2() - 0.5) * (20 + t * 110), r = (1 - t) * 14 + 2 + R2() * 4; ctx.fillStyle = col(R2() * 0.5) + (0.75 + R2() * 0.25) + ')'; blob(x, y, r, 0.4, 10); }
+      ctx.fillStyle = col(0.2) + '0.95)'; blob(36, 128, 26, 0.4, 18);
+      ctx.restore();
+      // cell 3: smear / drag trail
+      ctx.save(); ctx.translate(256, 256);
+      for (let i = 0; i < 9; i++) { ctx.strokeStyle = col(0.2 + R2() * 0.4) + (0.55 + R2() * 0.35) + ')'; ctx.lineWidth = 10 + R2() * 26; ctx.lineCap = 'round'; ctx.beginPath(); const y = 80 + R2() * 96; ctx.moveTo(24, y); ctx.bezierCurveTo(90, y + (R2() - 0.5) * 30, 160, y + (R2() - 0.5) * 30, 232, y + (R2() - 0.5) * 20); ctx.stroke(); }
+      ctx.restore();
+      const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+      out = { map, normalMap: null };
+      break;
+    }
+    case 'droplet': {
+      const c = canvas(32), ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 14);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.7, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(16, 16, 14, 0, 7); ctx.fill();
+      out = { map: new THREE.CanvasTexture(c), normalMap: null };
+      break;
+    }
     case 'cloth': {
       const n = fbm(91, 32, 3);
       const { c, H } = paint(128, (u, v, x, y) => { const w = ((x + y) % 4 < 2 ? 1 : 0.85) * (0.8 + n(u, v) * 0.3); return [clamp(255 * w), clamp(255 * w), clamp(255 * w), w]; });

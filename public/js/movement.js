@@ -5,7 +5,8 @@ import { HALF } from './config.js';
 
 export function startVault(p, v, dur) {
   p.vault = { x0: p.x, z0: p.z, x1: v.x1, z1: v.z1, t: 0, d: dur, kind: v.kind, id: v.id };
-  p.yaw = Math.atan2(v.x1 - p.x, v.z1 - p.z);
+  // survivors (third person) and bots turn toward the vault; a first-person killer keeps their view
+  if (p.role === 'survivor' || p.bot) p.yaw = Math.atan2(v.x1 - p.x, v.z1 - p.z);
 }
 
 // intent: { mx, mz (world-space desired direction, |m|<=1), sprint, crouch }
