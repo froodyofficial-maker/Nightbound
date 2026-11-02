@@ -62,7 +62,7 @@
           <div class="field"><label>Bot difficulty</label>
             <div class="seg" id="bots-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
           <div class="field"><label>Map</label>
-            <div class="seg" id="bots-map"><button data-v="random" class="on">Random</button><button data-v="woods">Gravemoor Woods</button><button data-v="meatworks">Meatworks <span class="newtag">NEW</span></button></div></div>
+            <select id="bots-map"><option value="random">Random</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh (new)</option><option value="carnival">Hollowmere Carnival (new)</option><option value="snow">Coldwater Pass (new)</option></select></div>
           <div class="loadout-mini" id="bots-loadout"></div>
           <div class="actions"><button class="btn primary big" id="btn-bots-start">Ready</button></div>
         </section>
@@ -93,7 +93,7 @@
               <div class="slots" id="lobby-slots"></div>
               <div class="host-opts" id="lobby-host-opts">
                 <label class="check"><input type="checkbox" id="lobby-fill" checked> Fill empty slots with bots</label>
-                <div class="field"><label>Map</label><div class="seg" id="lobby-map"><button data-v="random" class="on">Random</button><button data-v="woods">Woods</button><button data-v="meatworks">Meatworks</button></div></div>
+                <div class="field"><label>Map</label><select id="lobby-map"><option value="random">Random</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh</option><option value="carnival">Hollowmere Carnival</option><option value="snow">Coldwater Pass</option></select></div>
                 <div class="field"><label>Bot difficulty</label><div class="seg" id="lobby-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
               </div>
               <div class="chat"><div id="chat-log"></div><input id="chat-in" maxlength="120" placeholder="Say something… (Enter)"></div>

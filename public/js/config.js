@@ -199,8 +199,18 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.6.0';
+export const VERSION = '2.7.0';
 export const INBOX = [
+  {
+    id: 'v2.7', version: '2.7.0', date: 'Nov 2026', title: 'Three New Maps', tag: 'New Maps',
+    gift: { embers: 1500, label: 'New maps gift: 1,500 Embers' },
+    body: [
+      'Blackwater Marsh: a bayou at night. Stilt shacks on board decks, boardwalks with railings, a wrecked boat to loop, cypress groves dripping with moss, black water, green fog and fireflies.',
+      'Hollowmere Carnival: an abandoned fairground under a purple sky. A big-top circus tent, game booths you can vault through, a carousel, caravans, a Ferris wheel over everything and strings of coloured lights.',
+      'Coldwater Pass: a frozen mountain pass. Log cabins and a lodge with snow on every edge, snow-laden pines, a frozen lake with an ice-fishing hut, a snowed-in truck and falling snow.',
+      'Pick any map, or Random, in bot matches and online lobbies. All maps are free.',
+    ],
+  },
   {
     id: 'v2.6', version: '2.6.0', date: 'Nov 2026', title: 'Outfits That Actually Change You', tag: 'Update',
     gift: { embers: 1000, label: 'Update gift: 1,000 Embers' },

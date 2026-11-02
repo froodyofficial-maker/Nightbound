@@ -57,6 +57,9 @@ Executions (**F**) work on a downed survivor who has been caged twice or on the 
 | --- | --- |
 | **Gravemoor Woods** | Foggy forest with ruins, barns, a chapel and lamp-lit trails. |
 | **Hollow Pines Meatworks** *(OFFAL crossover)* | Ported from OFFAL's level generator: white-tiled kill floors, carcass rails, cattle pens, the Foreman's office, freezers and offal tanks under a low ceiling. Vault windows link neighbouring halls and corridors narrow to barricade chokepoints. |
+| **Blackwater Marsh** | A bayou at night: stilt shacks on decks, boardwalks, a wrecked boat, cypress groves hung with moss, black water, green fog and fireflies. |
+| **Hollowmere Carnival** | An abandoned fairground: a big-top tent, game booths with vaultable counters, a carousel, caravans, a Ferris wheel and coloured string lights. |
+| **Coldwater Pass** | A frozen mountain pass: snowed-in log cabins and a lodge, snow-laden pines, a frozen lake with an ice-fishing hut, a buried truck and falling snow. |
 
 Pick the map (or Random) in the bot-match setup or the online lobby. Every map is free.
 

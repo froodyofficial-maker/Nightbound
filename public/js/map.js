@@ -2,6 +2,7 @@
 // The same seed produces the exact same map on host and every client.
 import { HALF } from './config.js';
 import { buildMeatworks } from './meatworks.js';
+import { THEMES } from './themes.js';
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -44,7 +45,7 @@ export function makeCtx(M, R, cx, cz, rot) {
       const [wx, wz] = rp(x, z);
       const c = { x: wx, z: wz, r, h, kind, s: R.range(0.85, 1.2), rot: R.range(0, 6.28) };
       M.circles.push(c);
-      if (kind === 'tree') M.trees.push(c); else M.rocks.push(c);
+      if (kind === 'tree') M.trees.push(c); else if (kind === 'rock') M.rocks.push(c); else (M.props ||= []).push(c);
       return c;
     },
     seg(x1, z1, x2, z2, style, h = 3) {
@@ -94,14 +95,15 @@ export function makeCtx(M, R, cx, cz, rot) {
 export function buildMap(seed, map = 'woods') {
   if (map === 'meatworks') return buildMeatworks(seed);
   const R = rng(seed);
+  const TH = THEMES[map] || null; // outdoor themes (marsh, carnival, snow); woods when null
   const M = {
-    seed, map: 'woods', boxes: [], circles: [], windows: [], bars: [], gens: [], cages: [], gates: [],
+    seed, map: TH ? map : 'woods', props: [], pools: [], lights: [], boxes: [], circles: [], windows: [], bars: [], gens: [], cages: [], gates: [],
     visual: [], trees: [], rocks: [], spawns: { survivors: [], killer: null },
   };
-  const theme = R.pick(['brick', 'wood', 'stone']);
+  const theme = TH ? TH.style : R.pick(['brick', 'wood', 'stone']);
 
   const S = theme;
-  const templates = {
+  const templates = TH ? TH.templates(S, M, R) : {
     shack(C) {
       C.windowWall(-4, -3, 4, -3, S);
       C.seg(4, -3, 4, 3, S);
@@ -174,10 +176,11 @@ export function buildMap(seed, map = 'woods') {
 
   // ---------- place cells ----------
   const cells = [];
-  const tnames = ['shack', 'lwall', 'jungle', 'stones', 'barn', 'grove', 'open', 'shack', 'lwall', 'jungle', 'stones', 'grove'];
+  const tnames = TH ? TH.names : ['shack', 'lwall', 'jungle', 'stones', 'barn', 'grove', 'open', 'shack', 'lwall', 'jungle', 'stones', 'grove'];
+  const centre = TH ? TH.center : 'chapel';
   for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
     const cx = -40 + i * 20, cz = -40 + j * 20;
-    if (i === 2 && j === 2) { cells.push({ i, j, cx, cz, t: 'chapel', rot: R.int(0, 1) * 2 }); continue; }
+    if (i === 2 && j === 2) { cells.push({ i, j, cx, cz, t: centre, rot: R.int(0, 1) * 2 }); continue; }
     cells.push({ i, j, cx: cx + R.range(-1, 1), cz: cz + R.range(-1, 1), t: R.pick(tnames), rot: R.int(0, 3) });
   }
   // survivors spawn in one corner, killer in the opposite one: keep those corner cells open
@@ -197,7 +200,7 @@ export function buildMap(seed, map = 'woods') {
   }
 
   // generators: chapel + 6 spread-out cells
-  const chapel = cells.find(c => c.t === 'chapel');
+  const chapel = cells.find(c => c.t === centre);
   const genCells = [chapel];
   const isCorner = c => (c.i === sc[0] && c.j === sc[1]) || (c.i === kc[0] && c.j === kc[1]);
   const pool = R.shuffle(cells.filter(c => c !== chapel && !isCorner(c)));
@@ -232,12 +235,12 @@ export function buildMap(seed, map = 'woods') {
   const gx1 = Math.round(R.range(-30, 30)), gx2 = Math.round(R.range(-30, 30));
   const gateDefs = [{ x: gx1, z: -HALF, dir: -1 }, { x: gx2, z: HALF, dir: 1 }];
   const BW = 0.5, BH = 4.2;
-  const bound = (x1, x2, z) => { if (x2 - x1 > 0.1) M.boxes.push({ x: (x1 + x2) / 2, z, hx: (x2 - x1) / 2, hz: BW, h: BH, kind: 'boundary', style: 'stone' }); };
+  const bound = (x1, x2, z) => { if (x2 - x1 > 0.1) M.boxes.push({ x: (x1 + x2) / 2, z, hx: (x2 - x1) / 2, hz: BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' }); };
   bound(-HALF - BW, gx1 - 2.4, -HALF); bound(gx1 + 2.4, HALF + BW, -HALF);
   bound(-HALF - BW, gx2 - 2.4, HALF); bound(gx2 + 2.4, HALF + BW, HALF);
-  M.boxes.push({ x: -HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: 'stone' });
-  M.boxes.push({ x: HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: 'stone' });
-  addGates(M, gateDefs);
+  M.boxes.push({ x: -HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' });
+  M.boxes.push({ x: HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' });
+  addGates(M, gateDefs, TH ? TH.boundary : 'stone');
 
   // ---------- spawns ----------
   const ccx = -40 + sc[0] * 20, ccz = -40 + sc[1] * 20;
@@ -259,13 +262,16 @@ export function buildMap(seed, map = 'woods') {
     for (const s of [...M.spawns.survivors, M.spawns.killer]) if (Math.hypot(x - s.x, z - s.z) < 4) return true;
     return false;
   };
-  for (let n = 0, placed = 0; n < 900 && placed < 110; n++) {
+  const SC = TH ? TH.scatter : { n: 110, tree: 0.8 };
+  for (let n = 0, placed = 0; n < 900 && placed < SC.n; n++) {
     const x = R.range(-HALF + 2, HALF - 2), z = R.range(-HALF + 2, HALF - 2);
     if (near(x, z, 1.6)) continue;
-    if (R() < 0.8) { M.trees.push(push(M, { x, z, r: R.range(0.3, 0.55), h: R.range(7, 12), kind: 'tree', s: R.range(0.8, 1.25), rot: R.range(0, 6.28) })); }
+    if (SC.prop && R() < SC.prop.p) { const pr = R.pick(SC.prop.kinds); const c = push(M, { x, z, r: pr.r, h: pr.h, kind: 'prop', prop: pr.id, s: R.range(0.85, 1.15), rot: R.range(0, 6.28) }); M.props.push(c); placed++; continue; }
+    if (R() < SC.tree) { M.trees.push(push(M, { x, z, r: R.range(0.3, 0.55), h: R.range(7, 12), kind: 'tree', s: R.range(0.8, 1.25), rot: R.range(0, 6.28) })); }
     else M.rocks.push(push(M, { x, z, r: R.range(0.5, 1.1), h: R.range(0.8, 1.8), kind: 'rock', s: R.range(0.8, 1.2), rot: R.range(0, 6.28) }));
     placed++;
   }
+  if (TH && TH.extra) TH.extra(M, R, cells, near);
 
   buildGrid(M);
   return M;

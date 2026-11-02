@@ -9,6 +9,7 @@ import { setDetail } from './models.js';
 import { MenuScene } from './menu.js';
 import { loadForeman, onForemanReady } from './foremanGlb.js';
 import { packSnap, SnapReader } from './snap.js';
+import { MAP_NAMES } from './themes.js';
 import { icon, POWER_ICON } from './icons.js';
 import { sound } from './audio.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
@@ -409,7 +410,7 @@ seg('bots-role', v => { botsCfg.role = v; setScene(v); $('panel-title').textCont
 seg('bots-team', v => { botsCfg.team = +v; });
 seg('bots-surv', v => { botsCfg.surv = +v; });
 seg('bots-diff', v => { botsCfg.diff = v; });
-seg('bots-map', v => { botsCfg.map = v; });
+$('bots-map').addEventListener('change', e => { botsCfg.map = e.target.value; });
 $('bots-killer').addEventListener('change', e => { botsCfg.killer = e.target.value; });
 function renderBotsPanel() {
   const k = botsCfg.role === 'killer';
@@ -454,8 +455,8 @@ $('btn-bots-start').addEventListener('click', () => {
 let session = null;
 
 // map ids: 'woods' (Gravemoor Woods), 'meatworks' (Hollow Pines Meatworks), 'random'
-const MAPS = { woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks' };
-function resolveMap(m) { return MAPS[m] ? m : Math.random() < 0.5 ? 'woods' : 'meatworks'; }
+const MAPS = MAP_NAMES;
+function resolveMap(m) { const ids = Object.keys(MAPS); return MAPS[m] ? m : ids[Math.floor(Math.random() * ids.length)]; }
 
 class HostSession {
   constructor(roster, opts) { this.roster = roster; this.opts = opts; this.net = opts.net; this.myId = opts.myId; this.isHost = true; this.snapT = 0; this.kfT = 0; this.pending = []; }
@@ -519,7 +520,7 @@ class HostSession {
 }
 
 class ClientSession {
-  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed, start.map === 'meatworks' ? 'meatworks' : 'woods'); this.S = null; this.game = null; this.queued = []; this.reader = new SnapReader(); }
+  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed, MAP_NAMES[start.map] ? start.map : 'woods'); this.S = null; this.game = null; this.queued = []; this.reader = new SnapReader(); }
   onMsg(m) {
     if (m.t !== 's') return;
     const s = this.reader.read(m.s);
@@ -731,7 +732,7 @@ function showLobby() {
   $('lobby-wait').classList.toggle('hidden', lobby.isHost);
   $('lobby-fill').checked = lobby.fill;
   setSeg('lobby-diff', lobby.diff);
-  setSeg('lobby-map', lobby.map || 'random');
+  $('lobby-map').value = lobby.map || 'random'; $('lobby-map').disabled = !lobby.isHost;
   renderLobby();
 }
 function myLobbyPlayer() { return lobby && lobby.players.find(p => p.id === lobby.myId); }
@@ -766,7 +767,7 @@ function sendMyLoadout(role) {
 }
 seg('lobby-role', v => sendMyLoadout(v));
 seg('lobby-diff', v => { if (lobby && lobby.isHost) { lobby.diff = v; broadcastLobby(); } });
-seg('lobby-map', v => { if (lobby && lobby.isHost) { lobby.map = v; broadcastLobby(); } });
+$('lobby-map').addEventListener('change', e => { if (lobby && lobby.isHost) { lobby.map = e.target.value; broadcastLobby(); } });
 $('lobby-fill').addEventListener('change', e => { if (lobby && lobby.isHost) { lobby.fill = e.target.checked; broadcastLobby(); } });
 $('btn-copy').addEventListener('click', async () => {
   if (location.protocol === 'file:') {
@@ -847,7 +848,7 @@ function showAnnounce() {
 function hideAnnounce() { $('announce').classList.add('hidden'); }
 $('an-close').onclick = () => { sound.play('click'); hideAnnounce(); };
 $('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('chapters'); };
-$('an-play').onclick = () => { sound.play('click'); hideAnnounce(); botsCfg.map = 'meatworks'; navActions['play-survivor'](); setSeg('bots-map', 'meatworks'); };
+$('an-play').onclick = () => { sound.play('click'); hideAnnounce(); botsCfg.map = 'meatworks'; navActions['play-survivor'](); $('bots-map').value = 'meatworks'; };
 $('news-card').onclick = () => showAnnounce();
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('announce').classList.contains('hidden')) hideAnnounce(); });
 if (!profile.seen.offal) setTimeout(() => { if (!session) showAnnounce(); }, 900);

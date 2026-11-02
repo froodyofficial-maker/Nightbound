@@ -4,6 +4,7 @@ import { HALF } from './config.js';
 import { rng, barBox } from './map.js';
 import { tex } from './textures.js';
 import { buildMeatWorld, updateMeatLights } from './meatworld.js';
+import { LOOK, cypressGeos, snowify, buildThemeExtras, updateThemeFx } from './themeworld.js';
 import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, bushGeo, rockGeo, makeGenerator, makeCage, makeBarricade, makeGate, makeSwitch } from './models.js';
 
 export const QUALITY = {
@@ -14,7 +15,6 @@ export const QUALITY = {
   high: { shadow: 2048, grass: 10000, pixel: Math.min(2, window.devicePixelRatio || 1), bloom: true, post: true, outer: 440, fog: 36, density: 0.03, far: 600, minPixel: 0.7 },
 };
 
-const FOG_COLOR = 0x1b2126;
 
 // distance from point to segment
 function segDist(px, pz, ax, az, bx, bz) {
@@ -26,20 +26,21 @@ const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)
 
 export function buildWorld(M, quality = 'medium') {
   if (M.indoor) return buildMeatWorld(M, quality);
+  const LK = LOOK[M.map] || LOOK.woods, FOG_COLOR = LK.fog;
   const q = QUALITY[quality] || QUALITY.medium;
   setDetail(quality);
   const lite = quality === 'potato' || quality === 'low';
   const R = rng(M.seed * 7 + 3);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(FOG_COLOR);
-  scene.fog = new THREE.FogExp2(FOG_COLOR, q.density);
-  const W = { scene, gens: [], cages: [], bars: [], gates: [], switches: [], genLights: [], gateLights: [], fogSprites: [], lamps: [], fogLayers: [] };
+  scene.fog = new THREE.FogExp2(FOG_COLOR, q.density * LK.density);
+  const W = { look: LK, scene, gens: [], cages: [], bars: [], gates: [], switches: [], genLights: [], gateLights: [], fogSprites: [], lamps: [], fogLayers: [] };
 
   // ---------- lights: cold moon, warm earth bounce ----------
-  const hemi = new THREE.HemisphereLight(0x5e6878, 0x30261a, 1.75);
+  const hemi = new THREE.HemisphereLight(LK.hemi[0], LK.hemi[1], LK.hemi[2]);
   scene.add(hemi); W.hemi = hemi;
-  W.amb = new THREE.AmbientLight(0x2e3440, 0.9); scene.add(W.amb);
-  const moon = new THREE.DirectionalLight(0xcad6f2, 2.7);
+  W.amb = new THREE.AmbientLight(LK.amb, 0.9); scene.add(W.amb);
+  const moon = new THREE.DirectionalLight(LK.moon[0], LK.moon[1]);
   const fill = new THREE.PointLight(0xa8b4d0, 1.8, 13, 1.2);
   scene.add(fill); W.fill = fill;
   moon.position.set(30, 60, 20);
@@ -55,7 +56,7 @@ export function buildWorld(M, quality = 'medium') {
   // ---------- sky: gradient, stars, moon with halo, drifting clouds ----------
   const sky = new THREE.Mesh(new THREE.SphereGeometry(450, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x04060b) }, mid: { value: new THREE.Color(0x0e1520) }, bot: { value: new THREE.Color(FOG_COLOR) }, mdir: { value: new THREE.Vector3(30, 60, 20).normalize() } },
+    uniforms: { top: { value: new THREE.Color(LK.sky[0]) }, mid: { value: new THREE.Color(LK.sky[1]) }, bot: { value: new THREE.Color(FOG_COLOR) }, mdir: { value: new THREE.Vector3(30, 60, 20).normalize() } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform vec3 mdir; varying vec3 vP;
       void main(){ vec3 d = normalize(vP); float h = clamp(d.y, 0.0, 1.0);
@@ -70,9 +71,9 @@ export function buildWorld(M, quality = 'medium') {
   starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
   sky.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc0cce8, size: 1.2, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75 })));
   const moonDir = new THREE.Vector3(30, 60, 20).normalize();
-  const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshBasicMaterial({ color: 0xf2f4ff, fog: false }));
+  const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshBasicMaterial({ color: LK.moonDisc, fog: false }));
   moonDisc.position.copy(moonDir).multiplyScalar(396); moonDisc.lookAt(0, 0, 0); sky.add(moonDisc);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex('glow').map, color: 0x9fb0d8, fog: false, depthWrite: false, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex('glow').map, color: LK.halo, fog: false, depthWrite: false, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
   halo.scale.setScalar(110); halo.position.copy(moonDir).multiplyScalar(395); sky.add(halo);
   if (quality !== 'potato') {
     const ct = tex('clouds').map; ct.repeat.set(2, 2);
@@ -97,7 +98,7 @@ export function buildWorld(M, quality = 'medium') {
   const seg = lite ? 110 : 170;
   const gGeo = new THREE.PlaneGeometry(300, 300, seg, seg); gGeo.rotateX(-Math.PI / 2);
   const gp = gGeo.attributes.position, gcol = new Float32Array(gp.count * 3);
-  const cGrass = new THREE.Color(0x3d4a2c), cGrass2 = new THREE.Color(0x56603a), cDirt = new THREE.Color(0x5a4632), cMud = new THREE.Color(0x3a2c20), cLitter = new THREE.Color(0x4a3a26), cForest = new THREE.Color(0x2c2a1e), tmp = new THREE.Color();
+  const [cGrass, cGrass2, cDirt, cMud, cLitter, cForest] = LK.ground.map(c => new THREE.Color(c)), tmp = new THREE.Color();
   const noise = (x, z) => Math.sin(x * 0.13 + Math.sin(z * 0.07) * 2) * 0.5 + Math.sin(z * 0.11 + x * 0.05) * 0.3 + Math.sin(x * 0.37 - z * 0.29) * 0.2;
   for (let i = 0; i < gp.count; i++) {
     const x = gp.getX(i), z = gp.getZ(i);
@@ -113,7 +114,7 @@ export function buildWorld(M, quality = 'medium') {
     gcol[i * 3] = tmp.r * v; gcol[i * 3 + 1] = tmp.g * v; gcol[i * 3 + 2] = tmp.b * v;
   }
   gGeo.setAttribute('color', new THREE.BufferAttribute(gcol, 3));
-  const gt = tex('ground2');
+  const gt = tex(LK.groundTex);
   const groundMat = lite ? new THREE.MeshLambertMaterial({ map: gt.map, vertexColors: true })
     : new THREE.MeshLambertMaterial({ map: gt.map, normalMap: gt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), vertexColors: true });
   const ground = new THREE.Mesh(gGeo, groundMat);
@@ -127,6 +128,10 @@ export function buildWorld(M, quality = 'medium') {
     brick: () => mat(0xc0aca4, { map: 'brick', rough: 0.95 }), wood: () => mat(0xb09a80, { map: 'wood', rough: 0.95 }),
     stone: () => mat(0xb4b0a6, { map: 'stone', rough: 0.95 }), metal: () => mat(0x8a8a88, { map: 'metal', metal: 0.4, rough: 0.6 }),
     hay: () => mat(0xc0a060, { map: 'hay', rough: 1 }), dark: () => mat(0x7a6a5a, { map: 'wood', rough: 1 }),
+    boards: () => mat(0xa8a898, { map: 'boards', rough: 0.95 }), rail: () => mat(0x6a5a48, { map: 'wood', rough: 0.95 }), hull: () => mat(0x6a5440, { map: 'boards', rough: 0.9 }),
+    canvas: () => mat(0xffffff, { map: 'canvas', rough: 0.95 }), booth: () => mat(0x5a8a8a, { map: 'wood', rough: 0.85 }), fence: () => mat(0x8a8a88, { map: 'metal', metal: 0.5, rough: 0.5 }),
+    trailer: () => mat(0xd8d0c0, { map: 'metal', metal: 0.3, rough: 0.6 }), truck: () => mat(0x7a1e14, { map: 'metal', metal: 0.4, rough: 0.55 }), logs: () => mat(0xc0a080, { map: 'logs', rough: 0.95 }),
+    snowcap: () => mat(0xf0f4ff, { map: 'snow', rough: 0.8 }),
   };
   const addBox = (key, b, y0, y1, hx = b.hx, hz = b.hz, tile = 2) => {
     const h = y1 - y0;
@@ -135,7 +140,7 @@ export function buildWorld(M, quality = 'medium') {
   };
   const tileOf = st => st === 'stone' ? 1.15 : st === 'brick' ? 1.6 : 2;
   for (const b of M.boxes) {
-    if (b.kind === 'gen' || b.kind === 'switch') continue;
+    if (b.kind === 'gen' || b.kind === 'switch' || b.kind === 'logpile') continue;
     if (b.kind === 'log') {
       const along = b.hx > b.hz;
       const geo = new THREE.CylinderGeometry(0.45, 0.5, (along ? b.hx : b.hz) * 2, 10);
@@ -147,7 +152,8 @@ export function buildWorld(M, quality = 'medium') {
     if (b.kind === 'sill') { addBox(key, b, 0, b.h, b.hx, b.hz, tileOf(key)); addBox('dark', { x: b.x, z: b.z }, b.h, b.h + 0.07, b.hx + 0.05, b.hz + 0.05); continue; }
     addBox(key, b, 0, b.h, b.hx, b.hz, b.kind === 'boundary' ? 2.4 : tileOf(key));
     if (b.kind === 'boundary') { addBox('stone', { x: b.x, z: b.z }, b.h, b.h + 0.25, b.hx + 0.12, b.hz + 0.12); continue; }
-    if (b.kind === 'wall') {
+    if (LK.snowcaps && (b.kind === 'wall' || b.kind === 'sill' || b.kind === 'logpile' || b.kind === 'stone' || b.kind === 'truck' || b.kind === 'crate')) addBox('snowcap', { x: b.x, z: b.z }, b.h, b.h + 0.12, b.hx + 0.06, b.hz + 0.06, 2);
+    if (b.kind === 'wall' && LK.ruins) {
       // ruined, uneven top edge
       const long = Math.max(b.hx, b.hz), ax = b.hx > b.hz;
       const n = Math.floor(long * 1.2);
@@ -208,8 +214,17 @@ export function buildWorld(M, quality = 'medium') {
   const pines = [[], [], []], deads = [];
   trees.forEach((t, i) => { const h = (((i * 7 + Math.floor(t.x * 13 + t.z * 7)) % 10) + 10) % 10; if (h < 7) pines[h % 3].push(t); else deads.push(t); });
   const pineScale = t => { const k = t.h / 10.5; const w = Math.max(k, t.r / 0.3) * (0.9 + (t.s - 1) * 0.3); return new THREE.Vector3(w, k * 1.05, w); };
-  pines.forEach((list, v) => { const g = pineGeo(v + 3); inst(g.trunk, barkM, list, pineScale); inst(g.leaves, needleM, list, pineScale); });
-  inst(deadTree.trunk, barkM, deads, t => { const k = t.h / 8; const w = Math.max(k * 0.9, t.r / 0.32); return new THREE.Vector3(w, k, w); });
+  if (LK.trees === 'cypress') {
+    const cg = cypressGeos(), all = [...pines.flat(), ...deads];
+    const cyS = t => { const k = t.h / 11; const w = Math.max(k * 0.95, t.r / 0.5); return new THREE.Vector3(w, k, w); };
+    inst(cg.trunk, mat(0x5a5246, { map: 'bark', rough: 1 }), all, cyS); inst(cg.leaves, needleM, all, cyS);
+    inst(cg.moss, new THREE.MeshLambertMaterial({ color: 0x4a5640, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false }), all, cyS, false);
+  } else if (LK.trees === 'dead') {
+    inst(deadTree.trunk, barkM, [...pines.flat(), ...deads], t => { const k = t.h / 8; const w = Math.max(k * 0.9, t.r / 0.32); return new THREE.Vector3(w, k, w); });
+  } else {
+    pines.forEach((list, v) => { const g = pineGeo(v + 3); inst(g.trunk, barkM, list, pineScale); inst(LK.trees === 'snowpine' ? snowify(g.leaves) : g.leaves, needleM, list, pineScale); });
+    inst(deadTree.trunk, barkM, deads, t => { const k = t.h / 8; const w = Math.max(k * 0.9, t.r / 0.32); return new THREE.Vector3(w, k, w); });
+  }
 
   // ---------- rocks, pebbles, bushes, fallen logs ----------
   const rockM = mat(0x8a8680, { map: 'rock', rough: 0.95 });
@@ -234,9 +249,9 @@ export function buildWorld(M, quality = 'medium') {
     }
     return out;
   };
-  const nBush = quality === 'potato' ? 0 : quality === 'low' ? 60 : quality === 'medium' ? 160 : 260;
+  const nBush = Math.round((quality === 'potato' ? 0 : quality === 'low' ? 60 : quality === 'medium' ? 160 : 260) * LK.bushes);
   if (nBush) {
-    const bushM = lite ? new THREE.MeshLambertMaterial({ color: 0x2a3420, map: ft.map }) : new THREE.MeshStandardMaterial({ color: 0x2a3420, map: ft.map, roughness: 1 });
+    const bushM = lite ? new THREE.MeshLambertMaterial({ color: LK.bush, map: ft.map }) : new THREE.MeshStandardMaterial({ color: LK.bush, map: ft.map, roughness: 1 });
     const deadBushM = mat(0x4a3a2a, { map: 'foliage', rough: 1 });
     const list = scatter(nBush, 0.9), outer = scatter(Math.floor(nBush * 0.6), 0, false);
     inst(bushGeo(1), bushM, list.filter((_, i) => i % 3 !== 0), t => new THREE.Vector3(t.s, t.s * 0.8, t.s), false);
@@ -250,14 +265,14 @@ export function buildWorld(M, quality = 'medium') {
   }
 
   // ---------- grass ----------
-  if (q.grass) {
+  if (q.grass && LK.grass > 0) {
     const gq = [];
     const plane = new THREE.PlaneGeometry(0.7, 0.5); plane.translate(0, 0.25, 0);
     gq.push({ geo: plane, matrix: new THREE.Matrix4() }, { geo: plane, matrix: new THREE.Matrix4().makeRotationY(Math.PI / 2) });
     const ggeo = mergeGeos(gq);
-    const gm = new THREE.MeshLambertMaterial({ map: tex('grass').map, alphaTest: 0.45, side: THREE.DoubleSide, color: 0x9aa070 });
+    const gm = new THREE.MeshLambertMaterial({ map: tex('grass').map, alphaTest: 0.45, side: THREE.DoubleSide, color: LK.grassTint });
     const list = [];
-    for (let i = 0; i < q.grass * 3 && list.length < q.grass; i++) {
+    for (let i = 0; i < q.grass * 3 * LK.grass && list.length < q.grass * LK.grass; i++) {
       const x = R.range(-HALF - 8, HALF + 8), z = R.range(-HALF - 8, HALF + 8);
       let bad = false;
       for (const b of M.boxes) if (Math.abs(x - b.x) < b.hx + 0.2 && Math.abs(z - b.z) < b.hz + 0.2) { bad = true; break; }
@@ -288,24 +303,25 @@ export function buildWorld(M, quality = 'medium') {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 3.4, 8), postM); post.position.y = 1.7; post.castShadow = true; g.add(post);
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.06), postM); arm.position.set(0.32, 3.3, 0); g.add(arm);
     const head = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 8, 1, true), postM); head.position.set(0.62, 3.22, 0); g.add(head);
-    const bulbM = new THREE.MeshStandardMaterial({ color: 0x332a1a, emissive: 0xffc070, emissiveIntensity: 3 });
+    const bulbM = new THREE.MeshStandardMaterial({ color: 0x332a1a, emissive: LK.lamp, emissiveIntensity: 3 });
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), bulbM); bulb.position.set(0.62, 3.13, 0); g.add(bulb);
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(4.2, 24), new THREE.MeshBasicMaterial({ map: poolTex, color: 0xff9440, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(4.2, 24), new THREE.MeshBasicMaterial({ map: poolTex, color: LK.lamp, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false }));
     pool.rotation.x = -Math.PI / 2; pool.position.set(0.62, 0.04, 0); g.add(pool);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: poolTex, color: 0xffc070, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.scale.setScalar(1.1); glow.position.set(0.62, 3.1, 0); g.add(glow);
     let light = null;
-    if (quality === 'high' && W.lamps.length < 8) { light = new THREE.PointLight(0xffb060, 7, 11, 1.6); light.position.set(0.62, 3.0, 0); g.add(light); }
+    if (quality === 'high' && W.lamps.length < 8) { light = new THREE.PointLight(LK.lamp, 7, 11, 1.6); light.position.set(0.62, 3.0, 0); g.add(light); }
     scene.add(g);
     W.lamps.push({ bulbM, pool, glow, light, ph: R() * 10 });
   }
 
+  buildThemeExtras(W, M, quality, R);
   addInteractables(W, M);
   // ---------- rolling ground fog: layered planes with scrolling noise ----------
   const nf = quality === 'potato' ? 0 : quality === 'low' ? 1 : 2;
   for (let i = 0; i < nf; i++) {
     const t = tex('fogtile').map.clone(); t.needsUpdate = true; t.repeat.set(5 + i, 5 + i);
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({ map: t, color: 0x6a7480, transparent: true, opacity: 0.05 - i * 0.015, depthWrite: false }));
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({ map: t, color: LK.groundFog, transparent: true, opacity: (0.05 - i * 0.015) * LK.groundFogK, depthWrite: false }));
     plane.rotation.x = -Math.PI / 2; plane.position.y = 0.3 + i * 0.5; plane.renderOrder = 2;
     scene.add(plane); W.fogLayers.push({ t, v: 0.004 + i * 0.002, d: i % 2 ? 1 : -1 });
   }
@@ -357,6 +373,7 @@ export function updateWorld(W, M, S, t, dt, follow) {
   if (W.indoor) updateMeatLights(W, follow, t);
   for (const f of W.fogLayers) { f.t.offset.x += f.v * dt * f.d; f.t.offset.y += f.v * 0.6 * dt; }
   if (W.clouds) W.clouds.offset.x += dt * 0.0015;
+  updateThemeFx(W, t, dt, follow);
   const dk = W.darkK || 0;
   if (!W.indoor) for (const L of W.lamps) {
     const fl = (Math.sin(t * 13 + L.ph) > 0.97 ? 0.3 : 1) * (1 - dk);

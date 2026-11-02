@@ -162,6 +162,53 @@ export function tex(name) {
       out = finish(c, H, 2.2, null);
       break;
     }
+    case 'canvas': {
+      // faded circus stripes, stained and mildewed
+      const n = fbm(111, 6, 4), st = fbm(112, 3, 5);
+      const { c, H } = paint(256, (u, v) => {
+        const stripe = Math.floor(u * 8) % 2 === 0, k = n(u, v), d = Math.max(0, (st(u, v) - 0.45) * 2.2);
+        let r = stripe ? 168 : 214, g = stripe ? 34 : 200, b = stripe ? 30 : 178;
+        r = mix(r, 70, d * 0.7) - k * 22; g = mix(g, 58, d * 0.7) - k * 20; b = mix(b, 40, d * 0.7) - k * 18;
+        return [clamp(r), clamp(g), clamp(b), 0.5 + k * 0.3];
+      });
+      out = finish(c, H, 1.2, null);
+      break;
+    }
+    case 'logs': {
+      // stacked round logs, horizontal, with dark chinking between
+      const n = fbm(121, 4, 5), grain = fbm(122, 48, 2);
+      const { c, H } = paint(256, (u, v) => {
+        const row = Math.floor(v * 6), lv = (v * 6) % 1, edge = Math.abs(lv - 0.5) * 2;
+        if (edge > 0.9) return [28, 22, 18, 0];
+        const tone = Math.sin(row * 41.7) * 0.5 + 0.5, gr = grain((u * 0.3 + row * 0.13) % 1, lv) * 0.5 + Math.sin(u * 60 + n(u, v) * 8) * 0.1;
+        const sh = 1 - edge * edge * 0.55;
+        return [clamp((84 + tone * 26 + gr * 40) * sh), clamp((60 + tone * 18 + gr * 26) * sh), clamp((40 + tone * 10 + gr * 14) * sh), (1 - edge * edge) * 0.9];
+      });
+      out = finish(c, H, 3, null);
+      break;
+    }
+    case 'boards': {
+      // grey, waterlogged vertical planks with algae creeping up
+      const n = fbm(131, 4, 5), grain = fbm(132, 64, 2);
+      const { c, H } = paint(256, (u, v) => {
+        const plank = Math.floor(u * 6), pu = (u * 6) % 1;
+        if (pu < 0.04) return [14, 16, 12, 0];
+        const tone = Math.sin(plank * 77.1) * 0.5 + 0.5, gr = grain((u * 0.25 + plank * 0.31) % 1, v) * 0.5 + Math.sin(v * 70 + n(u, v) * 10) * 0.1;
+        const alg = Math.max(0, (n(u, v) - 0.45) * 2) * (1 - v);
+        return [clamp(70 + tone * 22 + gr * 34 - alg * 30), clamp(68 + tone * 18 + gr * 28 + alg * 8), clamp(56 + tone * 12 + gr * 18 - alg * 20), 0.5 + gr * 0.4];
+      });
+      out = finish(c, H, 3, null);
+      break;
+    }
+    case 'snow': {
+      const n = fbm(141, 5, 5), s2 = fbm(142, 40, 2);
+      const { c, H } = paint(512, (u, v) => {
+        const k = n(u, v), sp = s2(u, v), glint = sp > 0.82 ? 30 : 0;
+        return [clamp(196 + k * 30 + glint), clamp(206 + k * 28 + glint), clamp(222 + k * 22 + glint), k * 0.8 + sp * 0.2];
+      });
+      out = finish(c, H, 1.6, [40, 40]);
+      break;
+    }
     case 'metal': {
       const n = fbm(51, 4, 5), rust = fbm(52, 3, 5);
       const { c, H } = paint(256, (u, v) => {
