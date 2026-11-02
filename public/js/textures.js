@@ -124,6 +124,44 @@ export function tex(name) {
       out = finish(c, H, 5, null);
       break;
     }
+    case 'tiles': {
+      // OFFAL's white wall tiles: grout, grime creeping up from the floor, rust streaks, old blood
+      const n = fbm(91, 6, 4), stain = fbm(92, 3, 5), streak = fbm(93, 24, 2);
+      const { c, H } = paint(512, (u, v) => {
+        const tu = (u * 8) % 1, tv = (v * 8) % 1;
+        const grout = tu < 0.05 || tv < 0.05;
+        const tile = Math.sin(Math.floor(u * 8) * 12.9 + Math.floor(v * 8) * 78.2) * 0.5 + 0.5;
+        const k = n(u, v), st = Math.max(0, (stain(u, v) - 0.5) * 2.4), sk = streak(u * 0.25, v) * Math.max(0, 1 - v * 1.4);
+        const grime = Math.pow(v, 3) * 0.55; // the lower edge of the texture sits at the floor
+        let r = grout ? 120 : 214 + tile * 16 - k * 22, g = grout ? 112 : 208 + tile * 12 - k * 22, b = grout ? 98 : 190 + tile * 8 - k * 24;
+        const dirt = Math.min(1, st * 0.6 + grime + sk * 0.25);
+        r = mix(r, 110, dirt); g = mix(g, 86, dirt); b = mix(b, 62, dirt);
+        return [clamp(r), clamp(g), clamp(b), grout ? 0 : 0.7 + k * 0.3];
+      });
+      const ctx = c.getContext('2d'), R2 = rng(9393);
+      // old blood: smears and runs
+      for (let i = 0; i < 16; i++) {
+        const x = R2() * 512, y = 120 + R2() * 300, w = 20 + R2() * 60;
+        ctx.fillStyle = `rgba(${90 + R2() * 50 | 0},${8 + R2() * 10 | 0},6,${0.35 + R2() * 0.4})`;
+        ctx.beginPath(); ctx.ellipse(x, y, w, w * (0.3 + R2() * 0.5), R2() * 3, 0, 7); ctx.fill();
+        for (let d = 0; d < 5; d++) { const dx = x + (R2() - 0.5) * w * 1.4, len = 30 + R2() * 140; ctx.fillRect(dx, y, 2 + R2() * 4, len); ctx.beginPath(); ctx.arc(dx + 2, y + len, 3 + R2() * 2, 0, 7); ctx.fill(); }
+      }
+      out = finish(c, H, 2.5, null);
+      break;
+    }
+    case 'killfloor': {
+      // wet concrete: drains, puddles and dark pooled stains
+      const n = fbm(95, 5, 5), wet = fbm(96, 3, 4), sp = fbm(97, 48, 2);
+      const { c, H } = paint(512, (u, v) => {
+        const k = n(u, v), w = Math.max(0, (wet(u, v) - 0.52) * 3), s2 = sp(u, v);
+        const seam = (u * 2) % 1 < 0.008 || (v * 2) % 1 < 0.008;
+        let r = 92 + k * 34 + s2 * 12, g = 84 + k * 28 + s2 * 10, b = 78 + k * 24 + s2 * 8;
+        r = mix(r, 70, w); g = mix(g, 30, w); b = mix(b, 26, w);
+        return seam ? [40, 34, 30, 0.1] : [clamp(r), clamp(g), clamp(b), 0.4 + k * 0.4 + s2 * 0.2 - w * 0.3];
+      });
+      out = finish(c, H, 2.2, null);
+      break;
+    }
     case 'metal': {
       const n = fbm(51, 4, 5), rust = fbm(52, 3, 5);
       const { c, H } = paint(256, (u, v) => {

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { HALF } from './config.js';
 import { rng, barBox } from './map.js';
 import { tex } from './textures.js';
+import { buildMeatWorld, updateMeatLights } from './meatworld.js';
 import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, bushGeo, rockGeo, makeGenerator, makeCage, makeBarricade, makeGate, makeSwitch } from './models.js';
 
 export const QUALITY = {
@@ -24,6 +25,7 @@ function segDist(px, pz, ax, az, bx, bz) {
 const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export function buildWorld(M, quality = 'medium') {
+  if (M.indoor) return buildMeatWorld(M, quality);
   const q = QUALITY[quality] || QUALITY.medium;
   setDetail(quality);
   const lite = quality === 'potato' || quality === 'low';
@@ -298,6 +300,21 @@ export function buildWorld(M, quality = 'medium') {
     W.lamps.push({ bulbM, pool, glow, light, ph: R() * 10 });
   }
 
+  addInteractables(W, M);
+  // ---------- rolling ground fog: layered planes with scrolling noise ----------
+  const nf = quality === 'potato' ? 0 : quality === 'low' ? 1 : 2;
+  for (let i = 0; i < nf; i++) {
+    const t = tex('fogtile').map.clone(); t.needsUpdate = true; t.repeat.set(5 + i, 5 + i);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({ map: t, color: 0x6a7480, transparent: true, opacity: 0.05 - i * 0.015, depthWrite: false }));
+    plane.rotation.x = -Math.PI / 2; plane.position.y = 0.3 + i * 0.5; plane.renderOrder = 2;
+    scene.add(plane); W.fogLayers.push({ t, v: 0.004 + i * 0.002, d: i % 2 ? 1 : -1 });
+  }
+  return W;
+}
+
+// generators, cages, barricades and exit gates (shared by every map)
+export function addInteractables(W, M) {
+  const scene = W.scene;
   // ---------- generators ----------
   for (const g of M.gens) {
     const o = makeGenerator();
@@ -327,15 +344,6 @@ export function buildWorld(M, quality = 'medium') {
     // exit corridor glow
     const exitL = new THREE.PointLight(0xdfe8ff, 0, 18, 1.2); exitL.position.set(g.x, 3, g.z + g.dir * 7); scene.add(exitL); W.gateLights.push(exitL);
   }
-  // ---------- rolling ground fog: layered planes with scrolling noise ----------
-  const nf = quality === 'potato' ? 0 : quality === 'low' ? 1 : 2;
-  for (let i = 0; i < nf; i++) {
-    const t = tex('fogtile').map.clone(); t.needsUpdate = true; t.repeat.set(5 + i, 5 + i);
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({ map: t, color: 0x6a7480, transparent: true, opacity: 0.05 - i * 0.015, depthWrite: false }));
-    plane.rotation.x = -Math.PI / 2; plane.position.y = 0.3 + i * 0.5; plane.renderOrder = 2;
-    scene.add(plane); W.fogLayers.push({ t, v: 0.004 + i * 0.002, d: i % 2 ? 1 : -1 });
-  }
-  return W;
 }
 
 // per-frame updates for props, driven by state
@@ -346,10 +354,11 @@ export function updateWorld(W, M, S, t, dt, follow) {
     W.moon.position.set(follow.x + 30, 60, follow.z + 20);
     W.sky.position.set(follow.x, 0, follow.z);
   }
+  if (W.indoor) updateMeatLights(W, follow, t);
   for (const f of W.fogLayers) { f.t.offset.x += f.v * dt * f.d; f.t.offset.y += f.v * 0.6 * dt; }
   if (W.clouds) W.clouds.offset.x += dt * 0.0015;
   const dk = W.darkK || 0;
-  for (const L of W.lamps) {
+  if (!W.indoor) for (const L of W.lamps) {
     const fl = (Math.sin(t * 13 + L.ph) > 0.97 ? 0.3 : 1) * (1 - dk);
     L.bulbM.emissiveIntensity = 3 * fl; L.pool.material.opacity = 0.13 * fl; L.glow.material.opacity = 0.55 * fl;
     if (L.light) L.light.intensity = 7 * fl;
@@ -399,6 +408,7 @@ export function updateWorld(W, M, S, t, dt, follow) {
 
 export function pointBlocked(M, x, y, z) {
   if (y < 0.05) return true;
+  if (M.ceiling && y > M.ceiling - 0.3) return true;
   const bucket = M.hash.get(Math.floor((x + HALF + 12) / 8) * 1000 + Math.floor((z + HALF + 12) / 8));
   if (!bucket) return false;
   for (const o of bucket) {

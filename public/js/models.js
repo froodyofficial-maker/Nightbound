@@ -788,7 +788,7 @@ export function mergeGeos(list) {
   let vCount = 0, iCount = 0;
   for (const { geo } of list) { vCount += geo.attributes.position.count; iCount += geo.index ? geo.index.count : geo.attributes.position.count; }
   const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3), uv = new Float32Array(vCount * 2), idx = new Uint32Array(iCount);
-  const col = list.some(l => l.color) ? new Float32Array(vCount * 3) : null;
+  const col = list.some(l => l.color || l.geo.attributes.color) ? new Float32Array(vCount * 3) : null;
   let vo = 0, io = 0;
   const v = new THREE.Vector3(), nm = new THREE.Matrix3();
   for (const { geo, matrix, color } of list) {
@@ -798,7 +798,7 @@ export function mergeGeos(list) {
       v.fromBufferAttribute(p, i).applyMatrix4(matrix); pos.set([v.x, v.y, v.z], (vo + i) * 3);
       v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (vo + i) * 3);
       if (u) uv.set([u.getX(i), u.getY(i)], (vo + i) * 2);
-      if (col) { const c = color || new THREE.Color(1, 1, 1); col.set([c.r, c.g, c.b], (vo + i) * 3); }
+      if (col) { const va = geo.attributes.color; if (va) col.set([va.getX(i), va.getY(i), va.getZ(i)], (vo + i) * 3); else { const c = color || new THREE.Color(1, 1, 1); col.set([c.r, c.g, c.b], (vo + i) * 3); } }
     }
     if (geo.index) for (let i = 0; i < geo.index.count; i++) idx[io + i] = geo.index.getX(i) + vo;
     else for (let i = 0; i < p.count; i++) idx[io + i] = vo + i;

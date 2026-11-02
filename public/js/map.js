@@ -1,6 +1,7 @@
 // Deterministic map generation: layout, colliders, interactables, nav grid.
 // The same seed produces the exact same map on host and every client.
 import { HALF } from './config.js';
+import { buildMeatworks } from './meatworks.js';
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -20,81 +21,84 @@ export function rng(seed) {
 
 const T = 0.18; // wall half-thickness
 
-export function buildMap(seed) {
+// ---------- template context: place walls, windows, barricades, props in a rotated local frame ----------
+export function makeCtx(M, R, cx, cz, rot) {
+  const rp = (x, z) => {
+    switch (rot) {
+      case 1: return [cx - z, cz + x];
+      case 2: return [cx - x, cz - z];
+      case 3: return [cx + z, cz - x];
+      default: return [cx + x, cz + z];
+    }
+  };
+  const odd = rot % 2 === 1;
+  const rax = a => (odd ? (a === 'x' ? 'z' : 'x') : a);
+  const C = {
+    rp,
+    box(x, z, hx, hz, h, kind = 'crate', style = 'wood') {
+      const [wx, wz] = rp(x, z);
+      const b = { x: wx, z: wz, hx: odd ? hz : hx, hz: odd ? hx : hz, h, kind, style };
+      M.boxes.push(b); return b;
+    },
+    circle(x, z, r, h, kind = 'rock') {
+      const [wx, wz] = rp(x, z);
+      const c = { x: wx, z: wz, r, h, kind, s: R.range(0.85, 1.2), rot: R.range(0, 6.28) };
+      M.circles.push(c);
+      if (kind === 'tree') M.trees.push(c); else M.rocks.push(c);
+      return c;
+    },
+    seg(x1, z1, x2, z2, style, h = 3) {
+      const [a1, b1] = rp(x1, z1), [a2, b2] = rp(x2, z2);
+      const len = Math.hypot(a2 - a1, b2 - b1);
+      if (len < 0.05) return;
+      const vert = Math.abs(a1 - a2) < Math.abs(b1 - b2);
+      M.boxes.push({
+        x: (a1 + a2) / 2, z: (b1 + b2) / 2,
+        hx: vert ? T : len / 2 + T, hz: vert ? len / 2 + T : T,
+        h: h * R.range(0.82, 1.05), kind: 'wall', style,
+      });
+    },
+    windowWall(x1, z1, x2, z2, style, f = 0.5, w = 1.5, h = 3) {
+      const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
+      const cxl = x1 + dx * f, czl = z1 + dz * f;
+      C.seg(x1, z1, cxl - ux * w / 2, czl - uz * w / 2, style, h);
+      C.seg(cxl + ux * w / 2, czl + uz * w / 2, x2, z2, style, h);
+      const [wx, wz] = rp(cxl, czl);
+      const along = Math.abs(ux) > Math.abs(uz) ? 'x' : 'z';
+      const wAlongWorld = rax(along);
+      const sill = { x: wx, z: wz, hx: wAlongWorld === 'x' ? w / 2 : 0.22, hz: wAlongWorld === 'z' ? w / 2 : 0.22, h: 0.95, kind: 'sill', style };
+      M.boxes.push(sill);
+      M.visual.push({ type: 'lintel', x: wx, z: wz, hx: sill.hx === 0.22 ? T : sill.hx, hz: sill.hz === 0.22 ? T : sill.hz, y0: 2.15, y1: h * 0.95, style });
+      M.windows.push({ id: M.windows.length, x: wx, z: wz, axis: wAlongWorld === 'x' ? 'z' : 'x', half: w / 2 });
+    },
+    doorWall(x1, z1, x2, z2, style, f = 0.5, w = 1.9, barricade = false, h = 3) {
+      const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
+      const cxl = x1 + dx * f, czl = z1 + dz * f;
+      C.seg(x1, z1, cxl - ux * w / 2, czl - uz * w / 2, style, h);
+      C.seg(cxl + ux * w / 2, czl + uz * w / 2, x2, z2, style, h);
+      if (barricade) {
+        const along = Math.abs(ux) > Math.abs(uz) ? 'x' : 'z';
+        C.barricade(cxl, czl, along === 'x' ? 'z' : 'x', w / 2 - T);
+      }
+    },
+    barricade(x, z, crossAxisLocal, half = 0.9) {
+      const [wx, wz] = rp(x, z);
+      M.bars.push({ id: M.bars.length, x: wx, z: wz, axis: rax(crossAxisLocal), half, lean: R() < 0.5 ? 1 : -1 });
+    },
+  };
+  return C;
+}
+
+
+
+export function buildMap(seed, map = 'woods') {
+  if (map === 'meatworks') return buildMeatworks(seed);
   const R = rng(seed);
   const M = {
-    seed, boxes: [], circles: [], windows: [], bars: [], gens: [], cages: [], gates: [],
+    seed, map: 'woods', boxes: [], circles: [], windows: [], bars: [], gens: [], cages: [], gates: [],
     visual: [], trees: [], rocks: [], spawns: { survivors: [], killer: null },
   };
   const theme = R.pick(['brick', 'wood', 'stone']);
-
-  // ---------- template context ----------
-  function ctx(cx, cz, rot) {
-    const rp = (x, z) => {
-      switch (rot) {
-        case 1: return [cx - z, cz + x];
-        case 2: return [cx - x, cz - z];
-        case 3: return [cx + z, cz - x];
-        default: return [cx + x, cz + z];
-      }
-    };
-    const odd = rot % 2 === 1;
-    const rax = a => (odd ? (a === 'x' ? 'z' : 'x') : a);
-    const C = {
-      rp,
-      box(x, z, hx, hz, h, kind = 'crate', style = 'wood') {
-        const [wx, wz] = rp(x, z);
-        const b = { x: wx, z: wz, hx: odd ? hz : hx, hz: odd ? hx : hz, h, kind, style };
-        M.boxes.push(b); return b;
-      },
-      circle(x, z, r, h, kind = 'rock') {
-        const [wx, wz] = rp(x, z);
-        const c = { x: wx, z: wz, r, h, kind, s: R.range(0.85, 1.2), rot: R.range(0, 6.28) };
-        M.circles.push(c);
-        if (kind === 'tree') M.trees.push(c); else M.rocks.push(c);
-        return c;
-      },
-      seg(x1, z1, x2, z2, style, h = 3) {
-        const [a1, b1] = rp(x1, z1), [a2, b2] = rp(x2, z2);
-        const len = Math.hypot(a2 - a1, b2 - b1);
-        if (len < 0.05) return;
-        const vert = Math.abs(a1 - a2) < Math.abs(b1 - b2);
-        M.boxes.push({
-          x: (a1 + a2) / 2, z: (b1 + b2) / 2,
-          hx: vert ? T : len / 2 + T, hz: vert ? len / 2 + T : T,
-          h: h * R.range(0.82, 1.05), kind: 'wall', style,
-        });
-      },
-      windowWall(x1, z1, x2, z2, style, f = 0.5, w = 1.5, h = 3) {
-        const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
-        const cxl = x1 + dx * f, czl = z1 + dz * f;
-        C.seg(x1, z1, cxl - ux * w / 2, czl - uz * w / 2, style, h);
-        C.seg(cxl + ux * w / 2, czl + uz * w / 2, x2, z2, style, h);
-        const [wx, wz] = rp(cxl, czl);
-        const along = Math.abs(ux) > Math.abs(uz) ? 'x' : 'z';
-        const wAlongWorld = rax(along);
-        const sill = { x: wx, z: wz, hx: wAlongWorld === 'x' ? w / 2 : 0.22, hz: wAlongWorld === 'z' ? w / 2 : 0.22, h: 0.95, kind: 'sill', style };
-        M.boxes.push(sill);
-        M.visual.push({ type: 'lintel', x: wx, z: wz, hx: sill.hx === 0.22 ? T : sill.hx, hz: sill.hz === 0.22 ? T : sill.hz, y0: 2.15, y1: h * 0.95, style });
-        M.windows.push({ id: M.windows.length, x: wx, z: wz, axis: wAlongWorld === 'x' ? 'z' : 'x', half: w / 2 });
-      },
-      doorWall(x1, z1, x2, z2, style, f = 0.5, w = 1.9, barricade = false, h = 3) {
-        const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
-        const cxl = x1 + dx * f, czl = z1 + dz * f;
-        C.seg(x1, z1, cxl - ux * w / 2, czl - uz * w / 2, style, h);
-        C.seg(cxl + ux * w / 2, czl + uz * w / 2, x2, z2, style, h);
-        if (barricade) {
-          const along = Math.abs(ux) > Math.abs(uz) ? 'x' : 'z';
-          C.barricade(cxl, czl, along === 'x' ? 'z' : 'x', w / 2 - T);
-        }
-      },
-      barricade(x, z, crossAxisLocal, half = 0.9) {
-        const [wx, wz] = rp(x, z);
-        M.bars.push({ id: M.bars.length, x: wx, z: wz, axis: rax(crossAxisLocal), half, lean: R() < 0.5 ? 1 : -1 });
-      },
-    };
-    return C;
-  }
 
   const S = theme;
   const templates = {
@@ -184,7 +188,7 @@ export function buildMap(seed) {
 
   const slots = [];
   for (const c of cells) {
-    const C = ctx(c.cx, c.cz, c.rot);
+    const C = makeCtx(M, R, c.cx, c.cz, c.rot);
     const res = templates[c.t](C);
     c.G = res.G && C.rp(res.G[0], res.G[1]);
     c.C = res.C && C.rp(res.C[0], res.C[1]);
@@ -233,18 +237,7 @@ export function buildMap(seed) {
   bound(-HALF - BW, gx2 - 2.4, HALF); bound(gx2 + 2.4, HALF + BW, HALF);
   M.boxes.push({ x: -HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: 'stone' });
   M.boxes.push({ x: HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: 'stone' });
-  for (const g of gateDefs) {
-    const id = M.gates.length;
-    // gate pillars + an exit corridor beyond the wall
-    M.boxes.push({ x: g.x - 2.75, z: g.z, hx: 0.45, hz: 0.75, h: 5.4, kind: 'pillar', style: 'stone' });
-    M.boxes.push({ x: g.x + 2.75, z: g.z, hx: 0.45, hz: 0.75, h: 5.4, kind: 'pillar', style: 'stone' });
-    M.boxes.push({ x: g.x - 2.6, z: g.z + g.dir * 5, hx: 0.3, hz: 4.5, h: 3.5, kind: 'boundary', style: 'stone' });
-    M.boxes.push({ x: g.x + 2.6, z: g.z + g.dir * 5, hx: 0.3, hz: 4.5, h: 3.5, kind: 'boundary', style: 'stone' });
-    M.boxes.push({ x: g.x, z: g.z + g.dir * 9.8, hx: 2.9, hz: 0.3, h: 3.5, kind: 'boundary', style: 'stone' });
-    const sx = g.x + 4.2, sz = g.z - g.dir * 1.3;
-    M.boxes.push({ x: sx, z: sz, hx: 0.3, hz: 0.25, h: 1.5, kind: 'switch', style: 'metal' });
-    M.gates.push({ id, x: g.x, z: g.z, dir: g.dir, sx, sz, door: { x: g.x, z: g.z, hx: 2.3, hz: 0.25, h: 4 } });
-  }
+  addGates(M, gateDefs);
 
   // ---------- spawns ----------
   const ccx = -40 + sc[0] * 20, ccz = -40 + sc[1] * 20;
@@ -279,6 +272,23 @@ export function buildMap(seed) {
 }
 
 function push(M, c) { M.circles.push(c); return c; }
+
+export function addGates(M, gateDefs, style = 'stone') {
+  for (const g of gateDefs) {
+    const id = M.gates.length;
+    // gate pillars + an exit corridor beyond the wall
+    M.boxes.push({ x: g.x - 2.75, z: g.z, hx: 0.45, hz: 0.75, h: 5.4, kind: 'pillar', style: style });
+    M.boxes.push({ x: g.x + 2.75, z: g.z, hx: 0.45, hz: 0.75, h: 5.4, kind: 'pillar', style: style });
+    M.boxes.push({ x: g.x - 2.6, z: g.z + g.dir * 5, hx: 0.3, hz: 4.5, h: 3.5, kind: 'boundary', style: style });
+    M.boxes.push({ x: g.x + 2.6, z: g.z + g.dir * 5, hx: 0.3, hz: 4.5, h: 3.5, kind: 'boundary', style: style });
+    M.boxes.push({ x: g.x, z: g.z + g.dir * 9.8, hx: 2.9, hz: 0.3, h: 3.5, kind: 'boundary', style: style });
+    const sx = g.x + 4.2, sz = g.z - g.dir * 1.3;
+    M.boxes.push({ x: sx, z: sz, hx: 0.3, hz: 0.25, h: 1.5, kind: 'switch', style: 'metal' });
+    M.gates.push({ id, x: g.x, z: g.z, dir: g.dir, sx, sz, door: { x: g.x, z: g.z, hx: 2.3, hz: 0.25, h: 4 } });
+  }
+
+}
+
 
 // ---------- collision ----------
 export function dynBoxes(M, st) {
@@ -398,7 +408,7 @@ export function losBlocked(M, x1, z1, x2, z2, minH = 1.7) {
 
 // ---------- nav grid ----------
 export const CELL = 0.5;
-function buildGrid(M) {
+export function buildGrid(M) {
   buildHash(M);
   const ext = HALF + 11;
   const N = Math.ceil(ext * 2 / CELL);

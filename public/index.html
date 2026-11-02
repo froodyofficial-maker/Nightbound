@@ -12,11 +12,13 @@
   <div id="game"></div>
 
   <!-- shown if the game scripts can't start (e.g. index.html opened straight from disk) -->
+  <div id="boot-loading"><div class="bl-title">Nightbound</div><div class="bl-bar"><i></i></div><div class="bl-sub">Entering the fog…</div></div>
   <div id="boot-error" class="hidden">
     <div class="be-box">
       <h2>The fog won't lift…</h2>
-      <p>Your browser blocked the game's scripts. That happens when <b>index.html</b> is opened straight from a folder.</p>
-      <p><b>Easiest fix:</b> double-click <b>Nightbound.html</b> (next to this folder). It runs offline with no setup.</p>
+      <p>The game didn't start. First try a hard refresh (<b>Ctrl+F5</b>, or <b>Cmd+Shift+R</b> on Mac).</p>
+      <p>If you opened <b>public/index.html</b> straight from a folder, your browser blocks its scripts: double-click <b>Nightbound.html</b> in the main folder instead. It runs offline with no setup.</p>
+      <p id="boot-detail" class="be-detail"></p>
       <p><b>For online play over your network:</b> run <code>node server.js</code> (or <b>start-windows.bat</b> / <b>start-mac.command</b>) and open <code>http://localhost:8090</code>.</p>
     </div>
   </div>
@@ -58,6 +60,8 @@
             <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option><option value="foreman">The Foreman (OFFAL)</option></select></div>
           <div class="field"><label>Bot difficulty</label>
             <div class="seg" id="bots-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
+          <div class="field"><label>Map</label>
+            <div class="seg" id="bots-map"><button data-v="random" class="on">Random</button><button data-v="woods">Gravemoor Woods</button><button data-v="meatworks">Meatworks <span class="newtag">NEW</span></button></div></div>
           <div class="loadout-mini" id="bots-loadout"></div>
           <div class="actions"><button class="btn primary big" id="btn-bots-start">Ready</button></div>
         </section>
@@ -88,6 +92,7 @@
               <div class="slots" id="lobby-slots"></div>
               <div class="host-opts" id="lobby-host-opts">
                 <label class="check"><input type="checkbox" id="lobby-fill" checked> Fill empty slots with bots</label>
+                <div class="field"><label>Map</label><div class="seg" id="lobby-map"><button data-v="random" class="on">Random</button><button data-v="woods">Woods</button><button data-v="meatworks">Meatworks</button></div></div>
                 <div class="field"><label>Bot difficulty</label><div class="seg" id="lobby-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
               </div>
               <div class="chat"><div id="chat-log"></div><input id="chat-in" maxlength="120" placeholder="Say something… (Enter)"></div>
@@ -217,7 +222,16 @@
 
   <script>
     // If the module scripts never start (file:// or a very old browser), explain what to do.
-    setTimeout(function () { if (!window.__nbBooted) { var e = document.getElementById('boot-error'); if (e) e.className = ''; } }, 2500);
+    // Checked only once the whole page has arrived: a slow download is not a failure.
+    window.addEventListener('error', function (ev) { window.__nbErr = ev.message; });
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (window.__nbBooted) return;
+        var e = document.getElementById('boot-error'); if (e) e.className = '';
+        var l = document.getElementById('boot-loading'); if (l) l.style.display = 'none';
+        if (window.__nbErr) { var d = document.getElementById('boot-detail'); if (d) d.textContent = 'Error: ' + window.__nbErr; }
+      }, 4000);
+    });
   </script>
   <script type="module" src="js/main.js"></script>
 </body>

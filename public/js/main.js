@@ -15,6 +15,7 @@ import { hostRoom, joinRoom, relayAvailable } from './net.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, SKINS, INBOX, VERSION } from './config.js';
 
 window.__nbBooted = true;
+for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -320,11 +321,12 @@ if (profile.lastVersion !== VERSION) {
 }
 
 // ---------- bot match ----------
-const botsCfg = { role: 'survivor', team: 3, surv: 4, killer: 'random', diff: 'normal' };
+const botsCfg = { role: 'survivor', team: 3, surv: 4, killer: 'random', diff: 'normal', map: 'random' };
 seg('bots-role', v => { botsCfg.role = v; setScene(v); $('panel-title').textContent = v === 'killer' ? 'Play as Killer' : 'Play as Survivor'; renderBotsPanel(); });
 seg('bots-team', v => { botsCfg.team = +v; });
 seg('bots-surv', v => { botsCfg.surv = +v; });
 seg('bots-diff', v => { botsCfg.diff = v; });
+seg('bots-map', v => { botsCfg.map = v; });
 $('bots-killer').addEventListener('change', e => { botsCfg.killer = e.target.value; });
 function renderBotsPanel() {
   const k = botsCfg.role === 'killer';
@@ -361,20 +363,25 @@ $('btn-bots-start').addEventListener('click', () => {
     for (let i = 0; i < botsCfg.team; i++) roster.push(botSurvivor(i + 1, used));
     roster.push(botKiller(botsCfg.killer));
   } else for (let i = 0; i < botsCfg.surv; i++) roster.push(botSurvivor(i + 1, used));
-  startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots' });
+  startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots', map: botsCfg.map });
 });
 
 // ---------- sessions ----------
 let session = null;
 
+// map ids: 'woods' (Gravemoor Woods), 'meatworks' (Hollow Pines Meatworks), 'random'
+const MAPS = { woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks' };
+function resolveMap(m) { return MAPS[m] ? m : Math.random() < 0.5 ? 'woods' : 'meatworks'; }
+
 class HostSession {
   constructor(roster, opts) { this.roster = roster; this.opts = opts; this.net = opts.net; this.myId = opts.myId; this.isHost = true; this.snapT = 0; this.kfT = 0; this.pending = []; }
   start() {
     this.seed = Math.floor(Math.random() * 1e9);
-    this.M = buildMap(this.seed);
+    this.map = resolveMap(this.opts.map);
+    this.M = buildMap(this.seed, this.map);
     this.sim = new Sim(this.M, this.roster, { difficulty: this.opts.difficulty });
     this.bots = new Bots(this.sim);
-    if (this.net) this.net.broadcast({ t: 'start', seed: this.seed, roster: this.roster, difficulty: this.opts.difficulty });
+    if (this.net) this.net.broadcast({ t: 'start', seed: this.seed, map: this.map, roster: this.roster, difficulty: this.opts.difficulty });
     this.game = new Game({ renderer, M: this.M, myId: this.myId, isHost: true, session: this, settings, onEnd: (S, me) => onMatchEnd(S, me, this) });
     this.game.start();
   }
@@ -428,7 +435,7 @@ class HostSession {
 }
 
 class ClientSession {
-  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed); this.S = null; this.game = null; this.queued = []; this.reader = new SnapReader(); }
+  constructor(net, start, myId) { this.net = net; this.myId = myId; this.isHost = false; this.M = buildMap(start.seed, start.map === 'meatworks' ? 'meatworks' : 'woods'); this.S = null; this.game = null; this.queued = []; this.reader = new SnapReader(); }
   onMsg(m) {
     if (m.t !== 's') return;
     const s = this.reader.read(m.s);
@@ -586,7 +593,7 @@ function applyLoadout(p, m) {
 }
 function broadcastLobby() {
   if (!lobby || !lobby.isHost) return;
-  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, code: lobby.code });
+  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, map: lobby.map || 'random', code: lobby.code });
   renderLobby();
 }
 
@@ -613,7 +620,7 @@ function clientMsg(m) {
   if (!m || typeof m !== 'object' || !lobby) return;
   switch (m.t) {
     case 'welcome': lobby.myId = m.id; break;
-    case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; renderLobby(); break;
+    case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; renderLobby(); break;
     case 'reject': toast(m.reason); leaveOnline(true); break;
     case 'chat': addChat(m.name, m.text); break;
     case 'start': startClientMatch(m); break;
@@ -640,6 +647,7 @@ function showLobby() {
   $('lobby-wait').classList.toggle('hidden', lobby.isHost);
   $('lobby-fill').checked = lobby.fill;
   setSeg('lobby-diff', lobby.diff);
+  setSeg('lobby-map', lobby.map || 'random');
   renderLobby();
 }
 function myLobbyPlayer() { return lobby && lobby.players.find(p => p.id === lobby.myId); }
@@ -673,6 +681,7 @@ function sendMyLoadout(role) {
 }
 seg('lobby-role', v => sendMyLoadout(v));
 seg('lobby-diff', v => { if (lobby && lobby.isHost) { lobby.diff = v; broadcastLobby(); } });
+seg('lobby-map', v => { if (lobby && lobby.isHost) { lobby.map = v; broadcastLobby(); } });
 $('lobby-fill').addEventListener('change', e => { if (lobby && lobby.isHost) { lobby.fill = e.target.checked; broadcastLobby(); } });
 $('btn-copy').addEventListener('click', async () => {
   if (location.protocol === 'file:') {
@@ -709,7 +718,7 @@ $('btn-lobby-start').addEventListener('click', () => {
   if (lobby.fill) for (let i = 1; ns < 4; i++, ns++) roster.push(botSurvivor(i, used));
   if (ns === 0) { toast('At least one survivor is needed (or enable bots).'); return; }
   lobby.inGame = true;
-  startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online' });
+  startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online', map: lobby.map || 'random' });
 });
 function returnToLobby() {
   if (!lobby) { endSession(); show('p-main'); return; }

@@ -19,9 +19,13 @@ async function bytes() {
     for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
     return b.buffer;
   }
-  const r = await fetch('models/foreman.glb');
-  if (!r.ok) throw new Error('foreman.glb ' + r.status);
-  return r.arrayBuffer();
+  // the web build (index.html at the repo root) fetches it from public/, the dev server from models/
+  let last;
+  const dev = !!document.querySelector('script[type=importmap]');
+  for (const url of dev ? ['models/foreman.glb', 'public/models/foreman.glb'] : ['public/models/foreman.glb', 'models/foreman.glb']) {
+    try { const r = await fetch(url); if (r.ok) return await r.arrayBuffer(); last = new Error(url + ' ' + r.status); } catch (e) { last = e; }
+  }
+  throw last;
 }
 
 export function loadForeman() {
