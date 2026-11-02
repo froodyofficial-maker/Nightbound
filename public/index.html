@@ -37,12 +37,13 @@
       <button data-act="play-killer" data-scene="killer"><span>Play as Killer</span><small>Hunt down bot survivors</small></button>
       <button data-act="online"><span>Online Match</span><small>Host a lobby or join friends</small></button>
       <button data-act="loadout"><span>Loadout</span><small>Characters &amp; perks</small></button>
-      <button data-act="store"><span>Store</span><small>Skins for every character</small></button>
+      <button data-act="store"><span>Store <span class="newtag">NEW DLC</span></span><small>Chapters, characters &amp; outfits</small></button>
       <button data-act="settings"><span>Settings</span><small>Graphics, controls, audio</small></button>
       <button data-act="help"><span>How to Play</span><small>Rules &amp; controls</small></button>
     </nav>
 
     <div class="showcase" id="showcase"></div>
+    <button class="news-card" id="news-card"><div class="offal-art"></div><div class="nc-txt"><span>New Chapter</span><b>OFFAL <i>×</i> Nightbound</b></div></button>
     <div class="topright"><button class="inbox-btn" id="inbox-btn" title="Inbox"><span class="ib-ico"></span><span class="badge hidden" id="inbox-badge"></span></button><div class="profile" id="profile"></div></div>
 
     <aside id="panel" class="panel hidden">
@@ -112,12 +113,6 @@
         </section>
 
         <!-- store -->
-        <section id="p-store" class="hidden">
-          <div class="store-top"><div class="seg" id="store-role"><button data-v="survivor" class="on">Survivors</button><button data-v="killer">Killers</button></div><div class="wallet" id="store-wallet"></div></div>
-          <div class="store-chars" id="store-chars"></div>
-          <div class="skins" id="store-skins"></div>
-        </section>
-
         <!-- inbox -->
         <section id="p-inbox" class="hidden"><div id="inbox-list"></div></section>
 
@@ -179,6 +174,30 @@
   </div>
 
   <!-- ================= HUD ================= -->
+  <!-- ================= STORE (full screen, DbD-style) ================= -->
+  <div id="store" class="hidden">
+    <div class="st-top">
+      <div class="st-title">Store</div>
+      <nav class="st-tabs" id="st-tabs"><button data-t="chapters" class="on">Chapters</button><button data-t="characters">Characters</button><button data-t="collections">Collections</button></nav>
+      <div class="st-wallet" id="st-wallet"></div>
+      <button class="st-close" id="st-close" title="Back (Esc)">Back</button>
+    </div>
+    <div class="st-body" id="st-body"></div>
+  </div>
+
+  <!-- ================= ANNOUNCEMENT ================= -->
+  <div id="announce" class="hidden">
+    <div class="an-bg"></div>
+    <div class="an-inner">
+      <div class="an-kicker">New Chapter · Available now</div>
+      <div class="an-banner"><div class="an-img offal-art"></div><div class="an-scan"></div></div>
+      <div class="an-x">× <span>Nightbound</span></div>
+      <p class="an-sub">The Foreman clocks in. Hunt by sound, cut the lights, drag them back to the line, on a brand new map ported straight from OFFAL: <b>the Hollow Pines Meatworks</b>.</p>
+      <ul class="an-list"><li>New killer: <b>The Foreman</b></li><li>New map: <b>Hollow Pines Meatworks</b></li><li>New execution: <b>Reassignment</b></li></ul>
+      <div class="an-actions"><button class="btn primary big" id="an-store">View in Store</button><button class="btn big" id="an-play">Play the Meatworks</button><button class="btn" id="an-close">Close</button></div>
+    </div>
+  </div>
+
   <div id="hud" class="hidden">
     <div id="glare"></div>
     <div id="fx-vignette"></div><div id="fx-red"></div><div id="fx-frost"></div><div id="fx-tele"></div><div id="splat"></div>

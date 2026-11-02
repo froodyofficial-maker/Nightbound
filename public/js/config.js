@@ -183,11 +183,34 @@ export const SKINS = {
     { id: 'reassigned', name: 'Reassigned', price: 6000, flesh: 0x7a8a8a, bone: 0x2a2a2a, eye: 0x7affd0, apron: 0x101418 },
   ],
 };
+// ---------------- Store: chapters (DLC) ----------------
+// Bought with Embers. A chapter unlocks playing as its killer; its map is free for everyone.
+export const CHAPTERS = [
+  { id: 'offal', num: 'V', name: 'OFFAL', sub: '× Nightbound', price: 5000, killer: 'foreman', map: 'meatworks', banner: 'offal', isNew: true,
+    tagline: 'Night shift at the Hollow Pines Meatworks. Headcount must be maintained.',
+    contents: ['The Foreman: Chain Hook, Lights Out and Hunts by Sound', 'Execution: Reassignment', 'Map: Hollow Pines Meatworks (free for everyone)', '3 Foreman outfits in the Store'] },
+  { id: 'base4', num: 'IV', name: 'The Last Light', killer: 'lamplighter', base: true, tagline: 'Every lantern is a door. Every door leads to him.' },
+  { id: 'base3', num: 'III', name: 'Trophy Season', killer: 'harrower', base: true, tagline: 'He does not chase. He collects.' },
+  { id: 'base2', num: 'II', name: 'Drowned Embrace', killer: 'wisp', base: true, tagline: 'She was here first. She will be here last.' },
+  { id: 'base1', num: 'I', name: 'Gravemoor', killer: 'butcher', base: true, tagline: 'Where every road leads back to the block.' },
+];
+export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c => [c.killer, c.id]));
+
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.4.0';
+export const VERSION = '2.5.0';
 export const INBOX = [
+  {
+    id: 'v2.5', version: '2.5.0', date: 'Nov 2026', title: 'OFFAL × Nightbound', tag: 'New Chapter', banner: 'offal',
+    gift: { embers: 2500, label: 'Chapter launch gift: 2,500 Embers' },
+    body: [
+      'New chapter: OFFAL × Nightbound. The Foreman is now a chapter you unlock in the Store (anyone who already bought one of his outfits keeps him).',
+      'New map: the Hollow Pines Meatworks, ported from OFFAL. White-tiled kill floors, carcass rails, cattle pens, the Foreman\'s office, freezers and offal tanks under a low ceiling. Free for everyone, and selectable in bot matches and online lobbies.',
+      'The Store has been rebuilt: Chapters, a Characters tab with portraits, outfits and a live 3D preview, and Collections that bundle every outfit for a character at 25% off.',
+      'Fixed: the web version could show "The fog won\'t lift" while it was still downloading. It now loads about 3x faster and shows a loading screen.',
+    ],
+  },
   {
     id: 'v2.4', version: '2.4.0', date: 'Nov 2026', title: 'Flashlights & Smooth Online', tag: 'Update',
     gift: { embers: 2000, label: 'Update gift: 2,000 Embers' },

@@ -357,3 +357,126 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .skin .rar { position: absolute; top: 10px; right: 12px; font-family: var(--cond); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
 .rar.common { color: #9aa; } .rar.rare { color: #6ab0ff; } .rar.epic { color: #c07aff; } .rar.legendary { color: #ffb040; }
 .newtag { display: inline-block; margin-left: 6px; padding: 1px 5px; font-family: var(--cond); font-size: 11px; letter-spacing: .12em; color: #fff; background: var(--red2); vertical-align: middle; }
+
+/* ================= OFFAL banner art (user artwork) ================= */
+.offal-art { background: #0a0303 url(../img/offal-banner.webp) center / cover no-repeat; }
+
+/* ================= main menu news card ================= */
+.news-card { position: absolute; top: 118px; right: 34px; z-index: 3; width: 300px; padding: 0; border: 1px solid rgba(232,53,43,.55); background: #070303; cursor: pointer; overflow: hidden; text-align: left; box-shadow: 0 0 30px rgba(179,32,30,.25); transition: transform .2s, box-shadow .2s; }
+.news-card:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(232,53,43,.45); }
+.news-card .offal-art { height: 118px; filter: saturate(1.1); }
+.news-card .nc-txt { padding: 8px 12px 10px; background: linear-gradient(180deg, #120505, #070303); }
+.news-card span { display: block; font-family: var(--cond); font-weight: 600; font-size: 12px; letter-spacing: .24em; text-transform: uppercase; color: var(--red2); }
+.news-card b { font-family: 'IM Fell English SC', serif; font-weight: 400; font-size: 24px; color: var(--bone); }
+.news-card b i { font-style: normal; color: var(--red2); }
+#menu.panel-open .news-card { display: none; }
+@media (max-width: 1100px) { .news-card { display: none; } }
+
+/* ================= announcement ================= */
+#announce { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow: auto; padding: 24px 16px; }
+#announce .an-bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 35%, rgba(90,6,4,.55), rgba(5,2,2,.97) 65%), #050202; animation: anFade .6s ease-out; }
+#announce .an-inner { position: relative; width: min(1100px, 100%, calc((100vh - 330px) * 1.95)); text-align: center; animation: anRise .9s cubic-bezier(.2,.8,.2,1); }
+#announce .an-kicker { font-family: var(--cond); font-weight: 600; letter-spacing: .4em; text-transform: uppercase; color: var(--red2); font-size: 15px; margin-bottom: 14px; }
+#announce .an-banner { position: relative; aspect-ratio: 1258 / 643; border: 1px solid rgba(232,53,43,.45); overflow: hidden; box-shadow: 0 0 80px rgba(179,32,30,.45), 0 30px 80px #000; }
+#announce .an-img { position: absolute; inset: -2%; animation: anZoom 18s ease-in-out infinite alternate, anFlicker 6s steps(1) infinite; }
+#announce .an-scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 2px, transparent 2px 4px), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65)); }
+#announce .an-x { margin-top: -6px; font-family: 'IM Fell English SC', serif; font-size: clamp(44px, 8vw, 104px); line-height: 1; color: #c8221a; text-shadow: 0 0 24px rgba(232,53,43,.55), 0 4px 0 #2a0402; letter-spacing: .06em; animation: anBleed 3.5s ease-in-out infinite; }
+#announce .an-x span { color: #e9e0d0; text-shadow: 0 0 22px rgba(233,224,208,.18), 0 4px 0 #1a0605; }
+#announce .an-sub { max-width: 760px; margin: 14px auto 10px; font-size: 18px; line-height: 1.5; color: #d8cdbd; }
+#announce .an-list { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; padding: 0; margin: 0 0 20px; font-family: var(--cond); font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: #a89e90; }
+#announce .an-list b { color: var(--bone); font-weight: 600; }
+#announce .an-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+@keyframes anFade { from { opacity: 0; } }
+@keyframes anRise { from { opacity: 0; transform: translateY(24px) scale(.98); } }
+@keyframes anZoom { from { transform: scale(1); } to { transform: scale(1.07) translate(-1%, .6%); } }
+@keyframes anFlicker { 0%, 100% { filter: brightness(1); } 47% { filter: brightness(1); } 48% { filter: brightness(.55); } 49% { filter: brightness(1.15); } 50% { filter: brightness(.8); } 51% { filter: brightness(1); } }
+@keyframes anBleed { 50% { text-shadow: 0 0 40px rgba(232,53,43,.85), 0 4px 0 #2a0402; } }
+
+/* ================= store (DbD-style, full screen) ================= */
+#store { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; color: var(--bone); background: linear-gradient(90deg, rgba(6,4,5,.97) 0%, rgba(6,4,5,.94) 50%, rgba(6,4,5,.15) 72%, rgba(6,4,5,0) 100%); }
+#store.wide { background: rgba(6,4,5,.96); }
+.st-top { display: flex; align-items: center; gap: 22px; padding: 14px 28px; background: linear-gradient(180deg, #0d0909, rgba(13,9,9,.92)); border-bottom: 1px solid rgba(232,53,43,.35); flex-wrap: wrap; }
+.st-title { font-family: 'IM Fell English SC', serif; font-size: 40px; line-height: 1; letter-spacing: .04em; }
+.st-tabs { display: flex; gap: 2px; flex: 1; flex-wrap: wrap; }
+.st-tabs button { border: 0; background: transparent; padding: 8px 18px; cursor: pointer; font-family: var(--display); font-size: 26px; letter-spacing: .08em; color: #8a8076; border-bottom: 3px solid transparent; transition: .15s; }
+.st-tabs button:hover { color: #fff; }
+.st-tabs button.on { color: #fff; border-bottom-color: var(--red2); }
+.st-wallet { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 30px; color: var(--gold); padding: 4px 14px; border: 1px solid rgba(216,181,106,.35); background: rgba(0,0,0,.4); }
+.st-wallet .ico { width: 24px; height: 24px; }
+.st-close { border: 1px solid var(--line); background: rgba(0,0,0,.4); color: var(--bone); font-family: var(--display); font-size: 22px; letter-spacing: .08em; padding: 6px 18px; cursor: pointer; }
+.st-close:hover { border-color: var(--red2); }
+.st-body { flex: 1; overflow: auto; padding: 22px 28px 28px; }
+/* chapters */
+.ch-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 0; border: 1px solid rgba(232,53,43,.5); background: #080404; box-shadow: 0 0 50px rgba(179,32,30,.2); margin-bottom: 22px; max-width: 1400px; }
+.ch-hero .ch-art { position: relative; min-height: 300px; overflow: hidden; }
+.ch-hero .ch-art .offal-art { position: absolute; inset: 0; transition: transform 6s ease-out; }
+.ch-hero:hover .ch-art .offal-art { transform: scale(1.04); }
+.ch-hero .ch-x { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-family: 'IM Fell English SC', serif; font-size: clamp(30px, 4vw, 54px); color: #c8221a; text-shadow: 0 3px 0 #1a0302, 0 0 20px rgba(0,0,0,.9); }
+.ch-hero .ch-x span { color: var(--bone); }
+.ch-info { padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; background: linear-gradient(160deg, #140707, #070404); }
+.ch-tag { align-self: flex-start; font-family: var(--cond); font-weight: 600; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; padding: 3px 8px; background: var(--red2); color: #fff; }
+.ch-tag.owned { background: #2e5a34; }
+.ch-name { font-family: 'IM Fell English SC', serif; font-size: 40px; line-height: 1; }
+.ch-name small { display: block; font-family: var(--cond); font-size: 14px; letter-spacing: .28em; text-transform: uppercase; color: #9a8f82; margin-bottom: 6px; }
+.ch-line { color: #cbbfae; font-style: italic; }
+.ch-info ul { margin: 0; padding-left: 18px; color: #d8cdbd; line-height: 1.6; }
+.ch-buy { margin-top: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ch-price { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 34px; color: var(--gold); }
+.ch-price .ico { width: 26px; height: 26px; }
+.ch-row-title { font-family: var(--cond); font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: #8a8076; font-size: 14px; margin: 6px 0 10px; }
+.ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; max-width: 1400px; }
+.ch-card { position: relative; border: 1px solid var(--line); background: #070505; overflow: hidden; cursor: default; }
+.ch-card .ch-img { aspect-ratio: 16 / 7; background: #0a0606 center / cover no-repeat; }
+.ch-card .ch-cap { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; padding: 14px 16px; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(90deg, rgba(0,0,0,.85), rgba(0,0,0,.4) 70%, transparent); }
+.ch-card .ch-cap small { font-family: var(--cond); font-size: 12px; letter-spacing: .28em; text-transform: uppercase; color: #a89e90; }
+.ch-card .ch-cap b { font-family: 'IM Fell English SC', serif; font-weight: 400; font-size: 28px; line-height: 1.05; }
+.ch-card .ch-cap i { font-style: normal; font-family: var(--cond); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: #6f9a72; margin-top: 4px; }
+/* characters (DbD outfit store) */
+.cs-wrap { display: grid; grid-template-columns: minmax(0, 640px); gap: 18px; }
+.cs-roles { display: flex; gap: 2px; }
+.cs-roles button { border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #a89e90; font-family: var(--display); font-size: 22px; letter-spacing: .08em; padding: 6px 20px; cursor: pointer; }
+.cs-roles button.on { color: #fff; border-color: var(--red2); background: rgba(179,32,30,.22); }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.cs-por { position: relative; aspect-ratio: 1; border: 1px solid rgba(233,224,208,.14); background: radial-gradient(circle at 50% 30%, #2a1a1a, #0a0606 75%); cursor: pointer; overflow: hidden; padding: 0; transition: .15s; }
+.cs-por img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cs-por span { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 6px 5px; font-family: var(--display); font-size: 17px; letter-spacing: .05em; color: var(--bone); background: linear-gradient(transparent, rgba(0,0,0,.92)); text-align: left; }
+.cs-por:hover { border-color: rgba(233,224,208,.5); }
+.cs-por.on { border-color: var(--red2); box-shadow: inset 0 0 0 1px var(--red2), 0 0 16px rgba(232,53,43,.35); }
+.cs-por .lock { position: absolute; top: 5px; right: 5px; font-family: var(--cond); font-weight: 600; font-size: 10px; letter-spacing: .14em; padding: 2px 5px; background: var(--red2); color: #fff; }
+.cs-sub { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--cond); font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: #8a8076; font-size: 13px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.cs-sub b { font-family: 'IM Fell English SC', serif; font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--bone); font-size: 26px; }
+.cs-outfits { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.of { position: relative; border: 1px solid rgba(233,224,208,.12); padding: 0 0 8px; cursor: pointer; overflow: hidden; background: #0a0707; transition: .15s; }
+.of img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: radial-gradient(circle at 50% 35%, var(--rc, #3a2a20), #0a0606 72%); }
+.of .of-n { display: block; padding: 6px 8px 0; font-family: var(--display); font-size: 17px; letter-spacing: .04em; }
+.of .of-p { display: flex; align-items: center; gap: 4px; padding: 2px 8px 0; font-family: var(--cond); font-weight: 600; font-size: 13px; color: var(--gold); letter-spacing: .06em; }
+.of .of-p .ico { width: 13px; height: 13px; }
+.of .of-p.own { color: #6f9a72; } .of .of-p.eq { color: var(--red2); }
+.of::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--rc, #555); }
+.of:hover { border-color: rgba(233,224,208,.45); }
+.of.on { border-color: var(--gold); box-shadow: 0 0 14px rgba(216,181,106,.3); }
+.of.common { --rc: #8a6a3a; } .of.rare { --rc: #2f7a3a; } .of.epic { --rc: #6a3aa8; } .of.legendary { --rc: #b3201e; } .of.base { --rc: #5a5a5a; }
+.cs-detail { position: fixed; right: 32px; bottom: 30px; width: min(380px, 40vw); padding: 18px 20px; background: linear-gradient(160deg, rgba(20,10,10,.92), rgba(6,4,4,.92)); border: 1px solid rgba(233,224,208,.14); border-top: 3px solid var(--rc, #555); }
+.cs-detail .rk { font-family: var(--cond); font-weight: 600; font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--rc, #888); }
+.cs-detail h3 { margin: 4px 0 2px; font-family: 'IM Fell English SC', serif; font-weight: 400; font-size: 34px; }
+.cs-detail p { margin: 0 0 12px; color: #a89e90; }
+.cs-detail .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cs-detail.common { --rc: #c89a4a; } .cs-detail.rare { --rc: #4fb05e; } .cs-detail.epic { --rc: #a070e0; } .cs-detail.legendary { --rc: #e8352b; } .cs-detail.base { --rc: #888; }
+/* collections */
+.co-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; max-width: 1400px; }
+.co-card { border: 1px solid var(--line); background: #070505; overflow: hidden; display: flex; flex-direction: column; }
+.co-card .ch-img { aspect-ratio: 16 / 7; background: #0a0606 center / cover no-repeat; position: relative; }
+.co-card .co-t { position: absolute; left: 16px; bottom: 12px; font-family: 'IM Fell English SC', serif; font-size: 30px; text-shadow: 0 2px 10px #000; }
+.co-card .co-t small { display: block; font-family: var(--cond); font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: #c8bfb2; }
+.co-body { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+.co-items { display: flex; gap: 6px; flex-wrap: wrap; }
+.co-items span { font-family: var(--cond); font-size: 13px; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--line); color: #c8bfb2; }
+.co-items span.own { color: #6f9a72; border-color: rgba(111,154,114,.4); }
+.co-buy { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.co-save { font-family: var(--cond); font-weight: 600; font-size: 13px; letter-spacing: .14em; color: #fff; background: #2f7a3a; padding: 2px 8px; }
+.st-strike { text-decoration: line-through; color: #7a7066; font-size: 20px; }
+@media (max-width: 900px) { .ch-hero { grid-template-columns: 1fr; } .cs-detail { position: static; width: auto; } #store { background: rgba(6,4,5,.97); } }
+#menu.store-open .mainnav, #menu.store-open .logo, #menu.store-open .showcase, #menu.store-open .news-card, #menu.store-open .topright { display: none; }
+.char.locked { opacity: .55; }
+.char.locked:hover { opacity: .8; }
+.msg-banner { height: 150px; margin: -4px -4px 12px; border: 1px solid rgba(232,53,43,.4); cursor: pointer; }

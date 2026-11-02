@@ -388,7 +388,7 @@ export class Sim {
         g.reg = false;
         let rate = 0;
         for (const p of S.players) if (p.act && p.act.k === 'repair' && p.act.id === i) {
-          let r = 1 / RULES.genCharges;
+          let r = 1 / RULES.genCharges * (M.indoor ? 1.12 : 1); // tighter indoor maps favour the killer
           if (has(p, 'shared')) r *= 1 + 0.15 * (g.n - 1);
           if (K && has(K, 'dread') && dist(K, p) < terrorRadius(K)) r *= 0.9;
           rate += r;

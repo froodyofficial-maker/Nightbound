@@ -29,6 +29,11 @@ for (const m of [...css.matchAll(/url\(\.\.\/fonts\/([\w.-]+\.woff2)\)/g)]) {
   const b64 = (await readFile(join(pub, 'fonts', m[1]))).toString('base64');
   css = css.replace(m[0], `url(data:font/woff2;base64,${b64})`);
 }
+const MIME = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+for (const m of [...new Set([...css.matchAll(/url\(\.\.\/img\/([\w.-]+)\)/g)].map(x => x[0]))]) {
+  const file = m.slice('url(../img/'.length, -1), b64 = (await readFile(join(pub, 'img', file))).toString('base64');
+  css = css.split(m).join(`url(data:${MIME[file.split('.').pop()]};base64,${b64})`);
+}
 
 let html = await readFile(join(pub, 'index.html'), 'utf8');
 html = html.replace(/<link rel="stylesheet" href="css\/style.css">/, () => `<style>${css}</style>`);

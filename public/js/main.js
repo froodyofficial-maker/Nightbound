@@ -12,7 +12,8 @@ import { packSnap, SnapReader } from './snap.js';
 import { icon, POWER_ICON } from './icons.js';
 import { sound } from './audio.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
-import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, SKINS, INBOX, VERSION } from './config.js';
+import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF } from './config.js';
+import { art, forget as forgetArt } from './portraits.js';
 
 window.__nbBooted = true;
 for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
@@ -45,7 +46,9 @@ const profile = Object.assign({
   stats: { matches: 0, escapes: 0, kills: 0, embers: 0 },
   owned: {}, skins: {}, claimed: {}, readInbox: {},
 }, store.get('profile', {}));
-profile.owned ||= {}; profile.skins ||= {}; profile.claimed ||= {}; profile.readInbox ||= {};
+profile.owned ||= {}; profile.skins ||= {}; profile.claimed ||= {}; profile.readInbox ||= {}; profile.dlc ||= {}; profile.seen ||= {};
+// players who already bought a Foreman outfit before he became a chapter keep him
+if (Object.keys(profile.owned).some(k => k.startsWith('foreman:'))) profile.dlc.offal = true;
 const skinId = char => (profile.skins[char] && (profile.owned[char + ':' + profile.skins[char]] || profile.skins[char] === 'default')) ? profile.skins[char] : 'default';
 if (!KILLERS[profile.killer.char]) profile.killer.char = 'butcher';
 // drop perks that no longer exist (Death Warrant was removed in 2.4)
@@ -121,7 +124,7 @@ function renderShowcase() {
 }
 
 // ---------- side panel ----------
-const SECTIONS = ['p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-store', 'p-inbox'];
+const SECTIONS = ['p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-inbox'];
 let openSection = null;
 function openPanel(id, title, wide = false) {
   for (const p of SECTIONS) $(p).classList.toggle('hidden', p !== id);
@@ -136,12 +139,10 @@ function openPanel(id, title, wide = false) {
   if (id === 'p-play') renderBotsPanel();
   if (id === 'p-settings') renderSettings();
   if (id === 'p-online') detectModeHint();
-  if (id === 'p-store') renderStore();
   if (id === 'p-inbox') renderInbox();
 }
 function closePanel() {
   if (openSection === 'p-lobby' && lobby) { leaveOnline(); return; }
-  if (openSection === 'p-store' && menu) { menu.setSurvivor(profile.survivor.char, skinId(profile.survivor.char)); menu.setKiller(profile.killer.char, skinId(profile.killer.char)); }
   $('panel').classList.add('hidden');
   $('menu').classList.remove('panel-open');
   openSection = null;
@@ -164,7 +165,7 @@ const navActions = {
   loadout: () => openPanel('p-loadout', 'Loadout', true),
   settings: () => openPanel('p-settings', 'Settings'),
   help: () => openPanel('p-help', 'How to Play', true),
-  store: () => openPanel('p-store', 'Store'),
+  store: () => openStore(),
 };
 for (const b of $('mainnav').children) {
   b.addEventListener('mouseenter', () => { sound.init(); sound.play('hover'); if (b.dataset.scene) setScene(b.dataset.scene); });
@@ -196,10 +197,11 @@ function renderLoadout(container, role, compact, onChange) {
   const lo = profile[role];
   const color = c => '#' + (c.shirt ?? c.color).toString(16).padStart(6, '0');
   container.innerHTML = `<div class="lo-sub"><span>${role === 'killer' ? 'Killer' : 'Survivor'}</span></div>
-    <div class="chars">${Object.values(defs).map(c => `<div class="char ${lo.char === c.id ? 'on' : ''}" data-c="${c.id}" style="--c:${color(c)}"><b>${esc(c.name)}</b>${c.lore ? `<small>${esc(c.lore)}</small>` : !compact ? `<small>${esc(BIOS[c.id] || '')}</small>` : ''}${c.ability ? `<div class="ab">${icon(POWER_ICON[c.id])}${esc(c.ability.name)}</div>${!compact ? `<div class="ft">${esc(c.ability.desc)}</div><div class="ab">${icon('shadowstep')}${esc(c.feature.name)}</div><div class="ft">${esc(c.feature.desc)}</div><div class="ab">${icon('exec')}${esc(c.exec.name)}</div><div class="ft">${esc(c.exec.desc)}</div>` : ''}` : ''}</div>`).join('')}</div>
+    <div class="chars">${Object.values(defs).map(c => `<div class="char ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" style="--c:${color(c)}"><b>${esc(c.name)}${ownsChar(c.id) ? '' : ' <span class="newtag">DLC</span>'}</b>${c.lore ? `<small>${esc(c.lore)}</small>` : !compact ? `<small>${esc(BIOS[c.id] || '')}</small>` : ''}${c.ability ? `<div class="ab">${icon(POWER_ICON[c.id])}${esc(c.ability.name)}</div>${!compact ? `<div class="ft">${esc(c.ability.desc)}</div><div class="ab">${icon('shadowstep')}${esc(c.feature.name)}</div><div class="ft">${esc(c.feature.desc)}</div><div class="ab">${icon('exec')}${esc(c.exec.name)}</div><div class="ft">${esc(c.exec.desc)}</div>` : ''}` : ''}</div>`).join('')}</div>
     <div class="lo-sub"><span>Perks</span><span>${lo.perks.length} / 3 equipped</span></div>
     <div class="perkgrid">${Object.entries(perks).map(([k, p]) => `<div class="pk ${lo.perks.includes(k) ? 'on' : ''}" data-p="${k}"><div class="diamond ${role === 'killer' ? 'k' : ''}">${icon(k)}</div><div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small></div></div>`).join('')}</div>`;
   container.querySelectorAll('.char').forEach(el => el.onclick = () => {
+    if (!ownsChar(el.dataset.c)) { sound.play('click'); openStore('chapters'); return; }
     lo.char = el.dataset.c; saveProfile(); sound.play('click');
     if (menu) { if (role === 'killer') menu.setKiller(lo.char, skinId(lo.char)); else menu.setSurvivor(lo.char, skinId(lo.char)); }
     setScene(role);
@@ -243,50 +245,130 @@ $('pause-sens').addEventListener('input', e => { settings.sens = +e.target.value
 $('pause-vol').addEventListener('input', e => { settings.vol = +e.target.value; sound.setVolume(settings.vol); saveSettings(); });
 
 // ---------- store ----------
-let storeRole = 'survivor', storeChar = null, storePreview = null;
-seg('store-role', v => { storeRole = v; storeChar = null; setScene(v); renderStore(); });
+// ---------- store (full screen, DbD-style) ----------
 const RARITY = p => p === 0 ? '' : p < 2000 ? 'common' : p < 3500 ? 'rare' : p < 5000 ? 'epic' : 'legendary';
-function swatches(char, sk) {
-  const base = SURVIVORS[char] || null;
-  const cols = base ? [sk.shirt ?? base.shirt, sk.pants ?? base.pants, sk.hair ?? base.hair, sk.vest ?? sk.beanie ?? base.skin]
-    : [sk.apron ?? sk.dress ?? sk.coat ?? sk.fur ?? sk.flesh ?? KILLERS[char].color, sk.mask ?? sk.bone ?? sk.skin ?? 0x6a6a6a, sk.eye ?? sk.lamp ?? sk.blood ?? 0x3a3a3a];
-  return cols.map(c => `<i style="background:#${(c >>> 0).toString(16).padStart(6, '0')}"></i>`).join('');
+let storeTab = 'chapters', storeRole = 'survivor', storeChar = null, storePreview = null;
+const ownsChapter = id => !!(profile.dlc && profile.dlc[id]);
+const ownsChar = c => !CHAPTER_OF[c] || ownsChapter(CHAPTER_OF[c]);
+const charName = c => (KILLERS[c] || SURVIVORS[c]).name;
+const ownsSkin = (c, sk) => sk.price === 0 || !!profile.owned[c + ':' + sk.id];
+const price = n => `${icon('ember')}${Math.round(n).toLocaleString()}`;
+function spend(n, what) {
+  if (profile.stats.embers < n) { toast('Not enough Embers. Play matches or claim the gifts in your Inbox.'); sound.play('click'); return false; }
+  profile.stats.embers -= n; saveProfile(); sound.play('escaped'); toast(`Unlocked ${what}!`); renderShowcase();
+  return true;
 }
+function openStore(tab, char) {
+  if (tab) storeTab = tab;
+  if (char) { storeChar = char; storeRole = KILLERS[char] ? 'killer' : 'survivor'; storePreview = null; }
+  closePanel();
+  $('store').classList.remove('hidden'); $('menu').classList.add('store-open');
+  if (menu) menu.setShift(false);
+  renderStore();
+}
+function closeStore() {
+  $('store').classList.add('hidden'); $('menu').classList.remove('store-open');
+  if (menu) { menu.setSurvivor(profile.survivor.char, skinId(profile.survivor.char)); menu.setKiller(profile.killer.char, skinId(profile.killer.char)); }
+  for (const b of $('mainnav').children) b.classList.remove('on');
+  renderShowcase();
+}
+$('st-close').onclick = () => { sound.play('click'); closeStore(); };
+$('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { storeTab = b.dataset.t; sound.play('click'); renderStore(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !session && !$('store').classList.contains('hidden')) closeStore(); });
+
 function renderStore() {
+  for (const b of $('st-tabs').children) b.classList.toggle('on', b.dataset.t === storeTab);
+  $('st-wallet').innerHTML = price(profile.stats.embers);
+  $('store').classList.toggle('wide', storeTab !== 'characters');
+  const body = $('st-body');
+  if (storeTab === 'chapters') body.innerHTML = chaptersHTML();
+  else if (storeTab === 'collections') body.innerHTML = collectionsHTML();
+  else body.innerHTML = charactersHTML();
+  bindStore(body);
+}
+function chaptersHTML() {
+  const dlc = CHAPTERS.filter(c => !c.base), base = CHAPTERS.filter(c => c.base);
+  const hero = dlc.map(c => {
+    const own = ownsChapter(c.id);
+    return `<div class="ch-hero"><div class="ch-art"><div class="offal-art"></div><div class="ch-x">× <span>Nightbound</span></div></div>
+      <div class="ch-info"><span class="ch-tag ${own ? 'owned' : ''}">${own ? 'Owned' : 'New chapter'}</span>
+        <div class="ch-name"><small>Chapter ${c.num}</small>${esc(c.name)} <span style="color:var(--red2)">×</span> Nightbound</div>
+        <div class="ch-line">${esc(c.tagline)}</div>
+        <ul>${c.contents.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <div class="ch-buy">${own ? `<button class="btn primary" data-play="${c.killer}">Play as ${esc(charName(c.killer))}</button><button class="btn" data-goto="${c.killer}">Outfits</button>`
+          : `<span class="ch-price">${price(c.price)}</span><button class="btn primary big" data-chapter="${c.id}">Buy Chapter</button><button class="btn" data-goto="${c.killer}">Preview</button>`}</div></div></div>`;
+  }).join('');
+  const cards = base.map(c => `<div class="ch-card"><div class="ch-img" style="background-image:url(${art('banner', c.killer, 'default', 760, 333)})"></div>
+    <div class="ch-cap"><small>Chapter ${c.num}</small><b>${esc(c.name)}</b><small>${esc(charName(c.killer))}</small><i>Owned · base game</i></div></div>`).join('');
+  return hero + `<div class="ch-row-title">Chapters</div><div class="ch-grid">${cards}</div>`;
+}
+function charactersHTML() {
   const chars = storeRole === 'killer' ? Object.keys(KILLERS) : Object.keys(SURVIVORS);
   if (!storeChar || !chars.includes(storeChar)) storeChar = profile[storeRole].char;
-  setSeg('store-role', storeRole);
-  $('store-wallet').innerHTML = icon('ember') + Math.round(profile.stats.embers).toLocaleString();
-  const names = storeRole === 'killer' ? KILLERS : SURVIVORS;
-  $('store-chars').innerHTML = chars.map(c => `<button data-c="${c}" class="${c === storeChar ? 'on' : ''}">${esc(names[c].name)}</button>`).join('');
-  $('store-chars').querySelectorAll('button').forEach(b => b.onclick = () => { storeChar = b.dataset.c; storePreview = null; sound.play('click'); previewSkin(skinId(storeChar)); renderStore(); });
   const list = SKINS[storeChar] || [];
-  const eq = skinId(storeChar);
-  $('store-skins').innerHTML = list.map(sk => {
-    const owned = sk.price === 0 || profile.owned[storeChar + ':' + sk.id];
-    const equipped = eq === sk.id;
-    const r = RARITY(sk.price);
-    const action = equipped ? '<div class="state">Equipped</div>' : owned ? `<button class="btn" data-eq="${sk.id}">Equip</button>`
-      : `<div class="price">${icon('ember')}${sk.price.toLocaleString()}</div><button class="btn primary" data-buy="${sk.id}" ${profile.stats.embers < sk.price ? 'disabled' : ''}>Buy</button>`;
-    return `<div class="skin ${equipped ? 'equipped' : ''} ${storePreview === sk.id ? 'preview' : ''}" data-s="${sk.id}">${r ? `<span class="rar ${r}">${r}</span>` : ''}<div class="sw">${swatches(storeChar, sk)}</div><b>${esc(sk.name)}</b>${action}</div>`;
+  const sel = list.find(x => x.id === (storePreview || skinId(storeChar))) || list[0];
+  const grid = chars.map(c => `<button class="cs-por ${c === storeChar ? 'on' : ''}" data-c="${c}"><img alt="" src="${art('portrait', c, skinId(c), 224, 224)}">${ownsChar(c) ? '' : '<i class="lock">DLC</i>'}<span>${esc(charName(c).replace(/^The /, ''))}</span></button>`).join('');
+  const outfits = list.map(sk => {
+    const own = ownsSkin(storeChar, sk), eq = skinId(storeChar) === sk.id, r = RARITY(sk.price) || 'base';
+    const tag = eq ? '<span class="of-p eq">Equipped</span>' : own ? '<span class="of-p own">Owned</span>' : `<span class="of-p">${price(sk.price)}</span>`;
+    return `<div class="of ${r} ${sel && sel.id === sk.id ? 'on' : ''}" data-s="${sk.id}"><img alt="" src="${art('portrait', storeChar, sk.id, 180, 180)}"><span class="of-n">${esc(sk.name)}</span>${tag}</div>`;
   }).join('');
-  $('store-skins').querySelectorAll('.skin').forEach(el => el.onclick = e => {
-    const id = el.dataset.s;
-    if (e.target.dataset.buy) {
-      const sk = list.find(x => x.id === id);
-      if (profile.stats.embers < sk.price) { toast('Not enough Embers. Play matches or check your Inbox for gifts.'); return; }
-      profile.stats.embers -= sk.price; profile.owned[storeChar + ':' + id] = true; profile.skins[storeChar] = id; saveProfile();
-      sound.play('escaped'); toast(`Unlocked ${sk.name}!`); renderShowcase();
-    } else if (e.target.dataset.eq) { profile.skins[storeChar] = id; saveProfile(); sound.play('click'); }
-    else sound.play('hover');
-    storePreview = id; previewSkin(id); renderStore();
+  let detail = '';
+  if (sel) {
+    const own = ownsSkin(storeChar, sel), eq = skinId(storeChar) === sel.id, r = RARITY(sel.price) || 'base';
+    const locked = !ownsChar(storeChar);
+    const act = locked ? `<button class="btn primary" data-tab="chapters">Get the ${esc(CHAPTERS.find(c => c.killer === storeChar).name)} chapter</button>`
+      : eq ? '<span class="of-p eq" style="font-size:16px">Equipped</span>' : own ? `<button class="btn primary" data-eq="${sel.id}">Equip</button>`
+      : `<span class="ch-price">${price(sel.price)}</span><button class="btn primary" data-buy="${sel.id}">Buy</button>`;
+    detail = `<div class="cs-detail ${r}"><div class="rk">${r === 'base' ? 'Default outfit' : r}</div><h3>${esc(sel.name)}</h3><p>${esc(charName(storeChar))}</p><div class="row">${act}</div></div>`;
+  }
+  return `<div class="cs-wrap"><div class="cs-roles"><button data-role="survivor" class="${storeRole === 'survivor' ? 'on' : ''}">Survivors</button><button data-role="killer" class="${storeRole === 'killer' ? 'on' : ''}">Killers</button></div>
+    <div class="cs-grid">${grid}</div>
+    <div class="cs-sub"><b>${esc(charName(storeChar))}</b><span>Outfits</span></div>
+    <div class="cs-outfits">${outfits}</div></div>${detail}`;
+}
+const bundleOf = c => { const items = (SKINS[c] || []).filter(sk => sk.price > 0); const left = items.filter(sk => !ownsSkin(c, sk)); const full = left.reduce((a, sk) => a + sk.price, 0); return { items, left, full, price: Math.round(full * 0.75 / 50) * 50 }; };
+function collectionsHTML() {
+  const cards = [...Object.keys(KILLERS), ...Object.keys(SURVIVORS)].map(c => {
+    const b = bundleOf(c), done = !b.left.length, locked = !ownsChar(c);
+    const buy = done ? '<span class="of-p own" style="font-size:15px">Complete</span>' : locked ? '<button class="btn" data-tab="chapters">Requires the chapter</button>'
+      : `<span><span class="st-strike">${Math.round(b.full).toLocaleString()}</span> <span class="ch-price">${price(b.price)}</span></span><span class="co-save">-25%</span><button class="btn primary" data-bundle="${c}">Buy Collection</button>`;
+    return `<div class="co-card"><div class="ch-img" style="background-image:url(${art('banner', c, b.items.length ? b.items[b.items.length - 1].id : 'default', 760, 333)})"><div class="co-t"><small>${KILLERS[c] ? 'Killer' : 'Survivor'} collection</small>${esc(charName(c))}</div></div>
+      <div class="co-body"><div class="co-items">${b.items.map(sk => `<span class="${ownsSkin(c, sk) ? 'own' : ''}">${esc(sk.name)}</span>`).join('')}</div><div class="co-buy">${buy}</div></div></div>`;
+  }).join('');
+  return `<div class="ch-row-title">Outfit collections · every outfit for one character at 25% off</div><div class="co-grid">${cards}</div>`;
+}
+function bindStore(body) {
+  body.querySelectorAll('[data-chapter]').forEach(b => b.onclick = () => {
+    const c = CHAPTERS.find(x => x.id === b.dataset.chapter);
+    if (ownsChapter(c.id) || !spend(c.price, c.name + ' × Nightbound')) return;
+    (profile.dlc ||= {})[c.id] = true; saveProfile(); renderStore();
+  });
+  body.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => { sound.play('click'); openStore('characters', b.dataset.goto); previewSkin(skinId(storeChar)); });
+  body.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { sound.play('click'); storeTab = b.dataset.tab; renderStore(); });
+  body.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { const k = b.dataset.play; profile.killer.char = k; saveProfile(); closeStore(); navActions['play-killer'](); });
+  body.querySelectorAll('[data-role]').forEach(b => b.onclick = () => { storeRole = b.dataset.role; storeChar = null; storePreview = null; sound.play('click'); setScene(storeRole); renderStore(); previewSkin(skinId(profile[storeRole].char)); });
+  body.querySelectorAll('.cs-por').forEach(b => b.onclick = () => { storeChar = b.dataset.c; storePreview = null; sound.play('click'); previewSkin(skinId(storeChar)); renderStore(); });
+  body.querySelectorAll('.of').forEach(el => el.onclick = () => { storePreview = el.dataset.s; sound.play('hover'); previewSkin(storePreview); renderStore(); });
+  body.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => {
+    const sk = SKINS[storeChar].find(x => x.id === b.dataset.buy);
+    if (!spend(sk.price, sk.name)) return;
+    profile.owned[storeChar + ':' + sk.id] = true; profile.skins[storeChar] = sk.id; saveProfile(); renderStore();
+  });
+  body.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { profile.skins[storeChar] = b.dataset.eq; saveProfile(); sound.play('click'); renderStore(); });
+  body.querySelectorAll('[data-bundle]').forEach(b => b.onclick = () => {
+    const c = b.dataset.bundle, bd = bundleOf(c);
+    if (!spend(bd.price, charName(c) + ' Collection')) return;
+    for (const sk of bd.left) profile.owned[c + ':' + sk.id] = true;
+    saveProfile(); renderStore();
   });
 }
 function previewSkin(id) {
-  if (!menu) return;
+  if (!menu || !storeChar) return;
   if (KILLERS[storeChar]) { menu.setKiller(storeChar, id); setScene('killer'); }
   else { menu.setSurvivor(storeChar, id); setScene('survivor'); }
 }
+onForemanReady(() => { forgetArt('foreman'); if (!$('store').classList.contains('hidden')) renderStore(); });
 
 // ---------- inbox ----------
 const unreadCount = () => INBOX.filter(m => !profile.readInbox[m.id] || (m.gift && !profile.claimed[m.id])).length;
@@ -300,8 +382,9 @@ function renderInbox() {
     const gift = m.gift ? (profile.claimed[m.id]
       ? `<div class="gift claimed">${icon('check')}${esc(m.gift.label)} · claimed</div>`
       : `<div class="gift">${icon('gift')}${esc(m.gift.label)}<button class="btn primary" data-claim="${m.id}">Claim</button></div>`) : '';
-    return `<div class="msg ${unread ? 'unread' : ''}"><div class="mtag">${esc(m.tag)} · v${esc(m.version)} · ${esc(m.date)}</div><h3>${esc(m.title)}</h3><ul>${m.body.map(b => `<li>${esc(b)}</li>`).join('')}</ul>${gift}</div>`;
+    return `<div class="msg ${unread ? 'unread' : ''}">${m.banner ? `<div class="msg-banner offal-art" data-announce="1"></div>` : ''}<div class="mtag">${esc(m.tag)} · v${esc(m.version)} · ${esc(m.date)}</div><h3>${esc(m.title)}</h3><ul>${m.body.map(b => `<li>${esc(b)}</li>`).join('')}</ul>${gift}</div>`;
   }).join('');
+  $('inbox-list').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => showAnnounce());
   $('inbox-list').querySelectorAll('[data-claim]').forEach(b => b.onclick = () => {
     const m = INBOX.find(x => x.id === b.dataset.claim);
     if (!m || profile.claimed[m.id]) return;
@@ -357,6 +440,7 @@ $('btn-bots-start').addEventListener('click', () => {
   sound.init(); sound.play('click');
   const roster = [];
   const meRole = botsCfg.role;
+  if (meRole === 'killer' && !ownsChar(profile.killer.char)) { toast(`${charName(profile.killer.char)} is part of a chapter. Get it in the Store, or pick another killer.`, 5000); openStore('chapters'); return; }
   roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, bot: false });
   const used = meRole === 'survivor' ? [profile.survivor.char] : [];
   if (meRole === 'survivor') {
@@ -669,13 +753,14 @@ function renderLobby() {
     renderLoadout($('lobby-loadout'), me.role, true, sendMyLoadout);
   }
 }
-function myLoadouts() { return { survivor: { ...profile.survivor, skin: skinId(profile.survivor.char) }, killer: { ...profile.killer, skin: skinId(profile.killer.char) } }; }
+const playableKiller = () => ownsChar(profile.killer.char) ? profile.killer.char : 'butcher';
+function myLoadouts() { return { survivor: { ...profile.survivor, skin: skinId(profile.survivor.char) }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()) } }; }
 function sendMyLoadout(role) {
   const me = myLobbyPlayer();
   if (!me) return;
   role = role || me.role;
-  const lo = profile[role];
-  const m = { t: 'loadout', role, char: lo.char, skin: skinId(lo.char), perks: lo.perks, loadouts: myLoadouts() };
+  const lo = profile[role], ch = role === 'killer' ? playableKiller() : lo.char;
+  const m = { t: 'loadout', role, char: ch, skin: skinId(ch), perks: lo.perks, loadouts: myLoadouts() };
   if (lobby.isHost) { applyLoadout(me, m); broadcastLobby(); }
   else lobby.net.send(m);
 }
@@ -751,6 +836,21 @@ function loop(now) {
 // keep the host simulation alive while its tab is in the background
 setInterval(() => { if (document.hidden && session && session.isHost) { try { session.simTick(0.05); } catch (e) { console.error(e); } } }, 50);
 addEventListener('resize', () => { if (!session) renderer.setSize(innerWidth, innerHeight); });
+
+// ---------- OFFAL x Nightbound announcement ----------
+function showAnnounce() {
+  closePanel();
+  $('announce').classList.remove('hidden');
+  profile.seen.offal = true; saveProfile();
+  sound.init(); sound.play('caged');
+}
+function hideAnnounce() { $('announce').classList.add('hidden'); }
+$('an-close').onclick = () => { sound.play('click'); hideAnnounce(); };
+$('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('chapters'); };
+$('an-play').onclick = () => { sound.play('click'); hideAnnounce(); botsCfg.map = 'meatworks'; navActions['play-survivor'](); setSeg('bots-map', 'meatworks'); };
+$('news-card').onclick = () => showAnnounce();
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('announce').classList.contains('hidden')) hideAnnounce(); });
+if (!profile.seen.offal) setTimeout(() => { if (!session) showAnnounce(); }, 900);
 
 startBG();
 requestAnimationFrame(loop);

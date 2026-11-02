@@ -65,7 +65,8 @@ function auraSkinMat(color) {
 }
 
 // material name -> skin key it takes its colour from
-const TINT = { Foreman_2: 'flesh', Foreman_8: 'bone', Foreman_16: 'apron', Foreman_12: 'blood', Foreman_10: 'blood', Foreman_0: 'steel', Foreman_18: 'steel' };
+// (identified by tinting each material on a render: 2 = arms & legs, 8 = mask, 19 = apron, 17 = straps, 14 = hook, 3 = gums)
+const TINT = { Foreman_2: 'flesh', Foreman_8: 'bone', Foreman_19: 'apron', Foreman_17: 'apron', Foreman_14: 'steel', Foreman_0: 'steel', Foreman_3: 'blood' };
 
 class GlbRig {
   constructor(sk, lite) {

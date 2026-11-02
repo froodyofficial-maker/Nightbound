@@ -42,7 +42,7 @@ When the page is served by `node server.js`, everyone on that server uses its bu
 | **The Wisp** | *Fade*: near-invisible, silent, faster | *Ambush & Frost*: long lunge after reappearing; frost and whispers near her | Drowning Embrace |
 | **The Harrower** | *Bone Spear*: 3 regrowing spears | *Trophy Mark*: speared survivors are revealed | Trophy Hunt |
 | **The Lamplighter** | *Cursed Lanterns* reveal nearby survivors | *Shadow Step* (R): teleport to a lantern | Last Light |
-| **The Foreman** *(OFFAL crossover)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
+| **The Foreman** *(OFFAL crossover chapter)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
 
 Executions (**F**) work on a downed survivor who has been caged twice or on the last survivor alive.
 
@@ -51,9 +51,21 @@ Executions (**F**) work on a downed survivor who has been caged twice or on the 
 - Every survivor carries a **flashlight** (hold **RMB**). Keep the beam on the killer's face for a second to blind and stun him. That also frees a survivor he is carrying. The battery lasts 12 seconds, and the killer can't be blinded again for 12 seconds after a blind.
 - If you die while bot survivors are still alive, press **T** to take over a bot and keep playing. This works in bot matches and online.
 
+## Maps
+
+| Map | |
+| --- | --- |
+| **Gravemoor Woods** | Foggy forest with ruins, barns, a chapel and lamp-lit trails. |
+| **Hollow Pines Meatworks** *(OFFAL crossover)* | Ported from OFFAL's level generator: white-tiled kill floors, carcass rails, cattle pens, the Foreman's office, freezers and offal tanks under a low ceiling. Vault windows link neighbouring halls and corridors narrow to barricade chokepoints. |
+
+Pick the map (or Random) in the bot-match setup or the online lobby. Every map is free.
+
 ## Store & Inbox
 
-- **Store**: every survivor and killer has extra skins, bought with **Embers**. You earn Embers by playing matches. Click a skin to preview it on the 3D character before buying.
+- **Store** (DbD-style, full screen), paid in **Embers**, which you earn by playing matches:
+  - **Chapters**: *OFFAL × Nightbound* unlocks playing as The Foreman (5,000 Embers). The base-game chapters are owned by everyone. Anyone can play the Meatworks map and face the Foreman as a bot.
+  - **Characters**: a portrait grid of every character, outfit tiles by rarity, and a live 3D preview.
+  - **Collections**: every outfit for one character at 25% off.
 - **Inbox** (envelope icon, top right): the changes in every version, plus claimable Ember gifts.
 
 ## Bots
