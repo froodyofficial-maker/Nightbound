@@ -1,0 +1,14 @@
+{
+  "name": "nightbound",
+  "version": "2.0.0",
+  "description": "Nightbound: a 3D 1v4 asymmetric horror game with online play and bots",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js 8090",
+    "build": "node tools/build.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

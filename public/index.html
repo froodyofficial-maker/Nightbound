@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nightbound</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23120a0c'/%3E%3Cpath d='M32 10c-9 8-14 16-14 24a14 14 0 0 0 28 0c0-8-5-16-14-24z' fill='%23b3201e'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- shown if the game scripts can't start (e.g. index.html opened straight from disk) -->
+  <div id="boot-error" class="hidden">
+    <div class="be-box">
+      <h2>The fog won't lift…</h2>
+      <p>Your browser blocked the game's scripts. That happens when <b>index.html</b> is opened straight from a folder.</p>
+      <p><b>Easiest fix:</b> double-click <b>Nightbound.html</b> (next to this folder). It runs offline with no setup.</p>
+      <p><b>For online play over your network:</b> run <code>node server.js</code> (or <b>start-windows.bat</b> / <b>start-mac.command</b>) and open <code>http://localhost:8090</code>.</p>
+    </div>
+  </div>
+
+  <!-- ================= MAIN MENU ================= -->
+  <div id="menu">
+    <div class="m-vignette"></div>
+    <div class="m-grain"></div>
+    <header class="logo">
+      <h1>Nightbound</h1>
+      <p>One hunts. Four survive the night.</p>
+    </header>
+
+    <nav id="mainnav" class="mainnav">
+      <button data-act="play-survivor" data-scene="survivor"><span>Play as Survivor</span><small>Quick match against bots</small></button>
+      <button data-act="play-killer" data-scene="killer"><span>Play as Killer</span><small>Hunt down bot survivors</small></button>
+      <button data-act="online"><span>Online Match</span><small>Host a lobby or join friends</small></button>
+      <button data-act="loadout"><span>Loadout</span><small>Characters &amp; perks</small></button>
+      <button data-act="settings"><span>Settings</span><small>Graphics, controls, audio</small></button>
+      <button data-act="help"><span>How to Play</span><small>Rules &amp; controls</small></button>
+    </nav>
+
+    <div class="showcase" id="showcase"></div>
+    <div class="profile" id="profile"></div>
+
+    <aside id="panel" class="panel hidden">
+      <div class="panel-head"><h2 id="panel-title"></h2><button class="x" id="panel-close" aria-label="Close">✕</button></div>
+      <div class="panel-body">
+        <!-- bot match -->
+        <section id="p-play" class="hidden">
+          <div class="field"><label>Role</label>
+            <div class="seg" id="bots-role"><button data-v="survivor" class="on">Survivor</button><button data-v="killer">Killer</button></div></div>
+          <div class="field" id="bots-teammates-row"><label>Bot teammates</label>
+            <div class="seg" id="bots-team"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3" class="on">3</button></div></div>
+          <div class="field hidden" id="bots-survivors-row"><label>Survivors to hunt</label>
+            <div class="seg" id="bots-surv"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4" class="on">4</button></div></div>
+          <div class="field" id="bots-killer-row"><label>Bot killer</label>
+            <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option></select></div>
+          <div class="field"><label>Bot difficulty</label>
+            <div class="seg" id="bots-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
+          <div class="loadout-mini" id="bots-loadout"></div>
+          <div class="actions"><button class="btn primary big" id="btn-bots-start">Ready</button></div>
+        </section>
+
+        <!-- online -->
+        <section id="p-online" class="hidden">
+          <div class="online-grid">
+            <div class="ocard">
+              <h3>Host a match</h3>
+              <p class="hint">Create a lobby and share the 5-letter code. Empty slots can be filled with bots.</p>
+              <button class="btn primary" id="btn-host">Create Lobby</button>
+            </div>
+            <div class="ocard">
+              <h3>Join a match</h3>
+              <input id="join-code" class="code-input" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false">
+              <button class="btn primary" id="btn-join">Join</button>
+            </div>
+          </div>
+          <p class="hint" id="join-mode"></p>
+        </section>
+
+        <!-- lobby -->
+        <section id="p-lobby" class="hidden">
+          <div class="lobby-top"><div>Room code <span class="code" id="lobby-code"></span></div><button class="btn small" id="btn-copy">Copy invite link</button></div>
+          <p class="hint" id="lobby-mode"></p>
+          <div class="lobby-grid">
+            <div>
+              <div class="slots" id="lobby-slots"></div>
+              <div class="host-opts" id="lobby-host-opts">
+                <label class="check"><input type="checkbox" id="lobby-fill" checked> Fill empty slots with bots</label>
+                <div class="field"><label>Bot difficulty</label><div class="seg" id="lobby-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
+              </div>
+              <div class="chat"><div id="chat-log"></div><input id="chat-in" maxlength="120" placeholder="Say something… (Enter)"></div>
+            </div>
+            <div>
+              <div class="field"><label>Your role</label><div class="seg" id="lobby-role"><button data-v="survivor" class="on">Survivor</button><button data-v="killer">Killer</button></div></div>
+              <div class="loadout-mini" id="lobby-loadout"></div>
+            </div>
+          </div>
+          <div class="actions"><button class="btn" id="btn-leave-lobby">Leave</button><span class="hint" id="lobby-wait">Waiting for the host to start…</span><button class="btn primary big" id="btn-lobby-start">Start Match</button></div>
+        </section>
+
+        <!-- loadout -->
+        <section id="p-loadout" class="hidden">
+          <div class="seg tabs" id="lo-tab"><button data-v="survivor" class="on">Survivor</button><button data-v="killer">Killer</button></div>
+          <div id="lo-body"></div>
+        </section>
+
+        <!-- settings -->
+        <section id="p-settings" class="hidden">
+          <div class="field"><label>Player name</label><input id="set-name" maxlength="16"></div>
+          <div class="field"><label>Graphics quality</label>
+            <div class="seg" id="set-quality"><button data-v="potato">Very Low</button><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
+            <p class="hint" id="set-quality-hint"></p></div>
+          <label class="check"><input type="checkbox" id="set-dynres"> Dynamic resolution (keeps the frame rate smooth on slower laptops)</label>
+          <label class="check"><input type="checkbox" id="set-fps"> Show FPS counter</label>
+          <div class="field"><label>Mouse sensitivity <b id="set-sens-v"></b></label><input type="range" id="set-sens" min="0.2" max="3" step="0.05"></div>
+          <div class="field"><label>Field of view <b id="set-fov-v"></b></label><input type="range" id="set-fov" min="60" max="100" step="1"></div>
+          <div class="field"><label>Master volume</label><input type="range" id="set-vol" min="0" max="1" step="0.01"></div>
+          <div class="field"><label>Music &amp; ambience</label><input type="range" id="set-music" min="0" max="1" step="0.01"></div>
+          <label class="check"><input type="checkbox" id="set-invert"> Invert mouse Y</label>
+          <div class="field"><label>Online connection</label><select id="set-net"><option value="auto">Auto (game server if available, otherwise online)</option><option value="relay">Game server only (node server.js)</option><option value="p2p">Online (direct WebRTC + relay fallback)</option></select></div>
+        </section>
+
+        <!-- help -->
+        <section id="p-help" class="hidden">
+          <div class="help">
+            <div>
+              <h3>Survivors</h3>
+              <p>Repair <b>generators</b> to power the exit gates, open a gate and escape before the night closes in.</p>
+              <ul>
+                <li><kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>Ctrl</kbd>/<kbd>C</kbd> crouch</li>
+                <li>Hold <kbd>E</kbd>: repair, heal, free caged survivors, open gates, snuff lanterns</li>
+                <li><kbd>Space</kbd>: vault, drop barricades on the killer, hit calibration checks</li>
+                <li>When carried, alternate <kbd>A</kbd> / <kbd>D</kbd> to struggle free</li>
+                <li>Two hits put you down. Caged a third time and you're gone.</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Killer</h3>
+              <ul>
+                <li><kbd>LMB</kbd> lunge strike · <kbd>RMB</kbd> power</li>
+                <li>Hold <kbd>E</kbd>: pick up, cage, damage generators, break barricades</li>
+                <li><kbd>F</kbd> execute a downed survivor who's been caged twice (or the last one standing)</li>
+                <li><kbd>Space</kbd> vault · <kbd>Q</kbd> drop survivor · <kbd>R</kbd> Lamplighter's Shadow Step</li>
+              </ul>
+              <h3>The Killers</h3>
+              <ul>
+                <li><b>Butcher</b>: Rampage charge (2 charges) · sees blood trails</li>
+                <li><b>Wisp</b>: Fade invisibility · ambush lunge · chilling frost</li>
+                <li><b>Harrower</b>: 3 bone spears · marks his prey</li>
+                <li><b>Lamplighter</b>: cursed lanterns reveal survivors · teleports between them</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Online</h3>
+              <p>Host from <b>Online Match</b> and share the code. With <code>node server.js</code> friends join over your network; otherwise matches connect peer-to-peer. Bots fill empty slots and take over for disconnected players.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hidden">
+    <div id="fx-vignette"></div><div id="fx-red"></div><div id="fx-frost"></div><div id="fx-tele"></div><div id="splat"></div>
+    <div id="objective"></div>
+    <div id="feed"></div>
+    <div id="team"></div>
+    <div id="markers"></div>
+    <div id="crosshair" class="hidden"><svg viewBox="0 0 40 40"><circle class="cr-bg" cx="20" cy="20" r="14"/><circle class="cr-fill" id="cr-fill" cx="20" cy="20" r="14"/><circle class="cr-dot" cx="20" cy="20" r="2"/></svg></div>
+    <div id="center-bottom">
+      <div id="status"></div>
+      <div id="progress" class="hidden"><div id="progress-label"></div><div class="pb"><div id="progress-fill"></div></div></div>
+      <div id="prompt"></div>
+    </div>
+    <div id="bottom-right"><div id="power"></div><div id="perks"></div></div>
+    <div id="controls-hint"></div>
+    <div id="fps" class="hidden"></div>
+  </div>
+  <canvas id="skill" width="200" height="200" class="hidden"></canvas>
+  <div id="scoreboard" class="hidden"></div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="dialog">
+      <h2>Paused</h2>
+      <p class="hint">Online matches keep running while you're paused.</p>
+      <div class="field"><label>Mouse sensitivity</label><input type="range" id="pause-sens" min="0.2" max="3" step="0.05"></div>
+      <div class="field"><label>Master volume</label><input type="range" id="pause-vol" min="0" max="1" step="0.01"></div>
+      <div class="actions"><button class="btn" id="btn-quit">Leave Match</button><button class="btn primary" id="btn-resume">Resume</button></div>
+    </div>
+  </div>
+
+  <div id="results" class="overlay hidden">
+    <div class="dialog wide results">
+      <h2 id="results-title"></h2>
+      <div id="results-list"></div>
+      <div class="actions" id="results-actions"></div>
+    </div>
+  </div>
+
+  <div id="loading" class="overlay hidden"><div class="loading-text">Entering the fog…</div></div>
+  <div id="toast"></div>
+
+  <script>
+    // If the module scripts never start (file:// or a very old browser), explain what to do.
+    setTimeout(function () { if (!window.__nbBooted) { var e = document.getElementById('boot-error'); if (e) e.className = ''; } }, 2500);
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
