@@ -233,6 +233,24 @@ export function buildMeatworks(seed) {
     M.circles.push({ x: p.x, z: p.z, r: 0.75, h: 2.6, kind: 'cage', nocast: true });
   }
 
+  // ---------- plastic meat tubs against the room walls (solid, but low enough to see over) ----------
+  const clear = (x, z) => !M.gens.some(o => Math.hypot(o.x - x, o.z - z) < 2.6) && !M.cages.some(o => Math.hypot(o.x - x, o.z - z) < 2.6)
+    && !M.bars.some(o => Math.hypot(o.x - x, o.z - z) < 2.4) && !M.windows.some(o => Math.hypot(o.x - x, o.z - z) < 2.4)
+    && !M.boxes.some(b => Math.abs(x - b.x) < b.hx + 0.5 && Math.abs(z - b.z) < b.hz + 0.5) && !M.circles.some(o => Math.hypot(o.x - x, o.z - z) < o.r + 0.5);
+  for (const r of rooms) {
+    const want = R.int(1, 3);
+    for (let t = 0, n = 0; t < 30 && n < want; t++) {
+      const i = R.int(r.x, r.x + r.w - 1), j = R.int(r.y, r.y + r.h - 1);
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => !walk(i + dx, j + dz));
+      if (!dirs.length) continue;
+      const [dx, dz] = R.pick(dirs), along = R.range(-1.2, 1.2);
+      const x = cx(i) + dx * (MEAT_CS / 2 - 0.62) + (dz ? along : 0), z = cx(j) + dz * (MEAT_CS / 2 - 0.62) + (dx ? along : 0);
+      if (!clear(x, z)) continue;
+      M.circles.push({ x, z, r: 0.38, h: 0.8, kind: 'tub', blue: R() < 0.45, rot: R() * 6.28 });
+      n++;
+    }
+  }
+
   // ---------- exit gates ----------
   addGates(M, [{ x: cx(gateCols[0]), z: -HALF, dir: -1 }, { x: cx(gateCols[1]), z: HALF, dir: 1 }], 'tile');
 

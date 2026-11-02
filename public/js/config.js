@@ -199,8 +199,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.5.0';
+export const VERSION = '2.5.1';
 export const INBOX = [
+  {
+    id: 'v2.5.1', version: '2.5.1', date: 'Nov 2026', title: 'The Meatworks, Remastered', tag: 'Update',
+    gift: { embers: 500, label: 'Update gift: 500 Embers' },
+    body: [
+      'All-new hand-painted textures for the Meatworks: oxblood and cream wall tiles with a green trim, chipped and missing tiles, cracks, rust and damp streaks, and blood splashes that run down to the floor.',
+      'Wet red quarry-tile floors with real puddle reflections, floor drains and a stained concrete ceiling.',
+      'Split carcasses hanging from gambrels (with ribs and spine), tubs of offal, pipes and valves along every wall, steel door frames and plastic strip curtains, enamel signs, fluorescent tubes in the halls, light shafts under the lamps and dust hanging in the air.',
+    ],
+  },
   {
     id: 'v2.5', version: '2.5.0', date: 'Nov 2026', title: 'OFFAL × Nightbound', tag: 'New Chapter', banner: 'offal',
     gift: { embers: 2500, label: 'Chapter launch gift: 2,500 Embers' },
