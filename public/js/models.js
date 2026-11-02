@@ -112,7 +112,7 @@ function lathe(len, prof, dir = 'down', seg = 16) {
 
 // o: { skin, top, sleeve, forearm, pants, shoes, hair, bulk, legLen, female, belly }
 function buildBody(R, o) {
-  const b = o.bulk || 1, L = (o.legLen || 0.45) / 0.45, fem = o.female ? 1 : 0;
+  const b = o.bulk || 1, L = (o.legLen || 0.45) / 0.45, fem = o.female ? 1 : 0, AL = o.arm || 1;
   const sh = b * (fem ? 0.92 : 1); // shoulder width
   R.joint('tilt', null, 0, 0, 0);
   R.joint('hips', 'tilt', 0, 0.885 * L, 0);
@@ -147,12 +147,15 @@ function buildBody(R, o) {
   for (const s of [1, -1]) {
     const side = s > 0 ? 'L' : 'R';
     R.joint('sh' + side, 'spine', 0.2 * s * sh, 0.47, 0);
-    R.mesh('sh' + side, lathe(0.29, [[0, 0.052 * b], [0.3, 0.05 * b], [0.75, 0.039 * b], [1, 0.035 * b]]), o.sleeve || o.top);
-    R.joint('el' + side, 'sh' + side, 0, -0.29, 0);
-    R.mesh('el' + side, lathe(0.27, [[0, 0.037 * b], [0.25, 0.042 * b], [0.75, 0.029 * b], [1, 0.024 * b]]), o.forearm || o.skin);
+    R.mesh('sh' + side, lathe(0.29 * AL, [[0, 0.052 * b], [0.3, 0.05 * b], [0.75, 0.039 * b], [1, 0.035 * b]]), o.sleeve || o.top);
+    R.joint('el' + side, 'sh' + side, 0, -0.29 * AL, 0);
+    R.mesh('el' + side, lathe(0.27 * AL, [[0, 0.037 * b], [0.25, 0.042 * b], [0.75, 0.029 * b], [1, 0.024 * b]]), o.forearm || o.skin);
     R.mesh('el' + side, G.sph(0.038 * b, 10, 8), o.forearm || o.skin, 0, 0, 0, 0, 0, 0, 1, 1, 1, false);
-    R.joint('hand' + side, 'el' + side, 0, -0.27, 0.01);
-    buildHand(R, 'hand' + side, s, o.hand || o.skin, b, o.nails);
+    R.joint('hand' + side, 'el' + side, 0, -0.27 * AL, 0.01);
+    if (o.claws) {
+      R.mesh('hand' + side, G.box(0.075, 0.1, 0.04), o.hand || o.skin, 0, -0.04, 0);
+      for (let i = 0; i < 3; i++) R.mesh('hand' + side, G.cyl(0.009, 0.005, 0.22, 5), o.hand || o.skin, (i - 1) * 0.026, -0.19, 0.012, 0.25, 0, (i - 1) * 0.06, 1, 1, 1, false);
+    } else buildHand(R, 'hand' + side, s, o.hand || o.skin, b, o.nails);
     // legs
     R.joint('lg' + side, 'hips', 0.09 * s * b, -0.04, 0);
     const tl = 0.42 * L;
@@ -177,9 +180,10 @@ function buildHand(R, jn, s, skin, b = 1, nails = false) {
 }
 
 const FEMALE = { mara: true, june: true };
-export function makeSurvivor(def) {
+export function makeSurvivor(def, sk = {}) {
   const R = new Rig();
   const fem = !!FEMALE[def.id];
+  def = { ...def, shirt: sk.shirt ?? def.shirt, pants: sk.pants ?? def.pants, hair: sk.hair ?? def.hair };
   const skin = mat(def.skin, { map: 'skin', rough: 0.62 });
   const shirt = mat(def.shirt, { map: 'cloth', rough: 0.95 });
   const pants = mat(def.pants, { map: 'cloth', rough: 0.95 });
@@ -222,6 +226,11 @@ export function makeSurvivor(def) {
     for (const s of [-1, 1]) { R.mesh('spine', G.box(0.075, 0.08, 0.025), dark, s * 0.075, 0.37, 0.11, 0, 0, 0, 1, 1, 1, false); R.mesh('spine', G.box(0.07, 0.055, 0.02), dark, s * 0.075, 0.14, 0.1, 0, 0, 0, 1, 1, 1, false); }
     R.mesh('spine', G.tor(0.085, 0.028), dark, 0, 0.53, 0.005, Math.PI / 2 - 0.15, 0, 0, 1.15, 1, 0.9);
   }
+  // skin extras
+  if (sk.hood) { R.mesh('head', G.sph(0.13, 16, 12), shirt, 0, 0.13, -0.02, 0, 0, 0, 1.05, 1.08, 1.1); R.mesh('spine', G.tor(0.09, 0.035), shirt, 0, 0.54, 0, Math.PI / 2, 0, 0, 1.2, 1, 1); }
+  if (sk.beanie) R.mesh('head', G.sph(0.112, 16, 10), mat(sk.beanie, { map: 'cloth', rough: 1 }), 0, 0.15, -0.01, 0, 0, 0, 0.95, 0.8, 1.04);
+  if (sk.vest) { R.mesh('spine', lathe(0.3, [[0, 0.15], [0.5, 0.176], [1, 0.16]], 'up', 14), mat(sk.vest, { rough: 0.6 }), 0, 0.2, 0, 0, 0, 0, 1.08, 1, 0.68); for (const y of [0.3, 0.42]) R.mesh('spine', G.box(0.33, 0.025, 0.24), mat(0xd8d8c8, { rough: 0.3, emissive: 0x3a3a30, ei: 0.4 }), 0, y, 0, 0, 0, 0, 1, 1, 1, false); }
+  if (sk.glasses) for (const s2 of [-1, 1]) R.mesh('head', G.tor(0.018, 0.004), mat(0x111111), s2 * 0.034, 0.112, 0.097, 0, 0, 0, 1, 1, 1, false);
   // belt + backpack
   R.mesh('hips', G.cyl(0.157, 0.157, 0.045, 18), mat(0x241a12, { map: 'leather', rough: 0.6 }), 0, 0.07, 0, 0, 0, 0, 1, 1, 0.72);
   R.mesh('hips', G.box(0.045, 0.035, 0.02), mat(0xb0a070, { metal: 0.6, rough: 0.4 }), 0, 0.07, 0.113, 0, 0, 0, 1, 1, 1, false);
@@ -234,19 +243,56 @@ export function makeSurvivor(def) {
   return R.finalize();
 }
 
-export function makeKiller(id) {
+export function makeKiller(id, sk = {}) {
   const R = new Rig();
-  if (id === 'butcher') {
-    const skin = mat(0xa07c6a, { map: 'skin', rough: 0.7 });
+  if (id === 'foreman') {
+    // The Foreman (OFFAL crossover): tall, starved, ribs showing, mask of bone, a jaw full of teeth, hook and blade
+    const flesh = mat(sk.flesh ?? 0xb89990, { map: 'skin', rough: 0.55 });
+    const bone = mat(sk.bone ?? 0xd8ccbc, { rough: 0.6 });
+    const apron = mat(sk.apron ?? 0x5a4a3c, { map: 'leather', rough: 0.55, side: THREE.DoubleSide });
+    const steel = mat(sk.steel ?? 0x8a8a88, { map: 'metal', metal: 0.8, rough: 0.35 });
+    buildBody(R, { skin: flesh, top: flesh, sleeve: flesh, forearm: flesh, pants: flesh, shoes: mat(0x1a1612, { map: 'leather' }), hair: mat(0x111111), bulk: 0.8, legLen: 0.6, arm: 1.75, noFace: true, claws: true });
+    for (let i = 0; i < 5; i++) R.mesh('spine', G.tor(0.15 - i * 0.008, 0.011, Math.PI), bone, 0, 0.44 - i * 0.065, 0.06, Math.PI / 2 + 0.25, 0, Math.PI, 1, 1, 0.75, false);
+    R.mesh('spine', G.cyl(0.02, 0.02, 0.6, 5), bone, 0, 0.3, -0.1, 0, 0, 0, 1, 1, 1, false);
+    for (let i = 0; i < 6; i++) R.mesh('spine', G.sph(0.022, 6, 4), bone, 0, 0.06 + i * 0.09, -0.11, 0, 0, 0, 1, 1, 1, false);
+    // stained apron + straps
+    R.mesh('spine', new THREE.CylinderGeometry(0.17, 0.2, 0.45, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), apron, 0, 0.15, 0.01, 0, 0, 0, 1, 1, 0.85);
+    R.mesh('hips', new THREE.CylinderGeometry(0.19, 0.27, 0.95, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), apron, 0, -0.42, 0.0, 0, 0, 0, 1, 1, 0.82);
+    R.mesh('hips', G.sph(0.12, 10, 8), mat(sk.blood ?? 0x4a0806, { rough: 0.3 }), 0.04, -0.3, 0.17, 0, 0, 0, 0.9, 1.6, 0.25, false);
+    for (const s2 of [-1, 1]) R.mesh('spine', G.box(0.03, 0.4, 0.02), apron, s2 * 0.1, 0.42, 0.11, -0.3, 0, 0, 1, 1, 1, false);
+    // elongated bone mask with sockets, pinprick eyes and a hinged jaw of teeth
+    R.mesh('spine', G.cyl(0.045, 0.06, 0.26, 7), flesh, 0, 0.6, 0.02);
+    R.mesh('head', G.sph(0.17, 22, 16), bone, 0, 0.2, 0.02, 0, 0, 0, 0.82, 1.18, 0.9);
+    for (const s2 of [-1, 1]) {
+      R.mesh('head', G.sph(0.038, 8, 6), mat(0x050403), s2 * 0.055, 0.25, 0.14, 0, 0, 0, 1, 1, 0.45, false);
+      R.mesh('head', G.sph(0.011, 6, 4), mat(sk.eye ?? 0xfff2c8, { emissive: sk.eye ?? 0xffe8a0, ei: 3 }), s2 * 0.055, 0.25, 0.157, 0, 0, 0, 1, 1, 1, false);
+    }
+    R.mesh('head', G.box(0.2, 0.1, 0.05), mat(0x050403), 0, 0.11, 0.12, 0, 0, 0, 1, 1, 1, false);
+    const teeth = mat(0xb8a878, { rough: 0.5 }), gum = mat(0xa07070, { rough: 0.4 });
+    R.mesh('head', G.box(0.2, 0.025, 0.035), gum, 0, 0.165, 0.135, 0, 0, 0, 1, 1, 1, false);
+    for (let i = 0; i < 13; i++) { const a = (i / 12 - 0.5) * 1.7, h = 0.03 + ((i * 7) % 5) * 0.009; R.mesh('head', G.cone(0.009, h, 4), teeth, Math.sin(a) * 0.095, 0.155 - h / 2, Math.cos(a) * 0.06 + 0.09, Math.PI, i, 0, 1, 1, 1, false); }
+    R.joint('jaw', 'head', 0, 0.12, 0.04);
+    R.mesh('jaw', G.box(0.2, 0.035, 0.16), flesh, 0, -0.045, 0.06);
+    R.mesh('jaw', G.box(0.2, 0.025, 0.035), gum, 0, -0.03, 0.135, 0, 0, 0, 1, 1, 1, false);
+    for (let i = 0; i < 13; i++) { const a = (i / 12 - 0.5) * 1.7, h = 0.028 + ((i * 3) % 4) * 0.01; R.mesh('jaw', G.cone(0.008, h, 4), teeth, Math.sin(a) * 0.09, -0.02 + h / 2, Math.cos(a) * 0.055 + 0.085, 0, i, 0, 1, 1, 1, false); }
+    // hook (right) and blade (left)
+    R.mesh('handR', G.tor(0.13, 0.016, Math.PI * 1.35), steel, 0, -0.42, 0.04, 0, 0, Math.PI * 0.85);
+    R.mesh('handR', G.cyl(0.014, 0.014, 0.25, 5), steel, 0, -0.22, 0.02);
+    R.mesh('handR', G.cyl(0.03, 0.03, 0.12, 8), apron, 0, -0.08, 0.02);
+    R.mesh('handL', G.box(0.012, 0.32, 0.16), steel, 0, -0.26, 0.07);
+    R.root.scale.setScalar(1.08);
+    R.hunch = 0.5;
+  } else if (id === 'butcher') {
+    const skin = mat(sk.skin ?? 0xa07c6a, { map: 'skin', rough: 0.7 });
     const shirt = mat(0x4a4038, { map: 'cloth' });
     buildBody(R, { skin, top: skin, sleeve: shirt, forearm: skin, pants: mat(0x2a2622, { map: 'cloth' }), shoes: mat(0x161210, { map: 'leather' }), hair: mat(0x1a1410), bulk: 1.38, legLen: 0.5, belly: 0.05, noFace: true });
     // stained apron draped over the belly, straps, sack mask
-    const apron = mat(0x8c7b66, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
+    const apron = mat(sk.apron ?? 0x8c7b66, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
     R.mesh('spine', new THREE.CylinderGeometry(0.235, 0.255, 0.6, 16, 1, true, -Math.PI * 0.42, Math.PI * 0.84), apron, 0, 0.2, 0.0, 0, 0, 0, 1, 1, 0.82);
     R.mesh('hips', new THREE.CylinderGeometry(0.235, 0.27, 0.62, 16, 1, true, -Math.PI * 0.4, Math.PI * 0.8), apron, 0, -0.2, 0.0, 0, 0, 0, 1, 1, 0.8);
     R.mesh('spine', G.sph(0.18, 12, 10), mat(0x5a1410, { rough: 0.5 }), 0.06, 0.18, 0.15, 0, 0, 0, 0.9, 1.1, 0.3, false);
     for (const s of [-1, 1]) R.mesh('spine', G.box(0.04, 0.3, 0.02), mat(0x3a2a1a, { map: 'leather' }), s * 0.1, 0.36, 0.2, -0.15, 0, s * 0.1, 1, 1, 1, false);
-    const sack = mat(0xb8a27a, { map: 'cloth', rough: 1 });
+    const sack = mat(sk.mask ?? 0xb8a27a, { map: 'cloth', rough: 1 });
     R.mesh('head', G.sph(0.14, 16, 12), sack, 0, 0.11, 0.0, 0, 0, 0, 1.0, 1.18, 1.05);
     for (const s of [-1, 1]) { R.mesh('head', G.sph(0.028, 8, 6), mat(0x050505), s * 0.05, 0.14, 0.125, 0, 0, 0, 1, 0.75, 0.5, false); R.mesh('head', G.cyl(0.004, 0.004, 0.08, 4), mat(0x2a1a10), s * 0.05, 0.14, 0.13, 0, 0, Math.PI / 2, 1, 1, 1, false); }
     R.mesh('head', G.box(0.1, 0.012, 0.02), mat(0x301010), 0, 0.05, 0.13, 0, 0, 0, 1, 1, 1, false);
@@ -258,18 +304,18 @@ export function makeKiller(id) {
     R.root.scale.setScalar(1.15);
   } else if (id === 'wisp') {
     const skin = mat(0xc9d6da, { map: 'skin', rough: 0.5 });
-    const dress = mat(0xd8dde0, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
+    const dress = mat(sk.dress ?? 0xd8dde0, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
     buildBody(R, { skin, top: dress, sleeve: dress, forearm: skin, pants: dress, shoes: skin, hair: mat(0x0a0c0e), bulk: 0.82, legLen: 0.5, female: true, noFace: true, noFeet: true, nails: true });
     R.mesh('hips', lathe(1.12, [[0, 0.15], [0.3, 0.24], [0.7, 0.36], [1, 0.5]], 'down', 18), dress, 0, 0.06, 0);
     R.mesh('hips', lathe(1.0, [[0, 0.17], [0.5, 0.3], [1, 0.44]], 'down', 12), mat(0x7a8a90, { rough: 1, side: THREE.DoubleSide }), 0.03, 0.0, -0.04, 0, 0.4, 0);
     const hairM = mat(0x0a0c0e, { rough: 0.9, side: THREE.DoubleSide });
     R.mesh('head', G.sph(0.11, 14, 10), hairM, 0, 0.13, -0.01, 0, 0, 0, 0.95, 1, 1.08);
     R.mesh('head', lathe(0.62, [[0, 0.1], [0.2, 0.115], [0.8, 0.1], [1, 0.06]], 'down', 14), hairM, 0, 0.18, 0.0, 0, 0, 0, 1.05, 1, 1.12);
-    for (const s of [-1, 1]) R.mesh('head', G.sph(0.016, 8, 6), mat(0x9ff6ff, { emissive: 0x7ff0ff, ei: 4 }), s * 0.035, 0.11, 0.105, 0, 0, 0, 1, 1, 1, false);
+    for (const s of [-1, 1]) R.mesh('head', G.sph(0.016, 8, 6), mat(sk.eye ?? 0x9ff6ff, { emissive: sk.eye ?? 0x7ff0ff, ei: 4 }), s * 0.035, 0.11, 0.105, 0, 0, 0, 1, 1, 1, false);
     R.float = true;
     R.root.scale.setScalar(1.12);
   } else if (id === 'lamplighter') {
-    const coat = mat(0x1a1d1a, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
+    const coat = mat(sk.coat ?? 0x1a1d1a, { map: 'cloth', rough: 1, side: THREE.DoubleSide });
     const skin = mat(0x8a8f86, { map: 'skin', rough: 0.8 });
     buildBody(R, { skin, top: coat, sleeve: coat, forearm: coat, hand: mat(0x111111, { map: 'leather' }), pants: mat(0x141614, { map: 'cloth' }), shoes: mat(0x0e0e0e, { map: 'leather' }), hair: mat(0x111111), bulk: 0.95, legLen: 0.56, noFace: true });
     R.mesh('hips', lathe(1.0, [[0, 0.17], [0.4, 0.26], [1, 0.4]], 'down', 16), coat, 0, 0.1, -0.02);
@@ -289,22 +335,22 @@ export function makeKiller(id) {
     R.joint('lantern', 'handL', 0, -0.06, 0.05);
     R.mesh('lantern', G.cyl(0.008, 0.008, 0.16, 5), iron, 0, -0.08, 0);
     R.mesh('lantern', G.box(0.13, 0.17, 0.13), mat(0x1a2a1a, { transparent: true, opacity: 0.55 }), 0, -0.25, 0);
-    R.mesh('lantern', G.sph(0.045), mat(0x9fffb0, { emissive: 0x5aff7a, ei: 5 }), 0, -0.25, 0, 0, 0, 0, 1, 1.3, 1, false);
+    R.mesh('lantern', G.sph(0.045), mat(sk.lamp ?? 0x9fffb0, { emissive: sk.lamp ?? 0x5aff7a, ei: 5 }), 0, -0.25, 0, 0, 0, 0, 1, 1.3, 1, false);
     R.mesh('lantern', G.cone(0.1, 0.07, 4), iron, 0, -0.13, 0, 0, Math.PI / 4, 0);
     R.root.scale.setScalar(1.18);
     R.hunch = 0.12;
   } else {
     // harrower
     const skin = mat(0x6b5a48, { map: 'skin', rough: 0.85 });
-    const fur = mat(0x3a2c20, { map: 'hay', rough: 1, side: THREE.DoubleSide });
+    const fur = mat(sk.fur ?? 0x3a2c20, { map: 'hay', rough: 1, side: THREE.DoubleSide });
     buildBody(R, { skin, top: mat(0x4a3a2a, { map: 'leather' }), sleeve: fur, forearm: skin, pants: mat(0x2e2620, { map: 'leather' }), shoes: mat(0x1c1612, { map: 'leather' }), hair: mat(0x2a2018), bulk: 1.2, legLen: 0.5, noFace: true });
     R.mesh('spine', lathe(0.75, [[0, 0.16], [0.25, 0.3], [0.7, 0.42], [1, 0.46]], 'down', 14), fur, 0, 0.6, -0.05, 0, 0, 0, 1, 1, 0.8);
-    const bone = mat(0xd8ccae, { rough: 0.55 });
+    const bone = mat(sk.bone ?? 0xd8ccae, { rough: 0.55 });
     R.mesh('head', G.sph(0.12, 16, 12), bone, 0, 0.11, 0.03, 0, 0, 0, 0.9, 1.05, 1.22);
     R.mesh('head', G.box(0.09, 0.07, 0.12), bone, 0, 0.045, 0.12);
     for (const s of [-1, 1]) {
       R.mesh('head', G.sph(0.028, 8, 6), mat(0x000000), s * 0.042, 0.13, 0.135, 0, 0, 0, 1, 1, 0.6, false);
-      R.mesh('head', G.sph(0.01, 6, 4), mat(0xff3020, { emissive: 0xff2010, ei: 3 }), s * 0.042, 0.13, 0.15, 0, 0, 0, 1, 1, 1, false);
+      R.mesh('head', G.sph(0.01, 6, 4), mat(sk.eye ?? 0xff3020, { emissive: sk.eye ?? 0xff2010, ei: 3 }), s * 0.042, 0.13, 0.15, 0, 0, 0, 1, 1, 1, false);
       R.mesh('head', G.cyl(0.013, 0.023, 0.32), bone, 0.1 * s, 0.31, -0.02, 0, 0, -0.55 * s);
       R.mesh('head', G.cyl(0.008, 0.014, 0.15), bone, 0.2 * s, 0.43, 0.02, 0.3, 0, -1.1 * s, 1, 1, 1, false);
       R.mesh('head', G.cyl(0.008, 0.014, 0.14), bone, 0.15 * s, 0.48, -0.04, -0.4, 0, -0.2 * s, 1, 1, 1, false);
@@ -456,6 +502,20 @@ export function animate(R, s, dt) {
       }
     }
   }
+  if (R.j.jaw) {
+    const jt = s.atk === 1 ? 0.95 : s.exec ? 0.7 : s.stun ? 0.9 : sp > 3 ? 0.35 + Math.sin(t * 9) * 0.12 : 0.08 + Math.sin(t * 1.7) * 0.04;
+    R.j.jaw.rotation.x += (jt - R.j.jaw.rotation.x) * Math.min(1, dt * 10);
+  }
+  if (R.killer === 'foreman' && s.exec && s.exec.role === 'killer') {
+    const f = s.exec.f;
+    if (f < 0.25) { P.spineX = 0.9; P.shR = -0.9; P.elR = -0.3; P.shL = -0.5; P.knL = P.knR = 0.5; P.lgL = P.lgR = -0.35; P.hipsY = -0.12; }
+    else if (f < 0.55) { const k2 = (f - 0.25) / 0.3; P.spineX = 0.9 - k2 * 0.7; P.shR = lerp(-0.9, -2.7, k2); P.elR = -0.2; P.shL = -0.4; }
+    else { const k2 = Math.min(1, (f - 0.55) / 0.3); P.spineX = 0.2 + k2 * 0.3; P.shR = lerp(-2.7, 0.5, k2); P.elR = -0.4; P.spineY = -0.4 * k2; P.lgL = 0.3 * Math.sin(t * 6); P.lgR = -0.3 * Math.sin(t * 6); }
+  }
+  if (s.exec && s.exec.role === 'victim' && s.exec.char === 'foreman') {
+    const f = s.exec.f;
+    if (f >= 0.28) { P.tiltX = 0; P.hipsY = 0; P.headX = -0.9; P.spineX = -0.1; P.shL = 0.2 + Math.sin(t * 9) * (f < 0.5 ? 0.4 : 0.05); P.shR = 0.15; P.elL = -0.2; P.elR = -0.3; P.lgL = 0.1 + Math.sin(t * 11) * (f < 0.5 ? 0.5 : 0); P.lgR = -0.1; P.knL = 0.3; P.knR = 0.4; }
+  }
   const k = 1 - Math.exp(-dt * (a === 'vault' ? 20 : s.exec ? 16 : (a === 'down' && s.fallF < 1) ? 5 : (s.atk === 1 ? 24 : 12)));
   for (const key in P) R.pose[key] = lerp(R.pose[key] ?? P[key], P[key], k);
   const q = R.pose, j = R.j;
@@ -475,7 +535,7 @@ export function makeViewModel(id) {
   const g = new THREE.Group();
   const arm = new THREE.Group(); g.add(arm);          // right arm + weapon, animated as a whole
   const add = (parent, geo, m, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.scale.set(sx, sy, sz); parent.add(me); return me; };
-  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a }[id];
+  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a, foreman: 0xb89990 }[id];
   const bk = id === 'butcher' ? 1.5 : id === 'harrower' ? 1.25 : id === 'wisp' ? 0.85 : 1;
   const armM = mat(skin, { map: id === 'lamplighter' || id === 'harrower' ? 'cloth' : 'skin', rough: 0.75 });
   const handM = id === 'lamplighter' ? mat(0x111111, { map: 'leather' }) : mat(skin, { map: 'skin', rough: 0.7 });
@@ -496,6 +556,11 @@ export function makeViewModel(id) {
     add(arm, G.cyl(0.018, 0.022, 1.3), mat(0xd8ccae), 0, 0, -0.3, Math.PI / 2, 0, 0);
     add(arm, G.cone(0.04, 0.2, 6), mat(0xd8ccae), 0, 0, -1.04, -Math.PI / 2, 0, 0);
     tip.position.set(0, 0, -1.1); base.position.set(0, 0, -0.5);
+  } else if (id === 'foreman') {
+    const steel = mat(0x8a8a88, { map: 'metal', metal: 0.8, rough: 0.35 });
+    add(arm, G.cyl(0.014, 0.014, 0.25, 6), steel, 0, 0.03, -0.14, Math.PI / 2, 0, 0);
+    add(arm, G.tor(0.13, 0.016, Math.PI * 1.35), steel, 0, 0.06, -0.38, Math.PI / 2, Math.PI, Math.PI * 0.35);
+    tip.position.set(0, 0.12, -0.5); base.position.set(0, 0.02, -0.2);
   } else {
     add(arm, G.cyl(0.016, 0.018, 1.5), mat(0x3a2c1e), 0, 0, -0.4, Math.PI / 2, 0, 0);
     add(arm, G.tor(0.1, 0.014, Math.PI * 1.2), mat(0x2a2a28, { metal: 0.7 }), 0, 0.06, -1.15, 0, Math.PI / 2, 0);
@@ -753,6 +818,44 @@ export function treeGeos(kind) {
     parts.push({ geo: G.cyl(0.012, 0.03, len * 0.6, 4), matrix: m2 });
   }
   return { trunk: mergeGeos(parts), leaves: null };
+}
+
+// Pine with drooping, jagged branch skirts (much more natural than stacked cones)
+export function pineGeo(seed) {
+  let a = seed * 9301 + 49297; const rnd = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
+  const M = (x, y, z, rx = 0, ry = 0, rz = 0, s = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(s, s, s));
+  const trunk = mergeGeos([{ geo: new THREE.CylinderGeometry(0.07, 0.3, 9.5, 8), matrix: M(0, 4.75, 0) }]);
+  const layers = [], n = 7;
+  for (let i = 0; i < n; i++) {
+    const f = i / (n - 1), r = 2.3 - f * 1.75 + rnd() * 0.25, h = 2.1 - f * 0.7;
+    const g = new THREE.ConeGeometry(r, h, 18, 2);
+    const p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) {
+      const y = p.getY(k), x = p.getX(k), z = p.getZ(k), rad = Math.hypot(x, z);
+      if (rad < 1e-4) continue;
+      const ang = Math.atan2(z, x), tip = (Math.round(ang / (Math.PI * 2) * 18) % 2 === 0) ? 1 : 0.62;
+      const bottom = y < -h / 2 + 1e-3;
+      const sc = bottom ? tip * (0.9 + rnd() * 0.2) : 1 + (rnd() - 0.5) * 0.15;
+      p.setXYZ(k, x * sc, y - (bottom ? (tip === 1 ? h * 0.22 : -h * 0.05) : 0), z * sc);
+    }
+    g.computeVertexNormals();
+    const shade = 0.75 + f * 0.35 + rnd() * 0.1;
+    layers.push({ geo: g, matrix: M(0, 2.2 + i * 1.08, 0, (rnd() - 0.5) * 0.12, rnd() * 6, (rnd() - 0.5) * 0.12), color: new THREE.Color(0.085 * shade, 0.105 * shade, 0.05 * shade) });
+  }
+  return { trunk, leaves: mergeGeos(layers) };
+}
+export function bushGeo(seed) {
+  const g = new THREE.IcosahedronGeometry(0.7, 2), p = g.attributes.position;
+  let a = seed * 7919 + 13; const rnd = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
+  const off = new Map();
+  for (let i = 0; i < p.count; i++) {
+    const key = p.getX(i).toFixed(2) + p.getY(i).toFixed(2) + p.getZ(i).toFixed(2);
+    if (!off.has(key)) off.set(key, 0.7 + rnd() * 0.5);
+    const k = off.get(key);
+    p.setXYZ(i, p.getX(i) * k, Math.max(-0.1, p.getY(i) * k * 0.7), p.getZ(i) * k);
+  }
+  g.computeVertexNormals();
+  return g;
 }
 
 export function rockGeo(seed) {

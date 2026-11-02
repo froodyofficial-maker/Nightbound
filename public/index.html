@@ -35,12 +35,13 @@
       <button data-act="play-killer" data-scene="killer"><span>Play as Killer</span><small>Hunt down bot survivors</small></button>
       <button data-act="online"><span>Online Match</span><small>Host a lobby or join friends</small></button>
       <button data-act="loadout"><span>Loadout</span><small>Characters &amp; perks</small></button>
+      <button data-act="store"><span>Store</span><small>Skins for every character</small></button>
       <button data-act="settings"><span>Settings</span><small>Graphics, controls, audio</small></button>
       <button data-act="help"><span>How to Play</span><small>Rules &amp; controls</small></button>
     </nav>
 
     <div class="showcase" id="showcase"></div>
-    <div class="profile" id="profile"></div>
+    <div class="topright"><button class="inbox-btn" id="inbox-btn" title="Inbox"><span class="ib-ico"></span><span class="badge hidden" id="inbox-badge"></span></button><div class="profile" id="profile"></div></div>
 
     <aside id="panel" class="panel hidden">
       <div class="panel-head"><h2 id="panel-title"></h2><button class="x" id="panel-close" aria-label="Close">✕</button></div>
@@ -54,7 +55,7 @@
           <div class="field hidden" id="bots-survivors-row"><label>Survivors to hunt</label>
             <div class="seg" id="bots-surv"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4" class="on">4</button></div></div>
           <div class="field" id="bots-killer-row"><label>Bot killer</label>
-            <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option></select></div>
+            <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option><option value="foreman">The Foreman (OFFAL)</option></select></div>
           <div class="field"><label>Bot difficulty</label>
             <div class="seg" id="bots-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
           <div class="loadout-mini" id="bots-loadout"></div>
@@ -105,6 +106,16 @@
           <div id="lo-body"></div>
         </section>
 
+        <!-- store -->
+        <section id="p-store" class="hidden">
+          <div class="store-top"><div class="seg" id="store-role"><button data-v="survivor" class="on">Survivors</button><button data-v="killer">Killers</button></div><div class="wallet" id="store-wallet"></div></div>
+          <div class="store-chars" id="store-chars"></div>
+          <div class="skins" id="store-skins"></div>
+        </section>
+
+        <!-- inbox -->
+        <section id="p-inbox" class="hidden"><div id="inbox-list"></div></section>
+
         <!-- settings -->
         <section id="p-settings" class="hidden">
           <div class="field"><label>Player name</label><input id="set-name" maxlength="16"></div>
@@ -149,6 +160,7 @@
                 <li><b>Wisp</b>: Fade invisibility · ambush lunge · chilling frost</li>
                 <li><b>Harrower</b>: 3 bone spears · marks his prey</li>
                 <li><b>Lamplighter</b>: cursed lanterns reveal survivors · teleports between them</li>
+                <li><b>The Foreman</b> (OFFAL crossover): Lights Out darkness · hunts by sound · one-hit hook in the dark</li>
               </ul>
             </div>
             <div>

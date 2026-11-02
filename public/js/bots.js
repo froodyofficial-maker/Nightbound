@@ -483,6 +483,7 @@ export class Bots {
       const los = target && !losBlocked(M, p.x, p.z, tx, tz, 1.0);
       // abilities
       if (p.char === 'wisp' && p.ab === 1 && d < 6) sim.onMsg(p.id, { t: 'act', a: 'ability' });
+      if (p.char === 'foreman' && !p.ab && p.abCd <= 0 && target && d < 16 && d > 3) sim.onMsg(p.id, { t: 'act', a: 'ability' });
       if (p.char === 'butcher' && p.ab === 0 && p.abCd <= 0 && p.charges > 0 && !p.atk && target && d > 5 && d < 15 && this.clearLine(p.x, p.z, tx, tz) && Math.abs(angDiff(p.yaw, ang)) < 0.35) sim.onMsg(p.id, { t: 'act', a: 'ability' });
       if (p.char === 'harrower' && target && los && p.abCd <= 0 && p.ammo > 0 && d > 4.5 && d < 22 && !p.atk) {
         if (!b.aim) { b.aim = true; b.aimT = 0.35 + D.react * 0.4; sim.onMsg(p.id, { t: 'in', e: false, aim: true }); }

@@ -1,8 +1,8 @@
 // 3D main-menu scene: survivors around a campfire, the killer waiting in red fog.
 import * as THREE from 'three';
-import { SURVIVORS } from './config.js';
+import { SURVIVORS, skinOf } from './config.js';
 import { tex } from './textures.js';
-import { mat, makeSurvivor, makeKiller, animate, treeGeos, rockGeo, makeCage } from './models.js';
+import { mat, makeSurvivor, makeKiller, animate, treeGeos, pineGeo, rockGeo, makeCage } from './models.js';
 import { rng } from './map.js';
 
 const VIEWS = {
@@ -74,9 +74,9 @@ export class MenuScene {
     scene.add(this.embers);
 
     // forest ring
-    const pine = treeGeos('pine'), dead = treeGeos('dead');
+    const pine = pineGeo(4), dead = treeGeos('dead');
     const barkM = mat(0x4a3c30, { map: 'bark' });
-    const needleM = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const needleM = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex('foliage').map });
     const trees = [];
     for (let i = 0; i < (hiQ ? 140 : 70); i++) {
       const a = R() * Math.PI * 2, r = 7.5 + Math.pow(R(), 0.6) * 38;
@@ -117,13 +117,13 @@ export class MenuScene {
     this.setKiller('butcher');
   }
 
-  setSurvivor(char) {
+  setSurvivor(char, skin = 'default') {
     for (const r of this.survRigs) this.scene.remove(r.root);
     this.survRigs = [];
     const order = [char, ...Object.keys(SURVIVORS).filter(c => c !== char)];
     order.forEach((c, i) => {
       const seat = this.seats[i];
-      const rig = makeSurvivor(SURVIVORS[c]);
+      const rig = makeSurvivor(SURVIVORS[c], i === 0 ? skinOf(c, skin) : {});
       rig.root.position.set(seat.x, 0, seat.z);
       rig.root.rotation.y = Math.atan2(-seat.x, -seat.z) + (seat.stand ? 0.3 : 0);
       rig.stand = seat.stand; rig.featured = i === 0;
@@ -132,20 +132,21 @@ export class MenuScene {
       this.survRigs.push(rig);
     });
   }
-  setKiller(char) {
+  setKiller(char, skin = 'default') {
     if (this.killerRig) this.scene.remove(this.killerRig.root);
     if (this.lanternLight) { this.scene.remove(this.lanternLight); this.lanternLight = null; }
-    const rig = makeKiller(char);
+    const rig = makeKiller(char, skinOf(char, skin));
     rig.root.position.copy(this.killerPos);
     rig.root.rotation.y = Math.atan2(VIEWS.killer.pos.x - this.killerPos.x, VIEWS.killer.pos.z - this.killerPos.z) + 0.15;
     this.scene.add(rig.root);
     this.killerRig = rig;
-    if (char === 'lamplighter') { this.lanternLight = new THREE.PointLight(0x5aff7a, 8, 7, 1.5); this.scene.add(this.lanternLight); }
+    if (char === 'lamplighter') { this.lanternLight = new THREE.PointLight(skinOf(char, skin).lamp ?? 0x5aff7a, 8, 7, 1.5); this.scene.add(this.lanternLight); }
     this.redLight.color.setHex(char === 'wisp' ? 0x3a9aff : char === 'lamplighter' ? 0x3aff6a : 0xff2010);
     this.rimLight.color.copy(this.redLight.color);
     for (const s of this.fogSprites) s.material.color.setHex(char === 'wisp' ? 0x3a6a8a : char === 'lamplighter' ? 0x2a6a3a : 0x8a2a2a);
   }
   setMode(m) { this.mode = m; }
+  setShift(on) { this.shiftT = on ? 1 : 0; }
 
   update(dt, renderer) {
     this.t += dt;
@@ -153,7 +154,11 @@ export class MenuScene {
     // camera glide
     const v = VIEWS[this.mode];
     const k = 1 - Math.exp(-dt * 2.2);
-    this.camPos.lerp(v.pos, k); this.camLook.lerp(v.look, k);
+    // when a side panel is open, pan so the character sits between the menu and the panel
+    this.shift = (this.shift || 0) + ((this.shiftT || 0) - (this.shift || 0)) * Math.min(1, dt * 3);
+    const dx = v.look.x - v.pos.x, dz = v.look.z - v.pos.z, dl = Math.hypot(dx, dz) || 1;
+    const look = v.look.clone(); look.x += (-dz / dl) * this.shift * 1.5; look.z += (dx / dl) * this.shift * 1.5;
+    this.camPos.lerp(v.pos, k); this.camLook.lerp(look, k);
     const cam = this.camera;
     cam.position.set(this.camPos.x + Math.sin(t * 0.3) * 0.08, this.camPos.y + Math.sin(t * 0.45) * 0.04, this.camPos.z);
     cam.lookAt(this.camLook);

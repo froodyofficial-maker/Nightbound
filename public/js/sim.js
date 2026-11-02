@@ -19,13 +19,13 @@ export class Sim {
       bars: M.bars.map(() => 0),
       cages: M.cages.map(() => null), cageBroken: M.cages.map(() => false),
       gates: M.gates.map(() => ({ p: 0, open: false })),
-      spears: [], lanterns: [], lid: 0,
+      spears: [], lanterns: [], lid: 0, dark: 0,
     };
     let si = 0;
     for (const r of roster) {
       const sp = r.role === 'killer' ? M.spawns.killer : M.spawns.survivors[si++ % 4];
       this.S.players.push({
-        id: r.id, name: r.name, role: r.role, char: r.char, perks: (r.perks || []).slice(0, 3), bot: !!r.bot,
+        id: r.id, name: r.name, role: r.role, char: r.char, skin: typeof r.skin === 'string' ? r.skin.slice(0, 24) : 'default', perks: (r.perks || []).slice(0, 3), bot: !!r.bot,
         x: sp.x, z: sp.z, yaw: r.role === 'killer' ? M.spawns.killerYaw : M.spawns.survivorYaw, pitch: 0, mv: 0, cr: 0, tp: 0,
         st: 'ok', hp: 2, act: null, prog: 0, healP: 0, bleed: 0, cage: -1, stage: 0, cageT: 0, cageMax: 1, esc: 0,
         wig: 0, boost: 0, boostMul: SPEED.hitBoost, vault: null,
@@ -210,6 +210,10 @@ export class Sim {
     } else if (p.char === 'wisp') {
       if (p.ab === 0 && p.abCd <= 0 && !p.atk) { p.ab = 2; p.abT = 0.7; this.ev({ k: 'fade', id: p.id, on: true }); }
       else if (p.ab === 1) { p.ab = 3; p.abT = 1.0; this.ev({ k: 'fade', id: p.id, on: false }); }
+    } else if (p.char === 'foreman') {
+      if (p.ab || p.abCd > 0 || p.atk) return;
+      p.ab = 1; p.abT = KILLERS.foreman.ability.duration; this.S.dark = p.abT;
+      this.ev({ k: 'lightsout', id: p.id, on: true });
     } else if (p.char === 'lamplighter') {
       if (p.abCd > 0 || p.atk) return;
       const mine = this.S.lanterns;
@@ -405,6 +409,13 @@ export class Sim {
       if (K.ab === 2) { K.abT -= dt; if (K.abT <= 0) { K.ab = 1; K.abT = 7; } }
       else if (K.ab === 1) { K.abT -= dt; if (K.abT <= 0) { K.ab = 3; K.abT = 1; this.ev({ k: 'fade', id: K.id, on: false }); } }
       else if (K.ab === 3) { K.abT -= dt; if (K.abT <= 0) { K.ab = 0; K.abCd = KILLERS.wisp.ability.cooldown; K.ambush = 2.5; } }
+    } else if (K.char === 'foreman') {
+      if (K.ab === 1) {
+        K.abT -= dt; S.dark = Math.max(0, K.abT);
+        // hunts by sound: running survivors nearby give themselves away
+        for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && s.mv === 2 && !s.cr && dist(s, K) < 24) s.reveal = Math.max(s.reveal, 0.5);
+        if (K.abT <= 0) { K.ab = 0; K.abCd = KILLERS.foreman.ability.cooldown; S.dark = 0; this.ev({ k: 'lightsout', id: K.id, on: false }); }
+      }
     } else if (K.char === 'lamplighter') {
       if (K.tele) {
         K.tele.t += dt;
@@ -428,6 +439,7 @@ export class Sim {
   }
 
   damage(s, K, instantDown) {
+    if (K && K.char === 'foreman' && K.ab === 1) instantDown = true; // one hit from the hook, in the dark
     s.act = null; s.prog = 0;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;

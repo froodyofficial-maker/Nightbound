@@ -2,7 +2,7 @@
 
 A 3D 1-versus-4 asymmetric horror game that runs in your browser. One player is the killer. Up to four survivors repair generators, power the exit gates and escape before the night takes them.
 
-Everything is procedural: the map, characters, textures and audio are generated in code. three.js and PeerJS are bundled, and the fonts are local.
+Everything is procedural: the map (forest, trails, ruins, lamp posts, ground fog), characters, textures and audio are generated in code. three.js and PeerJS are bundled, and the fonts are local.
 
 ## Play
 
@@ -40,8 +40,14 @@ When the page is served by `node server.js`, everyone on that server uses its bu
 | **The Wisp** | *Fade*: near-invisible, silent, faster | *Ambush & Frost*: long lunge after reappearing; frost and whispers near her | Drowning Embrace |
 | **The Harrower** | *Bone Spear*: 3 regrowing spears | *Trophy Mark*: speared survivors are revealed | Trophy Hunt |
 | **The Lamplighter** | *Cursed Lanterns* reveal nearby survivors | *Shadow Step* (R): teleport to a lantern | Last Light |
+| **The Foreman** *(OFFAL crossover)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
 
 Executions (**F**) work on a downed survivor who has been caged twice, on the last survivor alive, or on anyone if you have the *Death Warrant* perk.
+
+## Store & Inbox
+
+- **Store**: every survivor and killer has extra skins, bought with **Embers**. You earn Embers by playing matches. Click a skin to preview it on the 3D character before buying.
+- **Inbox** (envelope icon, top right): the changes in every version, plus claimable Ember gifts.
 
 ## Bots
 

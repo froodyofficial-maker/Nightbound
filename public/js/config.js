@@ -69,6 +69,14 @@ export const KILLERS = {
     feature: { name: 'Shadow Step', desc: 'Press R to step through the dark to the lantern you are looking toward (1.2s, 18s cooldown).' },
     color: 0x7cff9a,
   },
+  foreman: {
+    id: 'foreman', name: 'The Foreman', speed: 4.5, terror: 34, weapon: 'Meat Hook', crossover: 'OFFAL',
+    lore: 'Still on shift at the Hollow Pines Meatworks. Headcount must be maintained. He hunts by sound and by light.',
+    exec: { name: 'Reassignment', desc: 'Hooks the survivor under the jaw, hoists them off their feet and drags them backward into the dark.' },
+    ability: { name: 'Lights Out', cooldown: 30, duration: 8, desc: 'Kill every light on the map for 8s: generator lamps die, the fog closes in and you go silent (no terror radius).' },
+    feature: { name: 'Hunts by Sound', desc: 'During Lights Out, anyone running within 24m is revealed to you, and one hit from your hook puts a survivor straight down.' },
+    color: 0xd8ccbc,
+  },
 };
 
 export const SURVIVORS = {
@@ -115,3 +123,109 @@ export const DIFFICULTY = {
   normal: { react: 0.5, skill: 0.9, great: 0.15, aim: 0.6, killerSpeed: 0.95, sight: 28, reach: 2.3 },
   hard:   { react: 0.25, skill: 0.96, great: 0.3, aim: 0.92, killerSpeed: 1.0, sight: 38, reach: 2.9 },
 };
+
+// ---------------- Store: skins (bought with embers) ----------------
+export const SKINS = {
+  mara: [
+    { id: 'default', name: 'Field Jacket', price: 0 },
+    { id: 'nightshift', name: 'Night Shift', price: 1500, shirt: 0x2a2e38, pants: 0x15171c, hair: 0x0e0b0a },
+    { id: 'crimson', name: 'Crimson Hood', price: 2500, shirt: 0x6a0d10, pants: 0x222222, hood: true },
+    { id: 'medic', name: 'Trauma Medic', price: 4000, shirt: 0xd8d4c8, pants: 0x2a3a4a, vest: 0x2a5a8a },
+  ],
+  eli: [
+    { id: 'default', name: 'Hoodie', price: 0 },
+    { id: 'overalls', name: 'Grease Monkey', price: 1500, shirt: 0x2f4a6a, pants: 0x2f4a6a, beanie: 0x8a2a1a },
+    { id: 'hazard', name: 'Hazard Crew', price: 2500, shirt: 0x3a3a3a, pants: 0x2a2a2a, vest: 0xe0a020 },
+    { id: 'midnight', name: 'Midnight Run', price: 4000, shirt: 0x14141c, pants: 0x14141c, hood: true, glasses: true },
+  ],
+  june: [
+    { id: 'default', name: 'Knit Sweater', price: 0 },
+    { id: 'autumn', name: 'Autumn Coat', price: 1500, shirt: 0x8a4a20, pants: 0x2a2018 },
+    { id: 'ghost', name: 'Ghost Story', price: 2500, shirt: 0xdedad2, pants: 0x3a3a40, hair: 0xe8e0c8, glasses: true },
+    { id: 'reporter', name: 'Field Reporter', price: 4000, shirt: 0x4a5a3a, pants: 0x1c1c18, beanie: 0x3a3a3a },
+  ],
+  tomas: [
+    { id: 'default', name: 'Ranger', price: 0 },
+    { id: 'camo', name: 'Woodland Camo', price: 1500, shirt: 0x3a4a2a, pants: 0x2a3020 },
+    { id: 'firewatch', name: 'Firewatch', price: 2500, shirt: 0xb04020, pants: 0x2a2018, beanie: 0x1a1a1a },
+    { id: 'searchlight', name: 'Search & Rescue', price: 4000, shirt: 0xd86a10, pants: 0x1a1a22, vest: 0xd8d020 },
+  ],
+  butcher: [
+    { id: 'default', name: 'Slaughterhouse', price: 0 },
+    { id: 'freshcut', name: 'Fresh Cut', price: 2000, apron: 0xd8d0c8 },
+    { id: 'hogmask', name: 'Hog Mask', price: 3500, mask: 0xd89a9a, apron: 0x6a4a3a },
+    { id: 'pale', name: 'Pale Rider', price: 6000, skin: 0x9aa0a4, mask: 0x3a3a3a, apron: 0x1a1a1a },
+  ],
+  wisp: [
+    { id: 'default', name: 'Drowned Bride', price: 0 },
+    { id: 'mourning', name: 'Mourning Veil', price: 2000, dress: 0x16161a, eye: 0xff4030 },
+    { id: 'lakemoss', name: 'Lake Moss', price: 3500, dress: 0x4a6a4a, eye: 0xb0ff60 },
+    { id: 'bloodmoon', name: 'Blood Moon', price: 6000, dress: 0x6a0a0a, eye: 0xffd040 },
+  ],
+  harrower: [
+    { id: 'default', name: 'Bone Hunter', price: 0 },
+    { id: 'charred', name: 'Charred', price: 2000, bone: 0x2a2420, eye: 0xff8a20 },
+    { id: 'winter', name: 'Winter Pelt', price: 3500, fur: 0xd8d4cc, bone: 0xeeeae0, eye: 0x60c0ff },
+    { id: 'gilded', name: 'Gilded Trophy', price: 6000, bone: 0xc8a050, fur: 0x1a1210, eye: 0xffe080 },
+  ],
+  lamplighter: [
+    { id: 'default', name: 'Lamplighter', price: 0 },
+    { id: 'ember', name: 'Ember Lamp', price: 2000, lamp: 0xff8a3a },
+    { id: 'bloodlamp', name: 'Blood Lamp', price: 3500, lamp: 0xff2a2a, coat: 0x2a0a0a },
+    { id: 'spectral', name: 'Spectral', price: 6000, lamp: 0x8ad0ff, coat: 0x1a2030 },
+  ],
+  foreman: [
+    { id: 'default', name: 'Night Shift', price: 0 },
+    { id: 'overtime', name: 'Overtime', price: 2000, flesh: 0x9a8a88, apron: 0x2a1a14, blood: 0x6a0a06 },
+    { id: 'quota', name: 'Quota Met', price: 3500, bone: 0xc8a050, eye: 0xff3a20 },
+    { id: 'reassigned', name: 'Reassigned', price: 6000, flesh: 0x7a8a8a, bone: 0x2a2a2a, eye: 0x7affd0, apron: 0x101418 },
+  ],
+};
+export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
+
+// ---------------- Inbox: version notes & gifts ----------------
+export const VERSION = '2.2.0';
+export const INBOX = [
+  {
+    id: 'v2.2', version: '2.2.0', date: 'Nov 2026', title: 'The Meatworks Crossover', tag: 'Crossover',
+    gift: { embers: 3000, label: 'Crossover gift: 3,000 Embers' },
+    body: [
+      'The Foreman has clocked in. The night-shift horror from OFFAL joins the roster as the fifth killer.',
+      'Lights Out (power): every light on the map dies, the fog closes in and he goes silent.',
+      'Hunts by Sound: in the dark, anyone running near him is revealed, and one hit from his hook puts you down.',
+      'New execution: Reassignment. Headcount must be maintained.',
+      'Map overhaul: new forest, worn dirt paths, weathered walls, lamp posts, rolling ground fog and moonlit clouds.',
+      'The Store is open: buy skins for every survivor and killer with Embers.',
+      'This Inbox now tells you what changed in every version.',
+    ],
+  },
+  {
+    id: 'v2.1', version: '2.1.0', date: 'Nov 2026', title: 'Smarter Bots & Real Faces', tag: 'Update',
+    body: [
+      'Character models rebuilt: sculpted bodies, hands with fingers, faces with eyes, lips and expression.',
+      'Survivor bots loop walls and trees, vault, drop barricades on you and rescue each other.',
+      'Killer bots predict where you run, listen for footsteps, search where they lost you and stop camping cages.',
+      'Online play: direct WebRTC connection with an automatic relay fallback. Works without a server.',
+      'Fixed: killer mouse look was inverted.',
+      'Executions now need two prior cagings (or the last survivor alive).',
+    ],
+  },
+  {
+    id: 'v2.0', version: '2.0.0', date: 'Nov 2026', title: 'The Lamplighter & a New Look', tag: 'Update',
+    body: [
+      'New killer: The Lamplighter, with cursed lanterns and Shadow Step.',
+      'Every killer got a unique feature: Gore Trail, Ambush & Frost, Trophy Mark.',
+      'Brand-new campfire main menu, HUD and icons.',
+      'Proper attack animations: wind-up, swing, blade wipe and miss stumble.',
+      'Graphics presets down to Very Low with dynamic resolution for older laptops.',
+    ],
+  },
+  {
+    id: 'v1.0', version: '1.0.0', date: 'Nov 2026', title: 'Nightbound Launches', tag: 'Launch',
+    gift: { embers: 1000, label: 'Welcome gift: 1,000 Embers' },
+    body: [
+      'One killer, four survivors, seven generators and a long night.',
+      'Three killers with unique executions, 21 perks, bot matches and online lobbies.',
+    ],
+  },
+];

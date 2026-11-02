@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, RULES } from './config.js';
+import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, RULES, skinOf } from './config.js';
 import { buildWorld, updateWorld, pointBlocked, QUALITY } from './world.js';
 import { makeSurvivor, makeKiller, animate, makeViewModel, animateView, makeSpear, makeLantern, auraMat } from './models.js';
 import { stepMover, startVault } from './movement.js';
@@ -19,18 +19,19 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const PostShader = {
-  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.022 }, pulse: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.01 }, pulse: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float time, red, desat, flash, vig, grain, pulse; varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + time*7.0) * 43758.5453); }
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
-      float l = dot(c.rgb, vec3(0.299,0.587,0.114));
+      float l = dot(max(c.rgb, 0.0), vec3(0.2126, 0.7152, 0.0722));
       c.rgb = mix(c.rgb, vec3(l), desat);
-      // grade: cool shadows, warm highlights, a touch more contrast
-      c.rgb = mix(c.rgb, c.rgb * vec3(0.86, 0.96, 1.12), (1.0 - smoothstep(0.0, 0.35, l)) * 0.6);
-      c.rgb = mix(c.rgb, c.rgb * vec3(1.1, 1.0, 0.88), smoothstep(0.35, 0.9, l) * 0.5);
-      c.rgb = (c.rgb - 0.5) * 1.07 + 0.5;
+      // grade (scene is still linear HDR here): slightly cool shadows, warm highlights,
+      // and contrast around mid-grey that can never push a channel negative
+      float lg = dot(max(c.rgb, 0.0), vec3(0.2126, 0.7152, 0.0722));
+      c.rgb = max(c.rgb, 0.0) * mix(vec3(0.95, 0.99, 1.05), vec3(1.05, 1.0, 0.94), smoothstep(0.02, 0.5, lg));
+      c.rgb = pow(c.rgb / 0.18, vec3(1.05)) * 0.18;
       vec2 d = vUv - 0.5; float r = length(d*vec2(1.25,1.0));
       float v = smoothstep(0.85, 0.25, r*(vig + pulse*0.25));
       c.rgb *= mix(0.4, 1.0, v);
@@ -182,6 +183,7 @@ export class Game {
     addEventListener('blur', this.h.blur);
   }
   unbind() {
+    if (!this.h) return;
     const c = this.renderer.domElement;
     removeEventListener('keydown', this.h.kd); removeEventListener('keyup', this.h.ku);
     c.removeEventListener('mousedown', this.h.md); removeEventListener('mouseup', this.h.mu);
@@ -302,6 +304,7 @@ export class Game {
     this.updateSpears(dt, S);
     this.updateLanterns(dt, S, me);
     this.updateGore(dt, S, me);
+    this.updateDark(dt, S, me);
     updateWorld(this.W, this.M, S, this.t, dt, this.camFocus || me);
     this.updateCamera(dt, S, me);
     this.updateAuras(S, me);
@@ -423,7 +426,7 @@ export class Game {
     for (const p of S.players) {
       let c = this.chars.get(p.id);
       if (!c) {
-        const rig = p.role === 'killer' ? makeKiller(p.char) : makeSurvivor(SURVIVORS[p.char] || SURVIVORS.mara);
+        const rig = p.role === 'killer' ? makeKiller(p.char, skinOf(p.char, p.skin)) : makeSurvivor(SURVIVORS[p.char] || SURVIVORS.mara, skinOf(p.char, p.skin));
         this.scene.add(rig.root);
         c = { rig, x: p.x, z: p.z, yaw: p.yaw, spd: 0, step: 0, vaultT: 0, wasV: false };
         this.chars.set(p.id, c);
@@ -500,11 +503,13 @@ export class Game {
           let d = 1.05, yy = 0, side = 0;
           if (ch === 'butcher') { d = 1.05 - sm(0.15, 0.25) * 0.35 + sm(0.86, 0.95) * 0.3; yy = (sm(0.18, 0.3) - sm(0.86, 0.93)) * 0.62; }
           else if (ch === 'wisp') { d = 0.72; yy = sm(0.08, 0.4) * 0.95; }
+          else if (ch === 'foreman') { const drag = sm(0.55, 0.92); d = 1.1 - sm(0.25, 0.35) * 0.25 - drag * 2.6; yy = sm(0.28, 0.4) * 1.05 - drag * 0.7; side = Math.sin(drag * Math.PI) * 0.9; }
           else { const up = sm(0.42, 0.62) - sm(0.86, 0.95); d = 1.25 - up * 0.3; yy = up * 1.75; side = sm(0.86, 1) * 1.2 + up * 0.95; }
           const rgt = { x: -Math.cos(kc.yaw), z: Math.sin(kc.yaw) };
           R.root.position.set(kc.x + F.x * d + rgt.x * side, yy, kc.z + F.z * d + rgt.z * side);
           R.root.rotation.set(0, ch === 'harrower' && f > 0.42 && f < 0.86 ? kc.yaw + Math.PI / 2 : kc.yaw + Math.PI, 0);
           if (ch === 'wisp') R.setOpacity(f > 0.78 ? Math.max(0.02, 1 - (f - 0.78) / 0.2) : 1);
+          if (ch === 'foreman') R.setOpacity(f > 0.72 ? Math.max(0.0, 1 - (f - 0.72) / 0.2) : 1);
           this.execFx(p, K, f, ch, R.root.position);
         }
       } else if (anim === 'caged') {
@@ -543,6 +548,19 @@ export class Game {
       pos.needsUpdate = true; col.needsUpdate = true;
       this.trail.visible = pts.length > 1;
     }
+  }
+
+  // The Foreman's Lights Out: the map goes dark and the fog closes in
+  updateDark(dt, S, me) {
+    const W = this.W;
+    if (W.base == null) W.base = { fog: this.scene.fog.density, hemi: W.hemi.intensity, amb: W.amb.intensity, moon: W.moon.intensity, fill: W.fill.intensity, exp: this.renderer.toneMappingExposure };
+    const target = S.dark > 0 ? (me && me.role === 'killer' ? 0.55 : 1) : 0;
+    this.darkK = (this.darkK || 0) + (target - (this.darkK || 0)) * Math.min(1, dt * (target > (this.darkK || 0) ? 5 : 1.5));
+    const k = this.darkK, B = W.base;
+    this.scene.fog.density = B.fog * (1 + k * 1.6);
+    W.hemi.intensity = B.hemi * (1 - k * 0.72); W.amb.intensity = B.amb * (1 - k * 0.8);
+    W.moon.intensity = B.moon * (1 - k * 0.85); W.fill.intensity = B.fill * (1 - k * 0.6);
+    W.darkK = k;
   }
 
   updateLanterns(dt, S, me) {
@@ -681,6 +699,13 @@ export class Game {
       once('fade', 0.5, () => sound.play('fade', pos.x, pos.z, { on: true }));
       if (f > 0.3 && f < 0.95) this.sparks.spawn(pos.x, pos.y + 1.4, pos.z, 3, 0x7ff0ff, 0.8, 1.2, 0.6, 0.6, 1.5);
       once('burst', 0.95, () => { this.sparks.spawn(pos.x, pos.y + 1.0, pos.z, 120, 0x9ff6ff, 2.5, 1.6, 0.3, 1.5); sound.play('fade', pos.x, pos.z, { on: false }); if (mine) this.flash = 0.4; });
+    } else if (ch === 'foreman') {
+      once('reach', 0.12, () => sound.play('swing', pos.x, pos.z));
+      once('hook', 0.3, () => { bloodAt(110, 0.9); sound.play('kick', pos.x, pos.z); sound.play('scream', pos.x, pos.z, { pitch, len: 1.8 }); if (mine) { this.shake = 1; this.flash = 0.7; } });
+      once('lift', 0.45, () => sound.play('thud', pos.x, pos.z));
+      if (f > 0.55 && f < 0.95) this.smoke.spawn(pos.x, pos.y + 0.6, pos.z, 2, 0x050505, 0.5, 2.2, 0.4, 0.5);
+      if (f > 0.3 && f < 0.6 && Math.random() < 0.35) this.blood.spawn(pos.x, pos.y + 0.9, pos.z, 2, 0x5a0404, 0.4, 1, -9, 0.2);
+      once('gone', 0.9, () => { sound.play('sacrifice'); if (mine) this.feed('HEADCOUNT MUST BE MAINTAINED.', 'big'); });
     } else {
       once('raise', 0.05, () => sound.play('swing', pos.x, pos.z));
       once('stab', 0.32, () => { bloodAt(90, 0.3); sound.play('thunk', pos.x, pos.z); sound.play('scream', pos.x, pos.z, { pitch, len: 1.5 }); if (mine) { this.shake = 0.9; this.flash = 0.6; } });
@@ -718,6 +743,7 @@ export class Game {
         } else if (p.role === 'killer' && ((has(me, 'sixth') && me.sixT < 4 && me.st !== 'dead') || me.st === 'dead' || me.st === 'out')) col = 0xff2020;
       }
       if (p.st === 'dead' || p.st === 'out') col = null;
+      if (S.dark > 0 && !killerView && p.role === 'survivor') col = null; // Lights Out: you lose track of each other
       if (c.aura !== col) { c.rig.setAura(col); c.aura = col; }
     }
     // gens
@@ -725,7 +751,7 @@ export class Game {
       const gs = S.gens[i], a = this.W.gens[i].userData.aura, g = this.M.gens[i];
       let on = false, col = 0xffe8a0;
       if (killerView) { if (has(me, 'static') && gs.n > 0 && !gs.done) { on = true; col = 0xffd040; } }
-      else if (!gs.done && !S.gatesPowered) { on = Math.hypot(g.x - me.x, g.z - me.z) > 6; col = gs.reg ? 0xff6040 : 0xffe8a0; }
+      else if (!gs.done && !S.gatesPowered && !(S.dark > 0)) { on = Math.hypot(g.x - me.x, g.z - me.z) > 6; col = gs.reg ? 0xff6040 : 0xffe8a0; }
       a.visible = on; if (on) a.material = this.auraMatFor(col);
     }
     // cages for the killer while carrying
@@ -774,6 +800,11 @@ export class Game {
           sound.play('hit', e.x, e.z, { pitch: pitchOf(e.id), down: e.down });
           this.blood.spawn(e.x, 1.2, e.z, 40, 0x7a0606, 2.5, 1.2, -9, 1.2);
           if (e.id === this.myId) { this.flash = 1; this.shake = 0.6; }
+          break;
+        }
+        case 'lightsout': {
+          sound.play(e.on ? 'lightsout' : 'lightson');
+          if (e.on && me && me.role === 'survivor') this.feed('The lights go out…', 'big');
           break;
         }
         case 'lantern': sound.play('lantern', e.x, e.z); this.sparks.spawn(e.x + 0.34, 1.45, e.z, 25, 0x6aff8a, 1.5, 1, 0.5); break;
@@ -903,6 +934,11 @@ export class Game {
       sub = me.aim ? 'Aiming…' : `${me.ammo} spear${me.ammo === 1 ? '' : 's'}`;
       pips = Array.from({ length: def.ammo }, (_, i) => `<i class="${i < me.ammo ? 'on' : ''}"></i>`).join('');
       extra = 'Trophy Mark · speared prey is revealed';
+    } else if (me.char === 'foreman') {
+      ready = !me.ab && me.abCd <= 0;
+      pct = me.ab ? 1 - me.abT / def.duration : me.abCd / def.cooldown;
+      sub = me.ab ? `Darkness · ${Math.ceil(me.abT)}s` : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready';
+      extra = me.ab ? 'One hit downs · runners revealed' : 'Hunts by sound';
     } else {
       const n = (this.S.lanterns || []).length;
       ready = me.abCd <= 0;
@@ -1000,6 +1036,7 @@ export class Game {
         }
       }
     }
+    if (S.dark > 0 && me.role === 'survivor' && !status && me.st === 'ok') status = 'Lights Out<small>Don\'t run. He hunts by sound.</small>';
     this.setText('prompt', prompt.join(''));
     this.setText('status', status);
     this.setText('progress-label', esc(label));
@@ -1103,12 +1140,12 @@ export class Game {
     this.unbind();
     if (document.pointerLockElement) { this.skipPause = true; document.exitPointerLock(); }
     sound.stopAll();
-    this.hud.classList.add('hidden');
+    if (this.hud) this.hud.classList.add('hidden');
     $('pause').classList.add('hidden');
     $('scoreboard').classList.add('hidden');
-    this.skillCanvas.classList.add('hidden');
+    if (this.skillCanvas) this.skillCanvas.classList.add('hidden');
     $('markers').innerHTML = '';
-    this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+    if (this.scene) this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     if (this.composer && this.composer.dispose) this.composer.dispose();
     for (const id of ['fx-red', 'fx-frost', 'fx-tele']) $(id).style.opacity = '0';
   }

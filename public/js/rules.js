@@ -14,6 +14,7 @@ export function playerById(S, id) { return S.players.find(p => p.id === id); }
 export function terrorRadius(p) {
   if (!p || p.role !== 'killer') return 0;
   if (p.char === 'wisp' && p.ab === 1) return 0;
+  if (p.char === 'foreman' && p.ab === 1) return 0;
   let r = KILLERS[p.char].terror;
   if (has(p, 'dread')) r += 8;
   if (has(p, 'stalker')) r -= 14;

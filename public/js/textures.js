@@ -108,7 +108,7 @@ export function tex(name) {
     }
     case 'stone': {
       const n = fbm(41, 6, 5), cells = rng(42), pts = [];
-      for (let i = 0; i < 40; i++) pts.push([cells(), cells(), cells()]);
+      for (let i = 0; i < 70; i++) pts.push([cells(), cells(), cells()]);
       const { c, H } = paint(256, (u, v) => {
         let d1 = 9, d2 = 9, id = 0;
         for (let i = 0; i < pts.length; i++) for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
@@ -172,6 +172,41 @@ export function tex(name) {
       const n = fbm(121, 10, 4), w = fbm(122, 40, 2);
       const { c, H } = paint(128, (u, v) => { const k = n(u, v) * 0.7 + w(u, v) * 0.3; const b = 150 + k * 70; return [clamp(b), clamp(b * 0.92), clamp(b * 0.85), k]; });
       out = finish(c, H, 2, null);
+      break;
+    }
+    case 'ground2': {
+      // neutral detail texture: grass blades + soil grit; the map's vertex colors give the large-scale tint
+      const n = fbm(201, 8, 5), blades = fbm(202, 96, 2), grit = fbm(203, 48, 3);
+      const { c, H } = paint(512, (u, v) => {
+        const k = n(u, v), b = blades(u, v), g = grit(u, v);
+        const v1 = 150 + (k - 0.5) * 50 + (b - 0.5) * 70 + (g - 0.5) * 30;
+        return [clamp(v1 * 0.96), clamp(v1), clamp(v1 * 0.9), b * 0.6 + g * 0.4];
+      });
+      out = finish(c, H, 2.2, [26, 26]);
+      break;
+    }
+    case 'foliage': {
+      const n = fbm(211, 6, 4), str = fbm(212, 48, 2);
+      const { c, H } = paint(128, (u, v) => { const k = n(u, v) * 0.6 + Math.abs(Math.sin(u * 60 + str(u, v) * 8)) * 0.4; const b = 120 + k * 120; return [clamp(b * 0.9), clamp(b), clamp(b * 0.85), k]; });
+      out = finish(c, H, 3, null);
+      break;
+    }
+    case 'fogtile': {
+      const n = fbm(221, 4, 5);
+      const c = canvas(256), ctx = c.getContext('2d'), img = ctx.createImageData(256, 256);
+      for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { const k = n(x / 256, y / 256), a = Math.max(0, (k - 0.38) * 2.2); const i = (y * 256 + x) * 4; img.data[i] = 200; img.data[i + 1] = 210; img.data[i + 2] = 220; img.data[i + 3] = clamp(a * 255); }
+      ctx.putImageData(img, 0, 0);
+      const map = new THREE.CanvasTexture(c); map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      out = { map, normalMap: null };
+      break;
+    }
+    case 'clouds': {
+      const n = fbm(231, 3, 6);
+      const c = canvas(512), ctx = c.getContext('2d'), img = ctx.createImageData(512, 512);
+      for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) { const k = n(x / 512, y / 512), a = Math.max(0, (k - 0.45) * 2.6); const i = (y * 512 + x) * 4, l = 120 + k * 120; img.data[i] = l; img.data[i + 1] = l * 1.02; img.data[i + 2] = l * 1.12; img.data[i + 3] = clamp(a * 255); }
+      ctx.putImageData(img, 0, 0);
+      const map = new THREE.CanvasTexture(c); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace;
+      out = { map, normalMap: null };
       break;
     }
     case 'cloth': {

@@ -47,6 +47,7 @@ const I = {
   spear: `<path d="M12 52L46 18"/><path d="M40 12l14-2-2 14z"/><path d="M14 42l8 8"/>`,
   lantern: `<path d="M26 10h12M32 6v4"/><path d="M22 18h20l-2 30H24z"/><path d="M20 52h24"/><path d="M32 26c-4 5-4 10 0 14 4-4 4-9 0-14z"/>`,
   shadowstep: `<circle cx="32" cy="32" r="20" stroke-dasharray="6 5"/><path d="M32 18c-8 6-8 22 0 28 8-6 8-22 0-28z"/><path d="M12 32h8M44 32h8"/>`,
+  hook: `<path d="M32 6v22"/><path d="M32 28c0 10 16 10 16 0"/><path d="M48 28l-4-6"/><circle cx="32" cy="6" r="3"/><path d="M14 44l8 8M22 44l-8 8"/>`,
   claws: `<path d="M18 50C22 34 22 22 18 10M30 52c4-16 4-30 0-42M42 50c4-14 4-26 0-38"/>`,
   // ---- survivor states ----
   healthy: person(),
@@ -60,6 +61,10 @@ const I = {
   // ---- objectives / misc ----
   gen: `<rect x="10" y="26" width="44" height="24" rx="2"/><path d="M18 26V16h6v10M30 26V12h6v14M42 26V18h6v8"/><path d="M14 50v6M50 50v6"/><path d="M26 38h12"/>`,
   gate: `<path d="M8 56V18l12-8h24l12 8v38"/><path d="M20 56V22M32 56V18M44 56V22"/><path d="M8 34h48"/>`,
+  store: `<path d="M10 24l4-12h36l4 12"/><path d="M12 24v28h40V24"/><path d="M10 24h44"/><path d="M26 52V38h12v14"/>`,
+  mail: `<rect x="8" y="14" width="48" height="36" rx="3"/><path d="M8 18l24 18 24-18"/>`,
+  gift: `<rect x="10" y="26" width="44" height="28"/><path d="M8 18h48v8H8z"/><path d="M32 18v36"/><path d="M32 18c-6-10-18-8-12 0M32 18c6-10 18-8 12 0"/>`,
+  check: `<path d="M14 34l12 12 24-26"/>`,
   ember: `<path d="M32 6c6 12 16 18 16 32a16 16 0 0 1-32 0c0-10 8-14 8-22 6 4 8 10 8 16 4-8 2-18 0-26z"/>`,
   skullsmall: `<circle cx="32" cy="28" r="16"/>`,
 };
@@ -69,4 +74,4 @@ export function icon(name, cls = '') {
   return `<svg class="ico ${cls}" viewBox="0 0 64 64" ${S} aria-hidden="true">${body}</svg>`;
 }
 export const STATE_ICON = { healthy: 'healthy', injured: 'injured', down: 'down', carried: 'carried', caged: 'caged', dead: 'dead', out: 'out', exec: 'exec' };
-export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern' };
+export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern', foreman: 'hook' };
