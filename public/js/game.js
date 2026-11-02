@@ -1169,7 +1169,8 @@ export class Game {
     $('power').classList.toggle('hidden', me.role !== 'killer');
     $('crosshair').classList.toggle('hidden', me.role !== 'killer');
     $('item').classList.toggle('hidden', me.role !== 'survivor');
-    $('item').innerHTML = `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">Flashlight</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
+    $('item').innerHTML = me.item === 'trap' ? `<div class="iti">${icon('gen')}</div><div class="itt"><div class="itn">Ghost Trap <span id="trapn"></span></div><div class="keyl"><kbd>G</kbd> set a trap in front of you</div></div>`
+      : `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">Flashlight</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
     $('team').innerHTML = S.players.filter(p => p.role === 'survivor').map(p =>
       `<div class="tm ${p.id === this.myId ? 'me' : ''}" id="tm-${esc(p.id)}"><div class="tm-por">${icon('healthy')}</div><div class="tm-body"><div class="tm-name">${esc(p.name)}${p.bot ? '<small>BOT</small>' : ''}${p.id === this.myId ? '<small>YOU</small>' : ''}</div><div class="tm-stage"><i></i><i></i></div><div class="tm-bar"><div></div></div></div></div>`).join('');
     this.hudCache = {};
@@ -1228,7 +1229,8 @@ export class Game {
       const bar = $('item').querySelector('.itb div');
       if (bar) bar.style.width = (Math.max(0, me.flash) / RULES.flashBattery * 100).toFixed(1) + '%';
       $('item').classList.toggle('active', !!this.flashHeld && me.flash > 0);
-      $('item').classList.toggle('empty', me.flash <= 0);
+      $('item').classList.toggle('empty', me.item === 'trap' ? !(me.traps > 0) : me.flash <= 0);
+      const tn = document.getElementById('trapn'); if (tn) tn.textContent = '×' + (me.traps || 0);
       $('crosshair').classList.toggle('hidden', !(this.flashHeld && me.flash > 0));
     }
     const glare = me.role === 'killer' ? Math.max((me.glare || 0) * 0.75, me.blind > 0 ? Math.min(1, me.blind / 1.2) : 0) : 0;

@@ -151,6 +151,23 @@ const HEAD = {
   eyes(h, o) { const g = new THREE.Group(), c = o.color ?? 0x7affd0;
     for (const s of [-1, 1]) { g.add(mk(S(h.r * 0.07, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(4), toneMapped: false }), s * h.eyeX, h.eyeY, h.front + h.r * 0.02)); g.add(glow(c, h.r * 1.0, s * h.eyeX, h.eyeY, h.front + h.r * 0.1, 0.85)); }
     return g; },
+  // Abeer: a thick, shaggy black mop over the forehead and ears
+  mophair(h) { const g = new THREE.Group(), m = std(0x0c0908, { r: 0.85 });
+    g.add(mk(S(h.r * 1.14, 18, 12), m, 0, h.cy + h.r * 0.32, -h.r * 0.08, 0, 0, 0, 1.12, 0.92, 1.12));
+    for (let i = 0; i < 9; i++) { const a = -1.15 + i * 0.29; g.add(mk(S(h.r * 0.34, 8, 6), m, Math.sin(a) * h.r * 0.95, h.cy + h.r * (0.62 - Math.abs(a) * 0.3), Math.cos(a) * h.r * 0.86, 0.35, a, 0, 0.9, 1.05, 0.6)); }
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) g.add(mk(S(h.r * 0.38, 8, 6), m, s * h.r * 1.0, h.cy + h.r * (0.2 - k * 0.32), -h.r * 0.15 + k * h.r * 0.12, 0, 0, s * 0.3, 0.7, 1.2, 1));
+    g.add(mk(S(h.r * 1.0, 14, 10), m, 0, h.cy + h.r * 0.05, -h.r * 0.45, 0, 0, 0, 1.1, 1.05, 0.9)); return g; },
+  // Raghuvir: thick black hair with a heavy fringe, shorter at the sides
+  fringehair(h) { const g = new THREE.Group(), m = std(0x0c0908, { r: 0.8 });
+    g.add(mk(S(h.r * 1.1, 18, 12), m, 0, h.cy + h.r * 0.36, -h.r * 0.06, 0, 0, 0, 1.06, 0.82, 1.1));
+    for (let i = 0; i < 7; i++) { const a = -0.8 + i * 0.27; g.add(mk(S(h.r * 0.33, 8, 6), m, Math.sin(a) * h.r * 0.9, h.cy + h.r * (0.52 - Math.abs(a) * 0.12), Math.cos(a) * h.r * 0.84, 0.5, a, 0, 1, 1.0, 0.55)); }
+    for (const s of [-1, 1]) g.add(mk(S(h.r * 0.5, 10, 8), m, s * h.r * 0.92, h.cy + h.r * 0.15, -h.r * 0.2, 0, 0, 0, 0.45, 1, 1.1));
+    return g; },
+  // clear-framed glasses
+  specs(h) { const g = new THREE.Group(), frame = std(0xd8d4cc, { r: 0.3, t: true, op: 0.75 }), lens = std(0xe8f0f4, { r: 0.05, m: 0.2, t: true, op: 0.18 });
+    for (const s of [-1, 1]) { g.add(mk(TO(h.r * 0.24, h.r * 0.025, Math.PI * 2, 18), frame, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.06, 0, 0, 0, 1.12, 0.85, 1)); g.add(mk(new THREE.CircleGeometry(h.r * 0.24, 16), lens, s * h.eyeX * 1.08, h.eyeY, h.front + h.r * 0.055, 0, 0, 0, 1.12, 0.85, 1));
+      g.add(mk(B(h.r * 0.03, h.r * 0.03, h.r * 1.0), frame, s * h.r * 0.86, h.eyeY + h.r * 0.03, h.front - h.r * 0.45)); }
+    g.add(mk(B(h.r * 0.16, h.r * 0.025, h.r * 0.025), frame, 0, h.eyeY + h.r * 0.04, h.front + h.r * 0.07)); return g; },
   hairnet(h) { return mk(S(h.r * 1.08, 18, 10, 0, 6.3, 0, 1.7), std(0xf0f0f0, { r: 0.9, t: true, op: 0.85 }), 0, h.cy + h.r * 0.15, -h.r * 0.03); },
 };
 
@@ -224,6 +241,10 @@ const BODY = {
     g.add(glow(0xff3010, 0.18, b.w * 0.3, b.cy - 0.14, z - 0.19, 0.9));
     for (const s of [-1, 1]) g.add(mk(B(0.05, 0.45, 0.02), std(0x2a2620), s * b.w * 0.5, b.cy + 0.1, b.front + 0.01));
     return g; },
+  stripe(b, o) { const g = new THREE.Group(); g.add(mk(B(0.07, b.top - 0.12, 0.01), std(o.color ?? 0xc01e1e, { r: 0.7 }), -0.05, b.cy + 0.02, b.front + 0.03)); g.add(mk(TO(b.w * 0.5, 0.05, Math.PI * 2, 16), std(0x14182a, { r: 0.9 }), 0, b.neck - 0.03, -0.01, Math.PI / 2)); return g; },
+  puffer(b, o) { const g = new THREE.Group(), m = std(o.color ?? 0xb8a48a, { r: 0.75 });
+    for (let i = 0; i < 4; i++) g.add(mk(TO(b.w * 0.86, 0.02, Math.PI * 2, 24), m, 0, b.cy - 0.15 + i * 0.1, (b.front + b.back) / 2, Math.PI / 2, 0, 0, 1, b.d / b.w * 1.15, 1));
+    g.add(mk(TO(b.w * 0.55, 0.06, Math.PI * 2, 16), std(0x111111, { r: 0.6 }), 0, b.neck - 0.04, -0.02, Math.PI / 2)); g.add(mk(B(0.02, b.top - 0.1, 0.01), std(0x111111), 0, b.cy, b.front + 0.04)); return g; },
   nametag(b) { const g = new THREE.Group(); g.add(mk(B(0.1, 0.035, 0.01), std(0xe8e0d0, { r: 0.6 }), b.w * 0.45, b.cy + 0.13, b.front + 0.012)); g.add(mk(B(0.07, 0.07, 0.01), std(0xc02020, { r: 0.5 }), -b.w * 0.55, b.cy + 0.12, b.front + 0.012)); return g; },
   axe(b) { const g = new THREE.Group();
     g.add(mk(C(0.018, 0.022, 0.75, 8), std(0x6a3a1a, { r: 0.8 }), 0.05, b.cy + 0.05, b.back - 0.08, 0, 0, 0.5)); g.add(mk(B(0.03, 0.14, 0.18), std(0xa01a10, { m: 0.5, r: 0.4 }), 0.05 - Math.sin(0.5) * 0.36, b.cy + 0.05 + Math.cos(0.5) * 0.36, b.back - 0.08, 0, 0, 0.5)); return g; },

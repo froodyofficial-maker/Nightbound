@@ -77,7 +77,7 @@ function makeRenderer() {
   const lite = settings.quality === 'potato' || settings.quality === 'low';
   renderer = new THREE.WebGLRenderer({ antialias: !lite, powerPreference: 'high-performance' });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.35 * (settings.brightness || 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.type = settings.quality === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   renderer.setPixelRatio(Math.min(1.5, q.pixel));
@@ -201,6 +201,7 @@ function renderLoadout(container, role, compact, onChange) {
   const color = c => '#' + (c.shirt ?? c.color).toString(16).padStart(6, '0');
   container.innerHTML = `<div class="lo-sub"><span>${role === 'killer' ? 'Killer' : 'Survivor'}</span></div>
     <div class="chars">${Object.values(defs).map(c => `<div class="char ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" style="--c:${color(c)}"><b>${esc(c.name)}${ownsChar(c.id) ? '' : ' <span class="newtag">DLC</span>'}</b>${c.lore ? `<small>${esc(c.lore)}</small>` : !compact ? `<small>${esc(BIOS[c.id] || '')}</small>` : ''}${c.ability ? `<div class="ab">${icon(POWER_ICON[c.id])}${esc(c.ability.name)}</div>${!compact ? `<div class="ft">${esc(c.ability.desc)}</div><div class="ab">${icon('shadowstep')}${esc(c.feature.name)}</div><div class="ft">${esc(c.feature.desc)}</div><div class="ab">${icon('exec')}${esc(c.exec.name)}</div><div class="ft">${esc(c.exec.desc)}</div>` : ''}` : ''}</div>`).join('')}</div>
+${role === 'survivor' ? `<div class="lo-sub"><span>Item</span><span>pick one to carry</span></div><div class="seg lo-item"><button data-item="flashlight" class="${lo.item !== 'trap' ? 'on' : ''}">Flashlight</button><button data-item="trap" class="${lo.item === 'trap' ? 'on' : ''}">Ghost Trap</button></div>` : ''}
     <div class="lo-sub"><span>Perks</span><span>${lo.perks.length} / 3 equipped</span></div>
     <div class="perkgrid">${Object.entries(perks).map(([k, p]) => `<div class="pk ${lo.perks.includes(k) ? 'on' : ''}" data-p="${k}"><div class="diamond ${role === 'killer' ? 'k' : ''}">${icon(k)}</div><div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small></div></div>`).join('')}</div>`;
   container.querySelectorAll('.char').forEach(el => el.onclick = () => {
@@ -210,6 +211,7 @@ function renderLoadout(container, role, compact, onChange) {
     setScene(role);
     renderLoadout(container, role, compact, onChange); onChange && onChange();
   });
+  container.querySelectorAll('[data-item]').forEach(el => el.onclick = () => { lo.item = el.dataset.item; saveProfile(); sound.play('click'); renderLoadout(container, role, compact, onChange); onChange && onChange(); });
   container.querySelectorAll('.pk').forEach(el => el.onclick = () => {
     const k = el.dataset.p, i = lo.perks.indexOf(k);
     if (i >= 0) lo.perks.splice(i, 1); else { if (lo.perks.length >= 3) lo.perks.shift(); lo.perks.push(k); }
@@ -228,6 +230,7 @@ function renderSettings() {
   $('set-name').value = settings.name;
   setSeg('set-quality', settings.quality); $('set-quality-hint').textContent = QHINT[settings.quality];
   $('set-dynres').checked = settings.dynres !== false; $('set-fps').checked = !!settings.showFps;
+  $('set-bright').value = settings.brightness || 1; $('set-bright-v').textContent = Math.round((settings.brightness || 1) * 100) + '%';
   $('set-sens').value = settings.sens; $('set-sens-v').textContent = (+settings.sens).toFixed(2);
   $('set-fov').value = settings.fov; $('set-fov-v').textContent = settings.fov;
   $('set-vol').value = settings.vol; $('set-music').value = settings.music;
@@ -238,6 +241,7 @@ $('set-name').addEventListener('input', e => { settings.name = e.target.value.tr
 seg('set-quality', v => { settings.quality = v; saveSettings(); $('set-quality-hint').textContent = QHINT[v]; stopBG(); makeRenderer(); startBG(); });
 $('set-dynres').addEventListener('change', e => { settings.dynres = e.target.checked; saveSettings(); });
 $('set-fps').addEventListener('change', e => { settings.showFps = e.target.checked; saveSettings(); });
+$('set-bright').addEventListener('input', e => { settings.brightness = +e.target.value; saveSettings(); $('set-bright-v').textContent = Math.round(settings.brightness * 100) + '%'; if (renderer) renderer.toneMappingExposure = 1.35 * settings.brightness; if (session && session.game && session.game.W) session.game.W.base = null; });
 $('set-sens').addEventListener('input', e => { settings.sens = +e.target.value; $('set-sens-v').textContent = settings.sens.toFixed(2); saveSettings(); });
 $('set-fov').addEventListener('input', e => { settings.fov = +e.target.value; $('set-fov-v').textContent = settings.fov; saveSettings(); });
 $('set-vol').addEventListener('input', e => { settings.vol = +e.target.value; sound.setVolume(settings.vol); saveSettings(); });
@@ -426,12 +430,13 @@ function botSurvivor(i, used) {
   const free = Object.keys(SURVIVORS).filter(c => !used.includes(c));
   const char = free.length ? free[Math.floor(Math.random() * free.length)] : Object.keys(SURVIVORS)[i % 4];
   used.push(char);
+  const item = Math.random() < 0.5 ? 'trap' : 'flashlight';
   used.names ||= [];
   const pool = BOT_NAMES.filter(n => !used.names.includes(n));
   const nm = pool[Math.floor(Math.random() * pool.length)] || 'Bot ' + i;
   used.names.push(nm);
   const sk = SKINS[char]; const skin = Math.random() < 0.5 ? 'default' : sk[1 + Math.floor(Math.random() * (sk.length - 1))].id;
-  return { id: 'bot' + i, name: nm + ' (bot)', role: 'survivor', char, skin, perks: randomPerks(SURV_PERKS), bot: true };
+  return { id: 'bot' + i, name: nm + ' (bot)', role: 'survivor', char, skin, perks: randomPerks(SURV_PERKS), item, bot: true };
 }
 function botKiller(char) {
   const ks = Object.keys(KILLERS);
@@ -444,7 +449,7 @@ $('btn-bots-start').addEventListener('click', () => {
   const roster = [];
   const meRole = botsCfg.role;
   if (meRole === 'killer' && !ownsChar(profile.killer.char)) { toast(`${charName(profile.killer.char)} is part of a chapter. Get it in the Store, or pick another killer.`, 5000); openStore('chapters'); return; }
-  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, bot: false });
+  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', bot: false });
   const used = meRole === 'survivor' ? [profile.survivor.char] : [];
   if (meRole === 'survivor') {
     for (let i = 0; i < botsCfg.team; i++) roster.push(botSurvivor(i + 1, used));
@@ -676,6 +681,7 @@ function applyLoadout(p, m) {
   if (role === 'survivor' && p.role !== 'survivor' && lobby.players.filter(x => x.role === 'survivor').length >= 4) role = p.role;
   if (m.loadouts) p.loadouts = m.loadouts;
   const lo = sanitizeLoadout(role, m.char ?? p.loadouts?.[role]?.char, m.perks ?? p.loadouts?.[role]?.perks);
+  p.item = (m.item ?? p.loadouts?.survivor?.item) === 'trap' ? 'trap' : 'flashlight';
   p.role = role; p.char = lo.char; p.perks = lo.perks; p.skin = cleanSkin(lo.char, m.skin ?? p.loadouts?.[role]?.skin);
 }
 function broadcastLobby() {
@@ -763,7 +769,7 @@ function sendMyLoadout(role) {
   if (!me) return;
   role = role || me.role;
   const lo = profile[role], ch = role === 'killer' ? playableKiller() : lo.char;
-  const m = { t: 'loadout', role, char: ch, skin: skinId(ch), perks: lo.perks, loadouts: myLoadouts() };
+  const m = { t: 'loadout', role, char: ch, skin: skinId(ch), perks: lo.perks, item: profile.survivor.item || 'flashlight', loadouts: myLoadouts() };
   if (lobby.isHost) { applyLoadout(me, m); broadcastLobby(); }
   else lobby.net.send(m);
 }
@@ -796,7 +802,7 @@ $('btn-leave-lobby').addEventListener('click', () => leaveOnline());
 $('btn-lobby-start').addEventListener('click', () => {
   if (!lobby || !lobby.isHost) return;
   const ps = lobby.players;
-  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, bot: false }));
+  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, item: p.item, bot: false }));
   const used = roster.filter(r => r.role === 'survivor').map(r => r.char);
   if (!roster.some(r => r.role === 'killer')) {
     if (!lobby.fill) { toast('Someone needs to be the killer (or enable bots).'); return; }

@@ -87,8 +87,8 @@ export const SURVIVORS = {
   june:  { id: 'june',  name: 'June Harlow', skin: 0xf1cfb4, hair: 0xc99b4a, shirt: 0x3a5f8a, pants: 0x222831, hairStyle: 'bun' },
   tomas: { id: 'tomas', name: 'Tomás Reyes', skin: 0xc08a5e, hair: 0x2a1d14, shirt: 0x6b5a3a, pants: 0x1f2a24, hairStyle: 'cap' },
   // Ghostbusters fan-made crossover
-  raghuvir: { id: 'raghuvir', name: 'Raghuvir', skin: 0x9a6a46, hair: 0x0e0a08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', big: true, gb: true },
-  abeer: { id: 'abeer', name: 'Abeer', skin: 0xa8784e, hair: 0x120c08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', gb: true },
+  raghuvir: { id: 'raghuvir', name: 'Raghuvir', skin: 0xb08058, hair: 0x0e0a08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', big: true, gb: true },
+  abeer: { id: 'abeer', name: 'Abeer', skin: 0xa87650, hair: 0x120c08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', gb: true },
 };
 
 export const SURV_PERKS = {
@@ -156,14 +156,14 @@ export const SKINS = {
     { id: 'searchlight', name: 'Search & Rescue', price: 4000, shirt: 0xd86a10, pants: 0x1a1a22, desc: 'Helmet lamp, hi-vis vest and a radio pack with a blinking beacon.', fx: [['hardhat', { color: 0xf0f0f0, lamp: true }], ['hivis', { color: 0xe8e020 }], ['backpack', { color: 0xc04010, radio: true }]] },
   ],
   raghuvir: [
-    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Who you gonna call?', fx: [['protonpack', {}], ['nametag', {}], ['wand', {}]] },
-    { id: 'street', name: 'Beige Jacket', price: 1500, shirt: 0xd2bc94, pants: 0x2a2a30, desc: 'Off duty: his beige jacket.', fx: [['coat', { color: 0xc8b08a }]] },
-    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: [['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
+    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Who you gonna call?', fx: ['fringehair', 'specs', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
+    { id: 'street', name: 'Beige Puffer', price: 1500, shirt: 0xb8a48a, pants: 0x1a1a1e, desc: 'Off duty: beige puffer jacket with a black hood and sleeves.', fx: ['fringehair', 'specs', ['puffer', { color: 0xb8a48a }]] },
+    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: ['fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
   abeer: [
-    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Ready to bust.', fx: [['protonpack', {}], ['nametag', {}], ['wand', {}]] },
-    { id: 'street', name: 'Blue Jacket', price: 1500, shirt: 0x2a4a8a, pants: 0x22252c, desc: 'Off duty: his blue jacket.', fx: [['coat', { color: 0x2a4a8a }]] },
-    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'Covered in ectoplasm, faintly glowing.', fx: [['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
+    { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Ready to bust.', fx: ['mophair', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
+    { id: 'street', name: 'Navy Jacket', price: 1500, shirt: 0x161c30, pants: 0x1a1c22, desc: 'Off duty: navy hooded jacket with a red stripe.', fx: ['mophair', ['stripe', { color: 0xc01e1e }]] },
+    { id: 'slimed', name: 'Slimed', price: 3500, desc: 'Covered in ectoplasm, faintly glowing.', fx: ['mophair', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
   butcher: [
     { id: 'default', name: 'Slaughterhouse', price: 0 },
@@ -212,8 +212,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.8.0';
+export const VERSION = '2.8.1';
 export const INBOX = [
+  {
+    id: 'v2.8.1', version: '2.8.1', date: 'Nov 2026', title: 'Choose Your Item, Brightness, Better Ghostbusters', tag: 'Update',
+    body: [
+      'Pick your survivor item in the Loadout: a Flashlight (blind the killer) or Ghost Traps (2 per match, 3 for Raghuvir and Abeer). You carry only the one you choose.',
+      'New Brightness slider in Settings.',
+      'Raghuvir and Abeer now look like themselves: Raghuvir\'s clear glasses and heavy fringe, Abeer\'s shaggy mop. Their street outfits are a beige puffer with a black hood and a navy hooded jacket with a red stripe.',
+    ],
+  },
   {
     id: 'v2.8', version: '2.8.0', date: 'Nov 2026', title: 'Ghostbusters × Nightbound (fan-made)', tag: 'Crossover', gb: true,
     gift: { embers: 2000, label: 'Crossover gift: 2,000 Embers' },
