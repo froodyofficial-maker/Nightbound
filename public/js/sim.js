@@ -19,7 +19,7 @@ export class Sim {
       bars: M.bars.map(() => 0),
       cages: M.cages.map(() => null), cageBroken: M.cages.map(() => false),
       gates: M.gates.map(() => ({ p: 0, open: false })),
-      spears: [], lanterns: [], lid: 0, dark: 0, chains: [], traps: [], tid: 0,
+      spears: [], lanterns: [], lid: 0, dark: 0, chains: [], traps: [], tid: 0, slime: [],
     };
     let si = 0;
     for (const r of roster) {
@@ -257,6 +257,17 @@ export class Sim {
     } else if (p.char === 'wisp') {
       if (p.ab === 0 && p.abCd <= 0 && !p.atk) { p.ab = 2; p.abT = 0.7; this.ev({ k: 'fade', id: p.id, on: true }); }
       else if (p.ab === 1) { p.ab = 3; p.abT = 1.0; this.ev({ k: 'fade', id: p.id, on: false }); }
+    } else if (p.char === 'slimer') {
+      if (p.abCd > 0 || p.atk) return;
+      if (this.S.slime.length >= KILLERS.slimer.ability.max) this.S.slime.shift();
+      // the glob homes in on a survivor in front of him (lands ahead of where they are running)
+      const f = fwd(p.yaw);
+      let tx = p.x + f.x * 6, tz = p.z + f.z * 6, best = 12;
+      for (const s of this.S.players) { if (s.role !== 'survivor' || s.st !== 'ok') continue; const dx = s.x - p.x, dz = s.z - p.z, d = Math.hypot(dx, dz); if (d > best || d < 0.5 || (dx * f.x + dz * f.z) / d < 0.82) continue; const sf = fwd(s.yaw), lead = s.mv ? 1.6 : 0; best = d; tx = s.x + sf.x * lead; tz = s.z + sf.z * lead; }
+      const spot = this.safeSpot(tx, tz, p.x, p.z);
+      this.S.slime.push({ id: ++this.S.lid, x: spot.x, z: spot.z });
+      p.abCd = KILLERS.slimer.ability.cooldown;
+      this.ev({ k: 'slimespit', id: p.id, x: spot.x, z: spot.z });
     } else if (p.char === 'lamplighter') {
       if (p.abCd > 0 || p.atk) return;
       const mine = this.S.lanterns;
@@ -348,6 +359,11 @@ export class Sim {
       if (p.char === 'harrower' && p.role === 'killer' && p.ammo < KILLERS.harrower.ability.ammo) { p.ammoT += dt; if (p.ammoT >= KILLERS.harrower.ability.reload) { p.ammoT = 0; p.ammo++; } }
     }
 
+    // ---- slime puddles: slow and reveal survivors who run through them ----
+    for (const p of S.players) if (p.role === 'survivor') {
+      if (p.slimed > 0) { p.slimed = Math.max(0, p.slimed - dt); p.reveal = Math.max(p.reveal, 0.3); }
+      if (p.st === 'ok' && S.slime.length && S.slime.some(sl => Math.hypot(sl.x - p.x, sl.z - p.z) < 2.1)) { if (!(p.slimed > 0)) this.ev({ k: 'slimed', id: p.id, x: p.x, z: p.z }); p.slimed = 4.5; }
+    }
     // ---- flashlights & ghost traps ----
     if (K) this.updateFlashlights(K, dt);
     if (K && S.traps.length && !K.vault && !(K.act && K.act.k === 'execute')) {

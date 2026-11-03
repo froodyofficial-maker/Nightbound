@@ -43,6 +43,7 @@ When the page is served by `node server.js`, everyone on that server uses its bu
 | **The Harrower** | *Bone Spear*: 3 regrowing spears | *Trophy Mark*: speared survivors are revealed | Trophy Hunt |
 | **The Lamplighter** | *Cursed Lanterns* reveal nearby survivors | *Shadow Step* (R): teleport to a lantern | Last Light |
 | **The Foreman** *(OFFAL crossover chapter)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
+| **The Slimer** *(Ghostbusters fan-made)* | *Slime Spit*: puddles that slow and reveal survivors | *Ectoplasmic*: floats silently with a small terror radius | Slimed |
 
 Executions (**F**) work on a downed survivor who has been caged twice or on the last survivor alive.
 
@@ -65,7 +66,7 @@ Pick the map (or Random) in the bot-match setup or the online lobby. Every map i
 
 ## Ghostbusters × Nightbound (fan-made)
 
-Two extra survivors, **Raghuvir** and **Abeer**, wear khaki flight suits with proton packs and each carry two Ghost Traps (other survivors carry one). This is a fan-made crossover, not affiliated with or endorsed by the Ghostbusters rights holders.
+Two extra survivors, **Raghuvir** and **Abeer**, wear khaki flight suits with proton packs. Instead of a flashlight they fire a **Proton Stream** that stuns the killer, and with Ghost Traps they carry three (others carry two). The killer **The Slimer** is part of the crossover too. This is a fan-made crossover, not affiliated with or endorsed by the Ghostbusters rights holders.
 
 ## Store & Inbox
 

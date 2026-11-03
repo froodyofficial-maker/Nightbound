@@ -76,4 +76,4 @@ export function icon(name, cls = '') {
   return `<svg class="ico ${cls}" viewBox="0 0 64 64" ${S} aria-hidden="true">${body}</svg>`;
 }
 export const STATE_ICON = { healthy: 'healthy', injured: 'injured', down: 'down', carried: 'carried', caged: 'caged', dead: 'dead', out: 'out', exec: 'exec' };
-export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern', foreman: 'hook' };
+export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern', foreman: 'hook', slimer: 'fade' };

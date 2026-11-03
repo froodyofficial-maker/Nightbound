@@ -258,6 +258,26 @@ export function makeSurvivor(def, sk = {}) {
 }
 
 export function makeKiller(id, sk = {}) {
+  if (id === 'slimer') {
+    const R = new Rig();
+    // The Slimer (fan-made): a floating translucent green glutton with a huge mouth and a ghostly tail
+    const ecto = mat(sk.color ?? 0x7aff4a, { rough: 0.22, emissive: 0x2a8a10, ei: 0.55, transparent: true, opacity: 0.84 });
+    buildBody(R, { skin: ecto, top: ecto, sleeve: ecto, forearm: ecto, pants: ecto, shoes: ecto, hair: ecto, bulk: 1.55, legLen: 0.4, arm: 0.8, noFace: true, noFeet: true });
+    R.mesh('spine', G.sph(0.42, 22, 16), ecto, 0, 0.18, 0.06, 0, 0, 0, 1.05, 1.0, 0.95);
+    R.mesh('hips', lathe(0.95, [[0, 0.36], [0.4, 0.3], [0.75, 0.16], [1, 0.03]], 'down', 18), ecto, 0, 0.12, -0.04, 0.35, 0, 0);
+    R.mesh('head', G.sph(0.3, 22, 16), ecto, 0, 0.1, 0.04, 0, 0, 0, 1.15, 0.95, 1.0);
+    R.mesh('head', G.sph(0.2, 16, 12), mat(0x1a0a0a, { rough: 0.4 }), 0, 0.0, 0.2, 0, 0, 0, 1.25, 0.75, 0.6, false);
+    R.mesh('head', G.sph(0.11, 12, 10), mat(0xe86a8a, { rough: 0.3 }), 0, -0.07, 0.27, 0.6, 0, 0, 1, 0.5, 1.5, false);
+    for (let i = 0; i < 6; i++) R.mesh('head', G.box(0.04, 0.05, 0.03), mat(0xf0ecd8, { rough: 0.4 }), -0.13 + i * 0.052, 0.09, 0.27, 0, 0, 0, 1, 1, 1, false);
+    for (const s of [-1, 1]) { R.mesh('head', G.sph(0.075, 12, 10), mat(0xf4f0e0, { rough: 0.3 }), s * 0.11, 0.25, 0.22, 0, 0, 0, 1, 1.2, 0.8, false); R.mesh('head', G.sph(0.03, 8, 6), mat(0x111111), s * 0.1, 0.25, 0.28, 0, 0, 0, 1, 1, 0.6, false); }
+    R.float = true;
+    R.root.scale.setScalar(1.1);
+    R.kind = 'killer'; R.killer = id;
+    R.finalize();
+    for (const j of ['lgL', 'lgR']) if (R.j[j]) R.j[j].visible = false;
+    applySkinFx(R, sk);
+    return R;
+  }
   if (id === 'foreman') { const g = makeForemanGlb(sk, DETAIL.lite); if (g) { applySkinFx(g, sk); return g; } }
   const R = new Rig();
   if (id === 'foreman') {
@@ -555,7 +575,7 @@ export function makeViewModel(id) {
   const g = new THREE.Group();
   const arm = new THREE.Group(); g.add(arm);          // right arm + weapon, animated as a whole
   const add = (parent, geo, m, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.scale.set(sx, sy, sz); parent.add(me); return me; };
-  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a, foreman: 0xb89990 }[id];
+  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a, foreman: 0xb89990, slimer: 0x7aff4a }[id];
   const bk = id === 'butcher' ? 1.5 : id === 'harrower' ? 1.25 : id === 'wisp' ? 0.85 : 1;
   const armM = mat(skin, { map: id === 'lamplighter' || id === 'harrower' ? 'cloth' : 'skin', rough: 0.75 });
   const handM = id === 'lamplighter' ? mat(0x111111, { map: 'leather' }) : mat(skin, { map: 'skin', rough: 0.7 });

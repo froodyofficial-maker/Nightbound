@@ -70,6 +70,14 @@ export const KILLERS = {
     feature: { name: 'Shadow Step', desc: 'Press R to step through the dark to the lantern you are looking toward (1.2s, 18s cooldown).' },
     color: 0x7cff9a,
   },
+  slimer: {
+    id: 'slimer', name: 'The Slimer', speed: 4.7, terror: 20, weapon: 'Ectoplasm', crossover: 'Ghostbusters (fan-made)',
+    lore: 'A starving green ghost who ate everything in the hotel kitchen. Then he started on the guests.',
+    exec: { name: 'Slimed', desc: 'Swallows the survivor whole, then spits out what is left.' },
+    ability: { name: 'Slime Spit', cooldown: 3.5, max: 4, desc: 'Spit a big puddle of ectoplasm at the survivor in front of you, up to 12m away (up to 4 puddles). Survivors who run through slime are slowed by half and revealed to you for 4.5s.' },
+    feature: { name: 'Ectoplasmic', desc: 'He floats: no footsteps and only a 20m terror radius.' },
+    color: 0x7aff4a,
+  },
   foreman: {
     id: 'foreman', name: 'The Foreman', speed: 4.5, terror: 34, weapon: 'Meat Hook', crossover: 'OFFAL',
     lore: 'Still on shift at the Hollow Pines Meatworks. Headcount must be maintained. He hunts by sound and by light.',
@@ -189,6 +197,11 @@ export const SKINS = {
     { id: 'bloodlamp', name: 'Blood Lamp', price: 3500, lamp: 0xff2a2a, coat: 0x2a0a0a, desc: 'A skull for a face, a blood-red cloak and lamps that bleed light.', fx: [['skull', { color: 0xe0d0c0 }], ['cloak', { color: 0x5a0808, flare: 2.0 }], ['lamp', { color: 0xff2020 }], ['eyes', { color: 0xff2a2a }]] },
     { id: 'spectral', name: 'Spectral', price: 6000, lamp: 0x8ad0ff, coat: 0x1a2030, desc: 'Half here, half somewhere else: a translucent, glowing shade.', fx: [['ghost', { color: 0x8ad0ff, op: 0.45 }], ['halo', { color: 0x6ac8ff }], ['eyes', { color: 0x9ae0ff }]] },
   ],
+  slimer: [
+    { id: 'default', name: 'Kitchen Raider', price: 0 },
+    { id: 'ectoblue', name: 'Ecto Blue', price: 2500, desc: 'A rarer, colder spirit: icy blue ectoplasm.', fx: [['tint', { color: 0x4aa8ff, k: 0.7, e: 0x0a3a8a, ei: 0.8 }]] },
+    { id: 'golden', name: 'Golden Glutton', price: 5000, desc: 'He ate the hotel safe. Solid gold, still hungry.', fx: [['tint', { color: 0xe8c040, k: 0.75, e: 0x5a3a00, ei: 0.5 }], ['crown', { color: 0xd8b040, gem: 0x40ff40 }]] },
+  ],
   foreman: [
     { id: 'default', name: 'Night Shift', price: 0 },
     { id: 'overtime', name: 'Overtime', price: 2000, flesh: 0x9a8a88, apron: 0x2a1a14, blood: 0x6a0a06, desc: 'Hard hat and a hi-vis vest over the apron. Safety first.', fx: [['hardhat', { color: 0xe0b020, lamp: true }], ['hivis', { color: 0xf09020 }]] },
@@ -212,8 +225,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.8.1';
+export const VERSION = '2.9.0';
 export const INBOX = [
+  {
+    id: 'v2.9', version: '2.9.0', date: 'Nov 2026', title: 'Slimer and the Proton Stream', tag: 'Crossover', gb: true,
+    gift: { embers: 1500, label: 'Gift: 1,500 Embers' },
+    body: [
+      'New killer, free for everyone: The Slimer (fan-made). A floating green glutton. Slime Spit (RMB) lays puddles that slow survivors and reveal them to him, he makes no footsteps, and his terror radius is small.',
+      'Raghuvir and Abeer don\'t carry a flashlight: they fire a Proton Stream from their packs. It crackles orange and blue and stuns the killer the same way.',
+      'A fan-made crossover. Not affiliated with or endorsed by the Ghostbusters rights holders.',
+    ],
+  },
   {
     id: 'v2.8.1', version: '2.8.1', date: 'Nov 2026', title: 'Choose Your Item, Brightness, Better Ghostbusters', tag: 'Update',
     body: [

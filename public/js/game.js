@@ -28,6 +28,14 @@ const BEAM_MAT = new THREE.ShaderMaterial({
     void main(){ float e = abs(dot(normalize(vN), normalize(vV))); float a = pow(1.0 - vY, 1.5) * 0.16 * (0.55 + 0.45 * (1.0 - e)); gl_FragColor = vec4(1.0, 0.95, 0.82, a); }`,
 });
 
+// proton stream: a hot orange stream wrapped round a white-blue core
+const PROTON_MAT = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: BEAM_MAT.vertexShader,
+  fragmentShader: `varying float vY; varying vec3 vN; varying vec3 vV; void main(){ float a = (1.0 - vY * 0.6) * 0.75; gl_FragColor = vec4(1.0, 0.42, 0.12, a); }` });
+const PROTON_CORE = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: BEAM_MAT.vertexShader,
+  fragmentShader: `varying float vY; varying vec3 vN; varying vec3 vV; void main(){ gl_FragColor = vec4(0.7, 0.85, 1.0, (1.0 - vY * 0.5) * 0.9); }` });
+
 const PostShader = {
   uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.01 }, pulse: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
@@ -403,6 +411,7 @@ export class Game {
     this.updateChars(dt, S, me);
     this.updateTorchLight();
     this.updateTraps(S);
+    this.updateSlime(S);
     this.updateSpears(dt, S);
     this.updateChains(S);
     this.updateLanterns(dt, S, me);
@@ -551,7 +560,7 @@ export class Game {
       c.yaw += angDiff(c.yaw, p.yaw) * (local ? 1 : 1 - Math.exp(-dt * 12));
       if (hidden) continue;
       // footsteps of others
-      if (!local && p.mv && !p.cr && !(p.role === 'killer' && p.char === 'wisp')) {
+      if (!local && p.mv && !p.cr && !(p.role === 'killer' && (p.char === 'wisp' || p.char === 'slimer'))) {
         c.step += c.spd * dt;
         if (c.step > (p.role === 'killer' ? 1.5 : 1.3)) { c.step = 0; if (!has(p, 'hushed')) sound.play('step', c.x, c.z, { run: p.mv === 2, vol: p.role === 'killer' ? 0.5 : 0.25 }); }
       }
@@ -886,7 +895,10 @@ export class Game {
       body.rotation.x = Math.PI / 2; g.add(body);
       const lens = new THREE.Mesh(new THREE.CircleGeometry(0.03, 12), new THREE.MeshBasicMaterial({ color: 0xfff4d0, toneMapped: false }));
       lens.position.z = 0.101; g.add(lens);
-      const beam = new THREE.Mesh(BEAM_GEO, BEAM_MAT);
+      const proton = !!(SURVIVORS[p.char] && SURVIVORS[p.char].gb);
+      if (proton) body.visible = false;
+      const beam = new THREE.Mesh(BEAM_GEO, proton ? PROTON_MAT : BEAM_MAT);
+      if (proton) { beam.scale.set(0.16, 0.16, 1); const core = new THREE.Mesh(BEAM_GEO, PROTON_CORE); core.scale.set(0.06, 0.06, 1); core.position.z = 0.1; core.frustumCulled = false; g.add(core); g.userData.proton = true; }
       beam.position.z = 0.1; beam.frustumCulled = false; g.add(beam);
       g.userData = { lens, beam };
       this.scene.add(g); c.torch = g;
@@ -896,7 +908,7 @@ export class Game {
     if (!on) return;
     const hand = R.j && R.j.handR;
     if (hand) hand.getWorldPosition(g.position); else g.position.set(p.x, 1.2, p.z);
-    g.rotation.set(0, p.yaw, 0, 'YXZ');
+    g.rotation.set(0, p.yaw + (g.userData.proton ? (Math.random() - 0.5) * 0.05 : 0), g.userData.proton ? (Math.random() - 0.5) * 0.4 : 0, 'YXZ');
     g.rotateX(0.06);
     if (this.torchLight) {
       const cam = this.camera.position, d = (cam.x - g.position.x) ** 2 + (cam.z - g.position.z) ** 2;
@@ -913,6 +925,21 @@ export class Game {
       L.target.position.copy(g.position).add(f);
     }
     this.torchBest = Infinity; this.torchFrom = null;
+  }
+
+  // slime puddles: glossy green ectoplasm with a soft glow
+  updateSlime(S) {
+    this.slimeMeshes ||= new Map();
+    const live = new Set((S.slime || []).map(t => t.id));
+    for (const [id, m] of this.slimeMeshes) if (!live.has(id)) { this.scene.remove(m); this.slimeMeshes.delete(id); }
+    for (const t of S.slime || []) {
+      if (this.slimeMeshes.has(t.id)) continue;
+      const g = new THREE.Group(); g.position.set(t.x, 0.02, t.z);
+      const m = new THREE.Mesh(new THREE.CircleGeometry(2.1, 24), new THREE.MeshStandardMaterial({ color: 0x5aff2a, emissive: 0x1a8a08, emissiveIntensity: 0.9, roughness: 0.1, transparent: true, opacity: 0.8 }));
+      m.rotation.x = -Math.PI / 2; m.scale.set(1, 0.8 + Math.random() * 0.3, 1); g.add(m);
+      for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.08 + Math.random() * 0.1, 8, 6), m.material); b.position.set((Math.random() - 0.5) * 2, 0.03, (Math.random() - 0.5) * 2); b.scale.y = 0.5; g.add(b); }
+      this.scene.add(g); this.slimeMeshes.set(t.id, g);
+    }
   }
 
   // ghost traps on the ground: a striped box with a glowing slot
@@ -1029,6 +1056,8 @@ export class Game {
     for (const e of evs) {
       switch (e.k) {
         case 'swing': { const p = S && playerById(S, e.id); if (p) sound.play('swing', p.x, p.z); break; }
+        case 'slimespit': this.sparks.spawn(e.x, 0.3, e.z, 40, 0x7aff4a, 2, 0.8, 0.3, 1); sound.play('drop', e.x, e.z); break;
+        case 'slimed': if (e.id === this.myId) { this.feed('You ran through slime! Slowed and revealed.', 'big'); this.flash = 0.3; } break;
         case 'trapset': if (e.id === this.myId) this.feed('Ghost Trap set.'); sound.play('click', e.x, e.z); break;
         case 'trapped': {
           const by = S && playerById(S, e.by);
@@ -1170,7 +1199,7 @@ export class Game {
     $('crosshair').classList.toggle('hidden', me.role !== 'killer');
     $('item').classList.toggle('hidden', me.role !== 'survivor');
     $('item').innerHTML = me.item === 'trap' ? `<div class="iti">${icon('gen')}</div><div class="itt"><div class="itn">Ghost Trap <span id="trapn"></span></div><div class="keyl"><kbd>G</kbd> set a trap in front of you</div></div>`
-      : `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">Flashlight</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
+      : `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">${SURVIVORS[me.char] && SURVIVORS[me.char].gb ? 'Proton Stream' : 'Flashlight'}</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
     $('team').innerHTML = S.players.filter(p => p.role === 'survivor').map(p =>
       `<div class="tm ${p.id === this.myId ? 'me' : ''}" id="tm-${esc(p.id)}"><div class="tm-por">${icon('healthy')}</div><div class="tm-body"><div class="tm-name">${esc(p.name)}${p.bot ? '<small>BOT</small>' : ''}${p.id === this.myId ? '<small>YOU</small>' : ''}</div><div class="tm-stage"><i></i><i></i></div><div class="tm-bar"><div></div></div></div></div>`).join('');
     this.hudCache = {};
@@ -1210,6 +1239,12 @@ export class Game {
       pct = me.abCd / def.cooldown;
       sub = me.pull ? 'Reeling…' : me.aim ? 'Aiming…' : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready';
       extra = me.ab ? `Lights Out · ${Math.ceil(me.abT)}s · one hit downs` : me.ab2Cd > 0 ? `<kbd>R</kbd> Lights Out ${Math.ceil(me.ab2Cd)}s` : '<kbd>R</kbd> Lights Out ready';
+    } else if (me.char === 'slimer') {
+      const n = (this.S.slime || []).length;
+      ready = me.abCd <= 0; pct = me.abCd / def.cooldown;
+      sub = me.abCd > 0 ? Math.ceil(me.abCd) + 's' : `${n}/${def.max} puddles`;
+      pips = Array.from({ length: def.max }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
+      extra = 'Ectoplasmic · silent, small terror radius';
     } else {
       const n = (this.S.lanterns || []).length;
       ready = me.abCd <= 0;

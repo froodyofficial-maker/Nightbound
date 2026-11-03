@@ -612,6 +612,7 @@ export class Bots {
         const L = S.lanterns.find(L => Math.hypot(L.x - g.x, L.z - g.z) < 10 && Math.hypot(L.x - p.x, L.z - p.z) > 22);
         if (L) { sim.onMsg(p.id, { t: 'act', a: 'teleport', id: L.id, yaw: Math.atan2(L.x - p.x, L.z - p.z) }); b.path = null; return; }
       }
+      if (p.char === 'slimer' && p.abCd <= 0 && S.players.some(s => s.role === 'survivor' && s.st === 'ok' && Math.hypot(s.x - p.x, s.z - p.z) < 11 && Math.hypot(s.x - p.x, s.z - p.z) > 3.5)) sim.onMsg(p.id, { t: 'act', a: 'ability' });
       if (p.char === 'lamplighter' && p.abCd <= 0) for (const g2 of M.gens) if (!S.gens[g2.id].done && Math.hypot(g2.x - p.x, g2.z - p.z) < 6 && !S.lanterns.some(L => Math.hypot(L.x - g2.x, L.z - g2.z) < 10)) { sim.onMsg(p.id, { t: 'act', a: 'ability' }); break; }
       const it = findInteraction(M, S, p);
       if (it && it.k === 'kick' && S.gens[gi].p > 0.2) { p.yaw = Math.atan2(g.x - p.x, g.z - p.z); this.setE(p, b, true); return; }
