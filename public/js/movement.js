@@ -29,7 +29,8 @@ export function stepMover(M, S, p, intent, dt) {
   if (mag > 1) { mx /= mag; mz /= mag; mag = 1; }
   const r = p.role === 'killer' ? 0.45 : 0.36;
   const dx = mx * sp * dt, dz = mz * sp * dt;
-  const res = moveCircle(M, S, p.x, p.z, dx, dz, r);
+  // Slimer's Ghost Phase: float straight through walls (still kept inside the map)
+  const res = p.phase > 0 ? { x: Math.max(-HALF + 0.6, Math.min(HALF - 0.6, p.x + dx * 1.1)), z: Math.max(-HALF + 0.6, Math.min(HALF - 0.6, p.z + dz * 1.1)) } : moveCircle(M, S, p.x, p.z, dx, dz, r);
   // soft body-blocking between characters
   for (const o of S.players) {
     if (o === p || o.vault) continue;

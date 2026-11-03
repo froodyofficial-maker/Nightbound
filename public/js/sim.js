@@ -200,6 +200,10 @@ export class Sim {
         break;
       }
       case 'ability2': {
+        if (p.role === 'killer' && p.char === 'slimer' && p.ab2Cd <= 0 && !p.act && p.stun <= 0 && p.carry == null && !(p.phase > 0)) {
+          p.phase = KILLERS.slimer.ability2.duration; p.ab2Cd = KILLERS.slimer.ability2.cooldown;
+          this.ev({ k: 'phase', id: p.id, x: p.x, z: p.z });
+        }
         if (p.role === 'killer' && p.char === 'foreman' && !p.ab && p.ab2Cd <= 0 && !p.act && p.stun <= 0 && !p.tele) {
           p.ab = 1; p.abT = KILLERS.foreman.ability2.duration; S.dark = p.abT;
           this.ev({ k: 'lightsout', id: p.id, on: true });
@@ -262,8 +266,10 @@ export class Sim {
       if (this.S.slime.length >= KILLERS.slimer.ability.max) this.S.slime.shift();
       // the glob homes in on a survivor in front of him (lands ahead of where they are running)
       const f = fwd(p.yaw);
-      let tx = p.x + f.x * 6, tz = p.z + f.z * 6, best = 12;
-      for (const s of this.S.players) { if (s.role !== 'survivor' || s.st !== 'ok') continue; const dx = s.x - p.x, dz = s.z - p.z, d = Math.hypot(dx, dz); if (d > best || d < 0.5 || (dx * f.x + dz * f.z) / d < 0.82) continue; const sf = fwd(s.yaw), lead = s.mv ? 1.6 : 0; best = d; tx = s.x + sf.x * lead; tz = s.z + sf.z * lead; }
+      let tx = p.x + f.x * 6, tz = p.z + f.z * 6, best = 14, hit = null;
+      for (const s of this.S.players) { if (s.role !== 'survivor' || s.st !== 'ok') continue; const dx = s.x - p.x, dz = s.z - p.z, d = Math.hypot(dx, dz); if (d > best || d < 0.5 || (dx * f.x + dz * f.z) / d < 0.7 || losBlocked(this.M, p.x, p.z, s.x, s.z, 1.2)) continue; best = d; hit = s; tx = s.x; tz = s.z; }
+      // a direct hit slimes them on the spot
+      if (hit) { if (!(hit.slimed > 0)) this.ev({ k: 'slimed', id: hit.id, x: hit.x, z: hit.z }); hit.slimed = 3; }
       const spot = this.safeSpot(tx, tz, p.x, p.z);
       this.S.slime.push({ id: ++this.S.lid, x: spot.x, z: spot.z });
       p.abCd = KILLERS.slimer.ability.cooldown;
@@ -353,6 +359,7 @@ export class Sim {
       if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt);
       if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
       if (p.teleCd > 0) p.teleCd = Math.max(0, p.teleCd - dt);
+      if (p.phase > 0) { p.phase = Math.max(0, p.phase - dt); if (p.phase === 0) this.endPhase(p); }
       if (p.ambush > 0) p.ambush = Math.max(0, p.ambush - dt);
       if (p.mark > 0) p.mark = Math.max(0, p.mark - dt);
       if (p.char === 'butcher' && p.role === 'killer' && p.charges < KILLERS.butcher.ability.charges) { p.chargeT += dt; if (p.chargeT >= KILLERS.butcher.ability.cooldown) { p.chargeT = 0; p.charges++; } }
@@ -362,7 +369,7 @@ export class Sim {
     // ---- slime puddles: slow and reveal survivors who run through them ----
     for (const p of S.players) if (p.role === 'survivor') {
       if (p.slimed > 0) { p.slimed = Math.max(0, p.slimed - dt); p.reveal = Math.max(p.reveal, 0.3); }
-      if (p.st === 'ok' && S.slime.length && S.slime.some(sl => Math.hypot(sl.x - p.x, sl.z - p.z) < 2.1)) { if (!(p.slimed > 0)) this.ev({ k: 'slimed', id: p.id, x: p.x, z: p.z }); p.slimed = 4.5; }
+      if (p.st === 'ok' && S.slime.length && S.slime.some(sl => Math.hypot(sl.x - p.x, sl.z - p.z) < 2.1)) { if (!(p.slimed > 0)) this.ev({ k: 'slimed', id: p.id, x: p.x, z: p.z }); p.slimed = 3; }
     }
     // ---- flashlights & ghost traps ----
     if (K) this.updateFlashlights(K, dt);
@@ -477,6 +484,16 @@ export class Sim {
     } else K.glare = Math.max(0, K.glare - dt * 1.5);
   }
 
+  // a phase that ends inside a wall (or the void behind it) drops him on the nearest open ground
+  endPhase(p) {
+    const g = this.M.grid, N = g.N, cell = (x, z) => Math.max(0, Math.min(N - 1, Math.floor((z + g.ext) / 0.5))) * N + Math.max(0, Math.min(N - 1, Math.floor((x + g.ext) / 0.5)));
+    if (g.type[cell(p.x, p.z)] !== 1) return;
+    for (let r = 0.5; r < 14; r += 0.5) for (let a = 0; a < 16; a++) {
+      const x = p.x + Math.cos(a / 16 * 6.283) * r, z = p.z + Math.sin(a / 16 * 6.283) * r;
+      if (g.type[cell(x, z)] === 0) { p.x = x; p.z = z; p.tp++; return; }
+    }
+  }
+
   posAt(id, t) {
     const h = this.hist && this.hist.get(id);
     if (!h || !h.length) return null;
@@ -567,7 +584,8 @@ export class Sim {
   }
 
   damage(s, K, instantDown) {
-    if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true; // one strike from the hook, in the dark
+    if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true;
+    // (slimed survivors are slowed and revealed, not one-shot: that made him unbeatable) // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;

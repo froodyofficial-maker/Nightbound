@@ -49,6 +49,12 @@ export class Bots {
       if (b.lookAway == null) b.lookAway = Math.random() < this.sim.diff.react * -0.6 + 0.75 ? (Math.random() < 0.5 ? -1 : 1) : 0;
       if (b.lookAway) K.yaw += b.lookAway * dt * 4;
     } else if (K && K.bot && K.glare <= 0) this.brain(K).lookAway = null;
+    // Slimer: spit at whoever he can see, phase through the wall between him and his prey
+    if (K && K.bot && K.char === 'slimer' && K.stun <= 0 && K.carry == null && !K.act) {
+      const sim = this.sim, M = sim.M, p = K;
+      if (p.abCd <= 0 && !p.atk) { const t = S.players.find(s => s.role === 'survivor' && s.st === 'ok' && !(s.slimed > 0) && Math.hypot(s.x - p.x, s.z - p.z) < 13 && Math.hypot(s.x - p.x, s.z - p.z) > 2 && !losBlocked(M, p.x, p.z, s.x, s.z, 1.2)); if (t) { p.yaw = Math.atan2(t.x - p.x, t.z - p.z); sim.onMsg(p.id, { t: 'act', a: 'ability' }); } }
+      if (p.ab2Cd <= 0 && !(p.phase > 0)) { const t = S.players.find(s => s.role === 'survivor' && s.st === 'ok' && Math.hypot(s.x - p.x, s.z - p.z) < 9 && losBlocked(M, p.x, p.z, s.x, s.z)); if (t) sim.onMsg(p.id, { t: 'act', a: 'ability2' }); }
+    }
     for (const p of S.players) {
       if (!p.bot) continue;
       if (p.role === 'killer') this.killer(p, dt); else { this.survivor(p, dt); this.flashBot(p, dt); if (p.traps > 0 && p.st === 'ok' && K && dist(p, K) < 7 && K.mv && Math.random() < dt * 0.35) this.sim.onMsg(p.id, { t: 'act', a: 'trap' }); }
@@ -612,7 +618,6 @@ export class Bots {
         const L = S.lanterns.find(L => Math.hypot(L.x - g.x, L.z - g.z) < 10 && Math.hypot(L.x - p.x, L.z - p.z) > 22);
         if (L) { sim.onMsg(p.id, { t: 'act', a: 'teleport', id: L.id, yaw: Math.atan2(L.x - p.x, L.z - p.z) }); b.path = null; return; }
       }
-      if (p.char === 'slimer' && p.abCd <= 0 && S.players.some(s => s.role === 'survivor' && s.st === 'ok' && Math.hypot(s.x - p.x, s.z - p.z) < 11 && Math.hypot(s.x - p.x, s.z - p.z) > 3.5)) sim.onMsg(p.id, { t: 'act', a: 'ability' });
       if (p.char === 'lamplighter' && p.abCd <= 0) for (const g2 of M.gens) if (!S.gens[g2.id].done && Math.hypot(g2.x - p.x, g2.z - p.z) < 6 && !S.lanterns.some(L => Math.hypot(L.x - g2.x, L.z - g2.z) < 10)) { sim.onMsg(p.id, { t: 'act', a: 'ability' }); break; }
       const it = findInteraction(M, S, p);
       if (it && it.k === 'kick' && S.gens[gi].p > 0.2) { p.yaw = Math.atan2(g.x - p.x, g.z - p.z); this.setE(p, b, true); return; }

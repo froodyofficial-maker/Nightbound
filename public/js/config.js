@@ -71,11 +71,12 @@ export const KILLERS = {
     color: 0x7cff9a,
   },
   slimer: {
-    id: 'slimer', name: 'The Slimer', speed: 4.7, terror: 20, weapon: 'Ectoplasm', crossover: 'Ghostbusters (fan-made)',
+    id: 'slimer', name: 'The Slimer', speed: 4.6, terror: 20, weapon: 'Ectoplasm', crossover: 'Ghostbusters (fan-made)',
     lore: 'A starving green ghost who ate everything in the hotel kitchen. Then he started on the guests.',
     exec: { name: 'Slimed', desc: 'Swallows the survivor whole, then spits out what is left.' },
-    ability: { name: 'Slime Spit', cooldown: 3.5, max: 4, desc: 'Spit a big puddle of ectoplasm at the survivor in front of you, up to 12m away (up to 4 puddles). Survivors who run through slime are slowed by half and revealed to you for 4.5s.' },
-    feature: { name: 'Ectoplasmic', desc: 'He floats: no footsteps and only a 20m terror radius.' },
+    ability2: { name: 'Ghost Phase', key: 'R', cooldown: 16, duration: 2.5, desc: 'Turn see-through and float straight through walls for 2.5s.' },
+    ability: { name: 'Slime Spit', cooldown: 7, max: 4, desc: 'Spit a glob of ectoplasm at the survivor in front of you (up to 14m): a hit slimes them on the spot and leaves a puddle (up to 4). Survivors who are slimed are slowed by 30% and revealed to you for 3s.' },
+    feature: { name: 'Ectoplasmic', desc: 'He floats: no footsteps and only a 20m terror radius. Press R for Ghost Phase: float through walls for 2.5s (16s cooldown).' },
     color: 0x7aff4a,
   },
   foreman: {
@@ -225,8 +226,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.9.0';
+export const VERSION = '2.9.1';
 export const INBOX = [
+  {
+    id: 'v2.9.1', version: '2.9.1', date: 'Nov 2026', title: 'Slimer Gets Hungrier', tag: 'Balance',
+    body: [
+      'Slime Spit is now a real attack: aim at a survivor up to 14m away and the glob hits them directly, slowing them by 30% and revealing them for 3s, then leaves a puddle under them.',
+      'New for Slimer, Ghost Phase (R): turn see-through and float straight through walls for 2.5s (16s cooldown). If the phase ends inside a wall, you are dropped on the nearest open ground.',
+      'Bot Slimers now spit and phase properly. In bot matches survivors escape Slimer about 1 time in 5.',
+    ],
+  },
   {
     id: 'v2.9', version: '2.9.0', date: 'Nov 2026', title: 'Slimer and the Proton Stream', tag: 'Crossover', gb: true,
     gift: { embers: 1500, label: 'Gift: 1,500 Embers' },

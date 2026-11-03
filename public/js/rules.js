@@ -34,7 +34,7 @@ export function speedOf(p, S, sprint, crouch) {
     let s = crouch ? SPEED.crouch * (has(p, 'hushed') ? 1.25 : 1) : sprint ? SPEED.run : SPEED.walk;
     if (!crouch && sprint && p.hp === 1 && has(p, 'fleet')) s *= 1.07;
     if (p.boost > 0) s *= p.boostMul || SPEED.hitBoost;
-    if (p.slimed > 0) s *= 0.5;
+    if (p.slimed > 0) s *= 0.7;
     return s;
   }
   const K = KILLERS[p.char];

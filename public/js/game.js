@@ -312,7 +312,7 @@ export class Game {
       if (e.code === 'KeyQ') this.send({ t: 'act', a: 'drop-carry' });
       if (e.code === 'KeyG') this.send({ t: 'act', a: 'trap' });
       if (e.code === 'KeyR' && this.mine() && this.mine().char === 'lamplighter') this.send({ t: 'act', a: 'teleport', yaw: this.mine().yaw });
-      if (e.code === 'KeyR' && this.mine() && this.mine().char === 'foreman') this.send({ t: 'act', a: 'ability2' });
+      if (e.code === 'KeyR' && this.mine() && (this.mine().char === 'foreman' || this.mine().char === 'slimer')) this.send({ t: 'act', a: 'ability2' });
       if (e.code === 'KeyF' && this.mine() && this.mine().role === 'killer') { const ex = findExecute(this.M, this.S, this.mine()); if (ex) this.send({ t: 'act', a: 'execute', id: ex.id }); }
       if ((e.code === 'KeyA' || e.code === 'KeyD') && this.mine() && this.mine().st === 'carried') {
         if (e.code !== this.lastWigKey) { this.lastWigKey = e.code; this.send({ t: 'act', a: 'wig' }); this.wigFlash = 0.15; }
@@ -636,6 +636,7 @@ export class Game {
         if (cg) { R.root.position.set(cg.x, 0.2, cg.z); }
       }
       if (p.role === 'survivor') this.placeTorch(c, R, p, flashOn && R.root.visible);
+      if (p.role === 'killer' && p.char === 'slimer') R.setOpacity(p.phase > 0 ? (viewerKiller ? 0.4 : 0.25 + Math.sin(this.t * 12) * 0.08) : 1);
       // wisp fade
       if (p.role === 'killer' && p.char === 'wisp') {
         const o = p.ab === 1 ? (viewerKiller ? 0.35 : 0.04 + Math.max(0, Math.sin(this.t * 3)) * 0.04) : p.ab ? 0.4 : 1;
@@ -1056,6 +1057,7 @@ export class Game {
     for (const e of evs) {
       switch (e.k) {
         case 'swing': { const p = S && playerById(S, e.id); if (p) sound.play('swing', p.x, p.z); break; }
+        case 'phase': { const p = S && playerById(S, e.id); this.sparks.spawn(e.x, 1.2, e.z, 50, 0x7aff4a, 2.2, 1.2, 0.4, 1); sound.play('fade', e.x, e.z, { on: true }); break; }
         case 'slimespit': this.sparks.spawn(e.x, 0.3, e.z, 40, 0x7aff4a, 2, 0.8, 0.3, 1); sound.play('drop', e.x, e.z); break;
         case 'slimed': if (e.id === this.myId) { this.feed('You ran through slime! Slowed and revealed.', 'big'); this.flash = 0.3; } break;
         case 'trapset': if (e.id === this.myId) this.feed('Ghost Trap set.'); sound.play('click', e.x, e.z); break;
@@ -1244,7 +1246,7 @@ export class Game {
       ready = me.abCd <= 0; pct = me.abCd / def.cooldown;
       sub = me.abCd > 0 ? Math.ceil(me.abCd) + 's' : `${n}/${def.max} puddles`;
       pips = Array.from({ length: def.max }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
-      extra = 'Ectoplasmic · silent, small terror radius';
+      extra = me.phase > 0 ? `Ghost Phase · ${me.phase.toFixed(1)}s` : me.ab2Cd > 0 ? `<kbd>R</kbd> Ghost Phase ${Math.ceil(me.ab2Cd)}s` : '<kbd>R</kbd> Ghost Phase ready';
     } else {
       const n = (this.S.lanterns || []).length;
       ready = me.abCd <= 0;
