@@ -712,3 +712,14 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 #fr-chat-log .cm { font-size: 14px; color: #d8cdbd; } #fr-chat-log .cm b { color: var(--gold); font-weight: 600; } #fr-chat-log .cm.me b { color: #8ab8ff; }
 .fr-chat-row { display: flex; gap: 8px; } .fr-chat-row input { flex: 1; }
 .mainnav button span.newtag { display: inline-block; font-family: var(--cond); font-size: 12px; line-height: 1.3; letter-spacing: .12em; padding: 2px 6px; vertical-align: middle; margin-left: 8px; }
+
+/* god-tier outfits (gameplay-changing) */
+.rar.god { background: linear-gradient(90deg, #ffd860, #ff5a2a, #ffd860); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 700; }
+.of.god { --rc: #d4a020; box-shadow: 0 0 0 1px #ffd86088, 0 0 18px #ff8a2a55; }
+.cs-detail.god { --rc: #ffc030; }
+/* Grandpa in the match: each survivor's shotgun health */
+.tm-shp { width: 120px; height: 4px; margin-top: 3px; background: #2a1a14; border-radius: 2px; overflow: hidden; }
+.tm-shp div { height: 100%; background: linear-gradient(90deg, #c8a040, #e8d070); transition: width .25s; }
+.tm-shp.low div { background: linear-gradient(90deg, #a01810, #e04020); }
+#team.compact .tm-shp { width: 90px; }
+.of-god { position: absolute; top: 6px; left: 6px; font: 700 10px/1 'Bebas Neue', Impact, sans-serif; letter-spacing: .08em; padding: 3px 6px; border-radius: 3px; color: #1a0e00; background: linear-gradient(90deg, #ffd860, #ff8a2a); box-shadow: 0 0 10px #ff8a2a88; }

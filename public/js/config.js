@@ -125,7 +125,8 @@ export const KILLERS = {
     id: 'granny', name: 'Granny', speed: 4.7, terror: 32, weapon: 'Baseball Bat', crossover: 'Granny (fan-made)',
     lore: 'She has kept you in her house for five days. She hears every creak of the floorboards, and she does not like guests leaving early.',
     exec: { name: 'Bedtime Trap', desc: 'Forces the survivor to their knees, sets a bear trap in front of them, and shoves their face into it.' },
-    ability: { name: 'Bat Rush', cooldown: 8, minCharge: 0.25, maxCharge: 1.0, minDist: 3, maxDist: 8, speed: 13, turn: 2.4, palletBonus: 2, slamRadius: 2.6, slamGen: 0.1, wallStun: 0.9, desc: 'Hold to wind up the bat (slowed), release to charge 3 to 8m, further the longer you wound up. Steer the charge with the mouse. She crashes straight through windows and smashes dropped pallets (each one carries her 2m further), and strikes the first survivor in her way; a Heard survivor goes straight down. Fully wound up, the charge ends in a Ground Slam: everyone around her is struck and a nearby generator is damaged. Charging into a wall stuns her.' },
+    shotgun: { name: 'Shotgun', cooldown: 2.2, raise: 0.3, range: 45, minDmg: 6, maxDmg: 36, near: 2.5, far: 22.5 },
+    ability: { name: 'Bat Rush', cooldown: 8, minCharge: 0.25, maxCharge: 1.0, minDist: 3, maxDist: 8, speed: 13, turn: 2.4, palletBonus: 2, slamRadius: 2.6, slamGen: 0.1, wallStun: 0.9, desc: 'Hold to wind up the bat (slowed), release to charge: the longer you hold, the further she goes, with no limit (3m, 8m at one second, and on). Steer the charge with the mouse. She crashes straight through windows and smashes dropped pallets (each one carries her 2m further), and strikes the first survivor in her way; a Heard survivor goes straight down. Fully wound up, the charge ends in a Ground Slam: everyone around her is struck and a nearby generator is damaged. Charging into a wall stuns her.' },
     ability2: { name: 'I Hear You', key: 'R', cooldown: 25, reveal: 6, heard: 15, desc: 'Stop and listen. Every survivor who is running, repairing, healing or unhooking anywhere on the map is revealed for 6s and Heard for 15s: her next hit on a Heard survivor puts them straight down.' },
     teleport: { name: 'Creep', key: 'G', cooldown: 25, time: 1.2, haste: 3, desc: 'Hold G: every window, pallet, generator and hook on the map is marked. Release to vanish and reappear at the one in your sights, with a short burst of speed.' },
     swap: { name: 'Body Swap', key: 'V', cooldown: 6, desc: 'Switch bodies with Spider Mom, any time: Granny appears where Spider Mom was, and Spider Mom where Granny stood. Hold V to look through Spider Mom\'s eyes first, release to swap.' },
@@ -362,7 +363,7 @@ export const SKINS = {
   granny: [
     { id: 'default', name: 'House Dress', price: 0, desc: 'Her grey nightgown, her bloody bat, and the stare. You know the one.' },
     { id: 'bloodbath', name: 'Spring Cleaning', price: 3000, tint: 0x8a1010, tintK: 0.35, desc: 'She has been busy. Most of the red is not hers.' },
-    { id: 'grandpa', name: 'Grandpa', price: 5000, grandpa: true, desc: 'Her husband takes the shift: deaf as a post, but he brought his shotgun, and he hits harder than he looks.' },
+    { id: 'grandpa', name: 'Grandpa', price: 25000, god: true, grandpa: true, desc: 'GOD TIER: changes how you play. Her husband takes the shift with his shotgun: hold RMB to raise it, release to fire (replaces Bat Rush). Survivors get a second health bar against him: three long-range shots put anyone down, but up close the spread barely scratches them. The farther the shot, the harder it hits.' },
     { id: 'ghost', name: 'Pale Visitor', price: 4500, tint: 0xd8e4f0, tintK: 0.5, glow: 0x6a8aa8, glowK: 0.35, desc: 'Drained of colour, glowing faintly, like something that stayed in the house long after it should have left.' },
   ],
   bateman: [
@@ -400,8 +401,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.31.0';
+export const VERSION = '2.32.0';
 export const INBOX = [
+  {
+    id: 'v2.32.0', version: '2.32.0', date: 'Nov 2026', title: 'God Tier Grandpa & a Limitless Bat Rush', tag: 'Update',
+    body: [
+      'Grandpa is now the first GOD TIER outfit (25,000 Embers; already own him? He stays yours). He changes how Granny plays: his shotgun replaces Bat Rush. Hold RMB to raise it, release to fire.',
+      'Against Grandpa every survivor gets a second health bar (shown under each name). Three long-range shots put anyone down, but the spread barely scratches you up close: the farther the shot, the harder it hits (about 6 damage point-blank, up to 36 from 22m and beyond). Being healed fills the bar again.',
+      'Bat Rush has no limit any more: the longer Granny holds RMB, the further she charges (about 8m at one second, 15m at two, and on). A full wind-up still ends in a Ground Slam.',
+    ],
+  },
   {
     id: 'v2.31.0', version: '2.31.0', date: 'Nov 2026', title: 'Graphics Overhaul: Realistic Mode', tag: 'Update',
     body: [

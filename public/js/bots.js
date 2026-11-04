@@ -619,8 +619,13 @@ export class Bots {
       if (p.char === 'chucky' && !p.harmless && !target && p.ab2Cd <= 0 && Math.random() < dt * 0.15) sim.onMsg(p.id, { t: 'act', a: 'ability2' });
       if (p.char === 'granny' && !p.tele) {
         // Bat Rush: wind up just long enough to reach them, then charge
-        const RB = KILLERS.granny.ability;
-        if (target && los && !b.aim && !p.dash && p.abCd <= 0 && !p.ab && !p.atk && d > 3.2 && d < RB.maxDist + 0.5 && this.clearLine(p.x, p.z, tx, tz, p.fl)) {
+        const RB = KILLERS.granny.ability, GS = KILLERS.granny.shotgun;
+        // Grandpa: raise the shotgun at range (it only hurts from a distance), then fire
+        if (p.skin === 'grandpa') {
+          if (target && los && !b.aim && p.abCd <= 0 && !p.ab && !p.atk && d > 7 && d < 32 && this.clearLine(p.x, p.z, tx, tz, p.fl)) {
+            b.aim = true; b.aimT = GS.raise + 0.15 + D.react * 0.35; sim.onMsg(p.id, { t: 'in', e: false, aim: true });
+          }
+        } else if (target && los && !b.aim && !p.dash && p.abCd <= 0 && !p.ab && !p.atk && d > 3.2 && d < RB.maxDist + 0.5 && this.clearLine(p.x, p.z, tx, tz, p.fl)) {
           const k = Math.max(0, Math.min(1, (d + 0.8 - RB.minDist) / (RB.maxDist - RB.minDist)));
           b.aim = true; b.aimT = RB.minCharge + k * (RB.maxCharge - RB.minCharge) + 0.05 + D.react * 0.15; sim.onMsg(p.id, { t: 'in', e: false, aim: true });
         }
@@ -644,7 +649,7 @@ export class Bots {
       if (b.aim) {
         b.aimT -= dt;
         // lead the target
-        const lead = d / (p.char === 'bateman' ? 26 : p.char === 'chucky' ? 14 : p.char === 'granny' ? 13 : 32);
+        const lead = p.skin === 'grandpa' ? 0 : d / (p.char === 'bateman' ? 26 : p.char === 'chucky' ? 14 : p.char === 'granny' ? 13 : 32);
         const vx = target ? (target.x - (b.prevTX ?? target.x)) / Math.max(dt, 1e-3) : 0, vz = target ? (target.z - (b.prevTZ ?? target.z)) / Math.max(dt, 1e-3) : 0;
         const ax = tx + vx * lead * D.aim, az = tz + vz * lead * D.aim;
         p.yaw = Math.atan2(ax - p.x, az - p.z) + (Math.random() - 0.5) * (1 - D.aim) * 0.25;

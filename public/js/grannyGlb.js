@@ -185,7 +185,7 @@ export function makeGrannyGlb(sk = {}, lite = false) {
     const R = new AnimRig('grandpa', sk, lite);
     Object.assign(R, { kind: 'killer', killer: 'granny', glb: true, granny: true, grandpa: true });
     // Granny's states -> his clips
-    R.clipMap = { idle: 'idle', Walk: 'walk', Hit: 'attack', arrowHit: 'arrowHit', pepperHit: 'peppered', freezeTrap: 'frozen', Look: 'search', lookBed: 'underbed' };
+    R.clipMap = { idle: 'idle', Walk: 'walk', Hit: 'attack', Shoot: 'shootGun', arrowHit: 'arrowHit', pepperHit: 'peppered', freezeTrap: 'frozen', Look: 'search', lookBed: 'underbed' };
     R.root.traverse(o => { if (o.isMesh && /Glasses|Hat_Santa|RedEyes|Ragdoll/i.test(o.name)) o.visible = false; });
     return R;
   }
@@ -214,6 +214,8 @@ export function animateGranny(R, s, dt) {
     const f = s.exec.f;
     if (f < 0.34) { want = 'lookBed'; rate = 1.2; } else if (f < 0.6) { want = 'Hit'; scrub = 0.25 + (f - 0.34) / 0.26 * 0.6; fast = true; } else want = 'Look';
   }
+  else if (R.grandpa && s.shot != null) { want = 'Shoot'; scrub = 0.42 + s.shot * 0.5; fast = true; } // the blast and the pump
+  else if (R.grandpa && s.aim) { want = 'Shoot'; scrub = 0.4; fast = true; }   // shotgun raised to the shoulder
   else if (s.dash) { want = 'Hit'; scrub = 0.45; fast = true; }        // Bat Rush: mid-swing, charging forward
   else if (s.aim) { want = 'Hit'; scrub = 0.18; fast = true; }         // winding up the bat
   else if (s.blind) { want = 'pepperHit'; rate = 1; fast = true; }

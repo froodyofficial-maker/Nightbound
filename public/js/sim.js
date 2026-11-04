@@ -312,12 +312,14 @@ export class Sim {
         break;
       }
       case 'rush': {
-        // Bat Rush: released after winding up; the longer the wind-up, the further she goes
+        if (p.role === 'killer' && p.char === 'granny' && p.skin === 'grandpa') { this.shotgun(p, m); break; }
+        // Bat Rush: released after winding up; the longer the wind-up, the further she goes (no limit)
         if (p.role !== 'killer' || p.char !== 'granny' || !p.aim || p.dash || p.stun > 0 || p.act || p.carry != null) { if (p.char === 'granny') p.aim = false; return; }
         const D = KILLERS.granny.ability, k = Math.max(0, Math.min(1, (p.abT - D.minCharge) / (D.maxCharge - D.minCharge)));
         p.aim = false;
         if (p.abT < D.minCharge) return;
-        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = D.minDist + k * (D.maxDist - D.minDist);
+        const kk = Math.max(0, (p.abT - D.minCharge) / (D.maxCharge - D.minCharge));
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = D.minDist + kk * (D.maxDist - D.minDist);
         p.yaw = yaw; p.dash = { t: 0, d: len / D.speed, dx: f.x, dz: f.z, full: p.abT >= D.maxCharge - 0.02 };
         p.abCd = D.cooldown; p.abT = 0;
         this.ev({ k: 'rush', id: p.id, x: p.x, z: p.z, charge: +k.toFixed(2) });
@@ -1025,6 +1027,7 @@ export class Sim {
         p.score.b += dt * 15;
         if (t.healP >= 1) {
           t.healP = 0;
+          t.shp = 100; // mended: the shotgun bar is full again
           if (t.st === 'down') {
             t.st = 'ok'; t.hp = 1; t.tp++;
             if (has(t, 'lastwind')) { t.boost = 5; t.boostMul = 1.4; }
@@ -1310,7 +1313,7 @@ export class Sim {
       // listening (I Hear You): stands still for a moment
       if (K.ab === 1) { K.abT -= dt; if (K.abT <= 0) { K.ab = 0; K.abT = 0; } }
       // winding up the bat
-      if (K.aim) { K.abT = Math.min(D.maxCharge + 0.5, K.abT + dt); if (K.stun > 0 || K.carry != null || K.act) K.aim = false; }
+      if (K.aim) { K.abT = Math.min(600, K.abT + dt); if (K.stun > 0 || K.carry != null || K.act) K.aim = false; }
       if (K.dash) this.updateRush(K, dt);
       // Creep: fade out, reappear by the chosen window, pallet, generator or hook
       if (K.tele && K.tele.g) {
@@ -1379,6 +1382,42 @@ export class Sim {
       if (R.full) { this.groundSlam(K, null); K.atk = 2; K.atkHit = true; K.atkT = 0.9; }
       else { K.atk = 2; K.atkHit = false; K.atkT = 0.7; }
     }
+  }
+  // Grandpa's shotgun (god-tier outfit): a hitscan blast. Survivors carry a second health bar
+  // against him (shp, 100): the farther the shot, the more it takes, and at 0 they go down.
+  shotgun(K, m) {
+    const S = this.S, M = this.M, G = KILLERS.granny.shotgun;
+    const raised = K.aim && K.abT >= G.raise;
+    K.aim = false; K.abT = 0;
+    if (!raised || K.abCd > 0 || K.dash || K.stun > 0 || K.act || K.carry != null || K.tele) return;
+    const yaw = num(m.yaw, K.yaw), f = fwd(yaw);
+    K.yaw = yaw; K.abCd = G.cooldown;
+    let best = null, bd = G.range;
+    for (const s of S.players) {
+      if (s.role !== 'survivor' || s.st !== 'ok' || !levelsMeet(K, s)) continue;
+      if (M.stairs && Math.abs(heightAt(M, K) - heightAt(M, s)) > 1.7) continue;
+      const dx = s.x - K.x, dz = s.z - K.z, d = Math.hypot(dx, dz);
+      if (d > bd || d < 0.01) continue;
+      const along = dx * f.x + dz * f.z, side = Math.abs(dx * f.z - dz * f.x);
+      // the spread: about half a metre either side, a little wider up close
+      if (along <= 0 || side > 0.5 + Math.min(0.5, 1.2 / d)) continue;
+      if (losL(M, K, s, 1.1)) continue;
+      best = s; bd = d;
+    }
+    // where the pellets stop (for the tracer): the survivor, or the first wall
+    let ex = K.x + f.x * G.range, ez = K.z + f.z * G.range;
+    if (best) { ex = best.x; ez = best.z; }
+    else for (let t = 0.5; t < G.range; t += 0.5) { if (losL(M, K, { x: K.x + f.x * t, z: K.z + f.z * t, fl: K.fl }, 1.1)) { ex = K.x + f.x * t; ez = K.z + f.z * t; break; } }
+    let dmg = 0;
+    if (best) {
+      const k = Math.max(0, Math.min(1, (bd - G.near) / (G.far - G.near)));
+      dmg = Math.round(G.minDmg + (G.maxDmg - G.minDmg) * k);
+      best.shp = Math.max(0, (best.shp ?? 100) - dmg);
+      best.lastHitBy = K.id; K.score.a += 50 + dmg * 4;
+      if (best.shp <= 0) { best.shp = 100; this.damage(best, K, true); }
+      else { best.boost = 0.8; best.boostMul = SPEED.hitBoost; best.act = null; best.prog = 0; }
+    }
+    this.ev({ k: 'shot', id: K.id, x: K.x, z: K.z, ex: +ex.toFixed(2), ez: +ez.toFixed(2), to: best ? best.id : null, dmg, d: best ? +bd.toFixed(1) : 0 });
   }
   // the end of a fully wound-up Bat Rush: the bat comes down on the floor; everyone close is struck,
   // and a generator next to her loses some of its progress

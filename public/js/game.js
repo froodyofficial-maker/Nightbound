@@ -917,7 +917,7 @@ export class Game {
         if (vaulting) { const d = p.vault.d || 1.7; y = Math.sin(Math.min(1, c.vaultT / d) * Math.PI) * 0.5; }
         if (execing) st.exec = { f: p.act.t / RULES.execTime, char: p.char, role: 'killer' };
         st.carry = p.carry != null; st.atk = p.atk; st.stun = p.stun > 0; st.act = p.act && p.act.k; st.aim = p.aim; st.rampage = p.char === 'butcher' && p.ab === 1;
-        if (p.char === 'granny') { st.listen = p.ab === 1 || !!p.tele; st.blind = p.blind > 0; st.aim = !!p.aim; st.dash = !!p.dash; }
+        if (p.char === 'granny') { st.listen = p.ab === 1 || !!p.tele; st.blind = p.blind > 0; st.aim = !!p.aim; st.dash = !!p.dash; st.shot = c.shotAt != null && this.t - c.shotAt < 0.7 ? (this.t - c.shotAt) / 0.7 : null; }
         if (p.atk === 1) { c.atkT = (c.atkPrev === 1 ? c.atkT + dt : 0); st.atkF = c.atkT / (RULES.lungeTime * (p.atkAmbush ? 1.4 : 1)); }
         c.atkPrev = p.atk;
         st.atkHit = p.atkHit; st.tele = !!p.tele; st.dark = p.char === 'foreman' && p.ab === 1;
@@ -1861,6 +1861,23 @@ export class Game {
           if (e.id === this.myId) this.shake = 0.25 + (e.charge || 0) * 0.3;
           break;
         }
+        case 'shot': {
+          // Grandpa's shotgun: the blast, a muzzle flash, the pellets' path, and blood if it found someone
+          sound.play('shotgun', e.x, e.z);
+          const c = this.chars.get(e.id); if (c) c.shotAt = this.t;
+          const dx = e.ex - e.x, dz = e.ez - e.z, L = Math.hypot(dx, dz) || 1, fx = dx / L, fz = dz / L;
+          this.sparks.spawn(e.x + fx * 1.0, 1.45, e.z + fz * 1.0, 26, 0xffc060, 5, 0.18, 0, 0.6);
+          this.smoke.spawn(e.x + fx * 1.1, 1.45, e.z + fz * 1.1, 6, 0x8a8478, 0.6, 1.4, 0.3, 0.5);
+          this.tracer(e.x + fx * 1.0, e.z + fz * 1.0, e.ex, e.ez);
+          if (e.to != null) {
+            this.blood.spawn(e.ex, 1.2, e.ez, 14 + e.dmg, 0x6a0303, 2.2, 1.0, -9.8, 0.8);
+            const tgt = S && playerById(S, e.to);
+            if (e.to === this.myId) { this.shake = 0.35 + e.dmg / 60; this.flash = 0.18 + e.dmg / 120; this.feed(`Shot from ${e.d}m: -${e.dmg} (${tgt ? Math.max(0, tgt.shp ?? 100) : '?'} left)`); }
+            if (e.id === this.myId) this.feed(`Hit ${tgt ? tgt.name : ''} from ${e.d}m: ${e.dmg} damage${e.d < 8 ? ' (too close: back off for more)' : ''}`);
+          } else if (e.id === this.myId) this.feed('Missed.');
+          if (e.id === this.myId) { this.shake = Math.max(this.shake, 0.45); if (this.view) this.view.userData.recoil = 1; }
+          break;
+        }
         case 'rushhit': {
           sound.play('thunk', e.x, e.z); this.blood.spawn(e.x, 1.1, e.z, 40, 0x6a0303, 2.6, 1.2, -9.8, 0.8);
           if (e.id === this.myId) { this.shake = 0.8; if (this.view) this.view.userData.bloody = 1; }
@@ -2005,7 +2022,7 @@ export class Game {
     const teamOf = p => (p.role === 'survivor' && (p.st !== 'ghost' || p.id === this.myId)) || p.disguise || p.outcome === 'infected';
     $('team').classList.toggle('compact', S.players.filter(teamOf).length > 5);
     $('team').innerHTML = S.players.filter(teamOf).map(p =>
-      `<div class="tm ${p.id === this.myId ? 'me' : ''}" id="tm-${esc(p.id)}"><div class="tm-por">${icon('healthy')}</div><div class="tm-body"><div class="tm-name">${esc(p.name)}${p.bot ? '<small>BOT</small>' : ''}${p.id === this.myId ? '<small>YOU</small>' : ''}</div><div class="tm-stage"><i></i><i></i></div><div class="tm-bar"><div></div></div></div></div>`).join('');
+      `<div class="tm ${p.id === this.myId ? 'me' : ''}" id="tm-${esc(p.id)}"><div class="tm-por">${icon('healthy')}</div><div class="tm-body"><div class="tm-name">${esc(p.name)}${p.bot ? '<small>BOT</small>' : ''}${p.id === this.myId ? '<small>YOU</small>' : ''}</div><div class="tm-stage"><i></i><i></i></div><div class="tm-bar"><div></div></div>${this.grandpaOn(S) ? '<div class="tm-shp" title="Shotgun health: three long-range shots put you down"><div></div></div>' : ''}</div></div>`).join('');
     this.hudCache = {};
     const k = (x) => `<kbd>${x}</kbd>`;
     $('controls-hint').innerHTML = me.disguise
@@ -2026,7 +2043,7 @@ export class Game {
       const done = me.pdowns >= 1 && me.pcages >= 1;
       return { ready: done, active: true, pct: 0, html: `<div class="pwt"><div class="pwn">Possession</div><div class="pws">Down ${Math.min(1, me.pdowns)}/1 · Hook ${Math.min(1, me.pcages)}/1</div><div class="keyl">${done ? '' + kbd('item') + ' let go of the body' : 'Nobody knows it\'s you'}</div></div><div class="pwi">${icon('knife')}<div class="cd"></div></div>` };
     }
-    const K = KILLERS[me.char], def = K.ability;
+    const K = KILLERS[me.char]; let def = K.ability;
     let ready = false, pct = 0, sub = '', pips = '', extra = '';
     if (me.char === 'butcher') {
       ready = me.charges > 0 && !me.ab;
@@ -2064,12 +2081,20 @@ export class Game {
       ready = held && me.abCd <= 0; pct = held ? me.abCd / def.cooldown : 1;
       sub = !held ? 'Go get your chainsaw' : me.aim ? (me.abT >= def.aim ? 'Release to throw!' : 'Revving…') : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready';
       extra = me.haste > 0 ? `Morning Routine · +12% speed` : me.ab2Cd > 0 ? `${kbd('ability2')} Business Card ${Math.ceil(me.ab2Cd)}s` : '' + kbd('ability2') + ' Business Card ready';
+    } else if (me.char === 'granny' && me.skin === 'grandpa') {
+      const G = K.shotgun;
+      ready = me.abCd <= 0; pct = me.aim ? Math.max(0, 1 - me.abT / G.raise) : me.abCd / G.cooldown;
+      sub = me.aim ? (me.abT < G.raise ? 'Raising…' : 'Release to fire!') : me.abCd > 0 ? 'Pumping… ' + me.abCd.toFixed(1) + 's' : 'Ready · hold RMB';
+      def = { name: 'Shotgun' };
+      const SW = K.swap;
+      const swapTxt = !this.S.spider ? '' : this.swapHeld ? ' · Spider Mom\'s eyes: release V to swap' : me.swapCd > 0 ? ` · <kbd>V</kbd> ${SW.name} ${Math.ceil(me.swapCd)}s` : ` · <kbd>V</kbd> ${SW.name} ready`;
+      extra = 'Long shots hit hardest · ' + (me.tele ? 'Creeping…' : me.teleCd > 0 ? `${kbd('item')} Creep ${Math.ceil(me.teleCd)}s` : `Hold ${kbd('item')} Creep ready`) + ' · ' + (me.ab === 1 ? 'Listening…' : me.ab2Cd > 0 ? `${kbd('ability2')} I Hear You ${Math.ceil(me.ab2Cd)}s` : '' + kbd('ability2') + ' I Hear You ready') + swapTxt;
     } else if (me.char === 'granny') {
       const T = K.teleport;
       const charge = Math.max(0, Math.min(1, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)));
       ready = me.abCd <= 0 && !me.dash; pct = me.aim ? 1 - charge : me.abCd / def.cooldown;
       const heard = this.S ? this.S.players.filter(o => o.role === 'survivor' && o.heard > 0).length : 0;
-      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(def.minDist + charge * (def.maxDist - def.minDist))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
+      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(def.minDist + Math.max(0, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)) * (def.maxDist - def.minDist))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
       if (heard) sub += ` · ${heard} Heard`;
       const SW = K.swap;
       const swapTxt = !this.S.spider ? '' : this.swapHeld ? ' · Spider Mom\'s eyes: release V to swap' : me.swapCd > 0 ? ` · <kbd>V</kbd> ${SW.name} ${Math.ceil(me.swapCd)}s` : ` · <kbd>V</kbd> ${SW.name} ready`;
@@ -2092,6 +2117,17 @@ export class Game {
     return { ready, active: !!me.ab || !!me.tele || me.ambush > 0, pct: Math.max(0, Math.min(1, pct)),
       html: `<div class="pwt"><div class="pwn">${esc(def.name)}</div><div class="pws">${sub}</div>${pips ? `<div class="pips">${pips}</div>` : ''}<div class="keyl">${extra}</div></div><div class="pwi">${icon(POWER_ICON[me.char])}<div class="cd"></div></div>` };
   }
+
+  // a brief streak of light along the shotgun's path
+  tracer(x0, z0, x1, z1) {
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x0, 1.45, z0), new THREE.Vector3(x1, 1.2, z1)]);
+    const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffd890, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.scene.add(l);
+    const t0 = this.t, step = () => { const k = (this.t - t0) / 0.12; if (k >= 1 || this.disposed) { this.scene.remove(l); g.dispose(); l.material.dispose(); return; } l.material.opacity = 0.85 * (1 - k); requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  // Grandpa (god-tier outfit) is in the match: survivors carry a second, shotgun health bar
+  grandpaOn(S) { return !!S && S.players.some(k => k.role === 'killer' && k.char === 'granny' && k.skin === 'grandpa'); }
 
   // the survivor's item card (changes when you swap at a chest)
   renderItemHUD(me) {
@@ -2141,6 +2177,7 @@ export class Game {
       el.querySelector('.tm-bar').style.visibility = f > 0 ? 'visible' : 'hidden';
       el.querySelector('.tm-bar div').style.width = (f * 100).toFixed(1) + '%';
       el.querySelectorAll('.tm-stage i').forEach((pp, i) => pp.classList.toggle('on', p.stage > i));
+      const sb = el.querySelector('.tm-shp div'); if (sb) { const v = p.shp ?? 100; sb.style.width = v.toFixed(0) + '%'; sb.parentNode.classList.toggle('low', v <= 40); }
     }
     // killer power + attack recovery ring
     if (me.role === 'killer') {
