@@ -467,6 +467,17 @@ $('st-close').onclick = () => { sound.play('click'); closeStore(); };
 $('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { storeTab = b.dataset.t; sound.play('click'); renderStore(); });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !session && !$('store').classList.contains('hidden')) closeStore(); });
 
+// ---------- store: the desktop app ----------
+const APP_URL = 'https://froodyofficial-maker.github.io/Nightbound/downloads/Nightbound-Windows.zip';
+function appHTML() {
+  return `<div class="app-card"><div class="app-icon">N</div><div class="app-info">
+    <small>Free download</small><h2>Nightbound for Windows</h2>
+    <p>Play Nightbound as a desktop app in its own window, no browser needed. It always opens the latest version of the game.</p>
+    <ul><li>Windows 10 or 11, a 1 MB download</li><li>Needs an internet connection</li><li>Your progress in the app is saved separately from the browser</li></ul>
+    <div class="ch-buy"><span class="ch-price">Free</span><a class="btn primary big" href="${APP_URL}" download>Download</a></div>
+    <p class="hint">After downloading: unzip it and double-click <b>Nightbound.exe</b>. If Windows says "Windows protected your PC", click <b>More info</b>, then <b>Run anyway</b> (the app is not code-signed).</p>
+  </div></div>`;
+}
 function renderStore() {
   for (const b of $('st-tabs').children) b.classList.toggle('on', b.dataset.t === storeTab);
   $('st-wallet').innerHTML = price(profile.stats.embers);
@@ -475,6 +486,7 @@ function renderStore() {
   if (storeTab === 'chapters') body.innerHTML = chaptersHTML();
   else if (storeTab === 'collections') body.innerHTML = collectionsHTML();
   else if (storeTab === 'sidekicks') body.innerHTML = sidekicksHTML();
+  else if (storeTab === 'app') body.innerHTML = appHTML();
   else body.innerHTML = charactersHTML();
   bindStore(body);
   if (menu && storeTab === 'sidekicks') { const role = storePetRole; menu.setShowcase(profile[role].char, skinId(profile[role].char), 0.3, storePet); menu.setMode('show'); menu.showFor = null; }

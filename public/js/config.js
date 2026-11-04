@@ -400,8 +400,14 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.29.0';
+export const VERSION = '2.30.0';
 export const INBOX = [
+  {
+    id: 'v2.30.0', version: '2.30.0', date: 'Nov 2026', title: 'Nightbound for Windows', tag: 'Update',
+    body: [
+      'Free download: Nightbound as a Windows desktop app (Store, App tab). It opens the latest version of the game in its own window.',
+    ],
+  },
   {
     id: 'v2.29.0', version: '2.29.0', date: 'Nov 2026', title: 'Friends & Chat', tag: 'Update',
     body: [

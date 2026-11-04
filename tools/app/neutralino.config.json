@@ -1,0 +1,27 @@
+{
+  "applicationId": "io.github.froodyofficial.nightbound",
+  "version": "2.27.0",
+  "defaultMode": "window",
+  "url": "https://froodyofficial-maker.github.io/Nightbound/",
+  "documentRoot": "/resources/",
+  "enableServer": true,
+  "enableNativeAPI": false,
+  "tokenSecurity": "one-time",
+  "logging": { "enabled": false, "writeToLogFile": false },
+  "modes": {
+    "window": {
+      "title": "Nightbound",
+      "width": 1280, "height": 760, "minWidth": 960, "minHeight": 600,
+      "center": true, "resizable": true, "maximize": true,
+      "enableInspector": false, "exitProcessOnClose": true,
+      "icon": "/resources/icon.png"
+    }
+  },
+  "cli": {
+    "binaryName": "Nightbound",
+    "resourcesPath": "/resources/",
+    "extensionsPath": "/extensions/",
+    "binaryVersion": "5.4.0",
+    "clientVersion": "5.4.0"
+  }
+}

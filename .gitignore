@@ -2,3 +2,9 @@ node_modules/
 tools/node_modules/
 .DS_Store
 public/models/_in/
+
+# app build (tools/app)
+tools/app/node_modules/
+tools/app/bin/
+tools/app/dist/
+tools/app/package-lock.json
