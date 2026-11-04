@@ -5,9 +5,10 @@ import { realistic } from './gfx.js';
 import { cloneScene } from './sceneGlb.js';
 import { rng, barBox } from './map.js';
 import { tex } from './textures.js';
+import { photoGround } from './pbr.js';
 import { buildMeatWorld, updateMeatLights } from './meatworld.js';
 import { LOOK, cypressGeos, snowify, buildThemeExtras, updateThemeFx } from './themeworld.js';
-import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, bushGeo, rockGeo, makeGenerator, makeCage, poseHookLegs, makeBarricade, makeGate, makeSwitch } from './models.js';
+import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, pineCards, bushGeo, rockGeo, makeGenerator, makeCage, poseHookLegs, makeBarricade, makeGate, makeSwitch } from './models.js';
 
 export const QUALITY = {
   // potato: for very weak laptops / integrated graphics. No shadows, no post-processing, cheap materials.
@@ -56,6 +57,11 @@ export function buildWorld(M, quality = 'medium') {
   }
   scene.add(moon); scene.add(moon.target);
   W.moon = moon;
+  if (!lite && realistic()) {
+    // realistic: real night contrast. Less flat fill, a stronger moon key, so walls and trees
+    // model in light and shadow instead of glowing evenly
+    hemi.intensity *= 0.75; W.amb.intensity *= 0.55; moon.intensity *= 1.45; fill.intensity *= 0.9;
+  }
 
   // ---------- sky: gradient, stars, moon with halo, drifting clouds ----------
   const sky = new THREE.Mesh(new THREE.SphereGeometry(450, 32, 16), new THREE.ShaderMaterial({
@@ -69,6 +75,9 @@ export function buildWorld(M, quality = 'medium') {
         gl_FragColor = vec4(c, 1.0); }`,
   }));
   sky.renderOrder = -10;
+  // the dome (with its stars, moon and clouds) must sit inside the camera's far plane on every
+  // quality, or the far plane cuts a hard arc out of the sky
+  sky.scale.setScalar(Math.min(1, q.far * 0.9 / 480));
   scene.add(sky); W.sky = sky;
   const starsGeo = new THREE.BufferGeometry(), sp = [];
   for (let i = 0; i < 1600; i++) { const a = R() * 6.283, e = 0.2 + R() * 1.3, r = 420; sp.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r); }
@@ -81,7 +90,11 @@ export function buildWorld(M, quality = 'medium') {
   halo.scale.setScalar(110); halo.position.copy(moonDir).multiplyScalar(395); sky.add(halo);
   if (quality !== 'potato') {
     const ct = tex('clouds').map; ct.repeat.set(2, 2);
-    const clouds = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshBasicMaterial({ map: ct, transparent: true, opacity: 0.55, depthWrite: false, fog: false, color: 0x6a7890 }));
+    const cloudW = 900;
+    // fade the cloud deck out toward its edges so its border never shows as a hard line in the sky
+    const fc = document.createElement('canvas'); fc.width = fc.height = 128; const fx = fc.getContext('2d'), fg = fx.createRadialGradient(64, 64, 8, 64, 64, 64);
+    fg.addColorStop(0, '#fff'); fg.addColorStop(0.55, '#ccc'); fg.addColorStop(1, '#000'); fx.fillStyle = fg; fx.fillRect(0, 0, 128, 128);
+    const clouds = new THREE.Mesh(new THREE.PlaneGeometry(cloudW, cloudW), new THREE.MeshBasicMaterial({ map: ct, alphaMap: new THREE.CanvasTexture(fc), transparent: true, opacity: 0.55, depthWrite: false, fog: false, color: 0x6a7890 }));
     clouds.rotation.x = Math.PI / 2; clouds.position.y = 140; clouds.renderOrder = -9; sky.add(clouds); W.clouds = ct;
   }
 
@@ -101,7 +114,7 @@ export function buildWorld(M, quality = 'medium') {
   }
   const seg = lite ? 110 : 170;
   const gGeo = new THREE.PlaneGeometry(300, 300, seg, seg); gGeo.rotateX(-Math.PI / 2);
-  const gp = gGeo.attributes.position, gcol = new Float32Array(gp.count * 3);
+  const gp = gGeo.attributes.position, gcol = new Float32Array(gp.count * 3), gpk = new Float32Array(gp.count);
   const [cGrass, cGrass2, cDirt, cMud, cLitter, cForest] = LK.ground.map(c => new THREE.Color(c)), tmp = new THREE.Color();
   const noise = (x, z) => Math.sin(x * 0.13 + Math.sin(z * 0.07) * 2) * 0.5 + Math.sin(z * 0.11 + x * 0.05) * 0.3 + Math.sin(x * 0.37 - z * 0.29) * 0.2;
   for (let i = 0; i < gp.count; i++) {
@@ -110,32 +123,38 @@ export function buildWorld(M, quality = 'medium') {
     tmp.copy(cGrass).lerp(cGrass2, sstep(-0.4, 0.8, nz));
     let pd = 99; for (const [ax, az, bx, bz] of paths) pd = Math.min(pd, segDist(x, z, ax, az, bx, bz));
     const pathW = 1.1 + (Math.sin(x * 0.3 + z * 0.2) * 0.35);
-    tmp.lerp(cDirt, 1 - sstep(pathW * 0.6, pathW * 1.6, pd));
-    for (const g of M.gens) { const d = Math.hypot(x - g.x, z - g.z); if (d < 4) tmp.lerp(cMud, (1 - sstep(1.2, 4, d)) * 0.9); }
+    let pk = 1 - sstep(pathW * 0.6, pathW * 1.6, pd);
+    tmp.lerp(cDirt, pk);
+    for (const g of M.gens) { const d = Math.hypot(x - g.x, z - g.z); if (d < 4) { tmp.lerp(cMud, (1 - sstep(1.2, 4, d)) * 0.9); pk = Math.max(pk, 1 - sstep(1.4, 3.6, d)); } }
+    gpk[i] = pk;
     for (const t of M.trees) { const d = Math.hypot(x - t.x, z - t.z); if (d < 3) tmp.lerp(cLitter, (1 - sstep(0.6, 3, d)) * 0.7); }
     if (Math.abs(x) > HF + 1 || Math.abs(z) > HF + 1) tmp.lerp(cForest, sstep(HF + 1, HF + 8, Math.max(Math.abs(x), Math.abs(z))) * 0.8);
     const v = 0.88 + (Math.sin(x * 1.7) * Math.cos(z * 1.3)) * 0.06;
     gcol[i * 3] = tmp.r * v; gcol[i * 3 + 1] = tmp.g * v; gcol[i * 3 + 2] = tmp.b * v;
   }
   gGeo.setAttribute('color', new THREE.BufferAttribute(gcol, 3));
+  gGeo.setAttribute('pathK', new THREE.BufferAttribute(gpk, 1));
   const gt = tex(LK.groundTex);
   const groundMat = lite ? new THREE.MeshLambertMaterial({ map: gt.map, vertexColors: true })
     : new THREE.MeshLambertMaterial({ map: gt.map, normalMap: gt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), vertexColors: true });
   const ground = new THREE.Mesh(gGeo, groundMat);
   ground.receiveShadow = true;
   scene.add(ground);
+  // realistic look: real scanned forest floor / mud / snow with trails worn into it
+  if (!lite && realistic()) photoGround(ground, LOOK[M.map] ? M.map : 'woods', LK.snowcaps ? 0.5 : 0.62, M.map === 'marsh' ? 0.8 : 0.25);
+  W.ground = ground;
   W.paths = paths;
 
   // ---------- static boxes: merged per material, weathered with moss & grime at the base ----------
   const groups = {};
   const styleMat = {
-    brick: () => mat(0xc0aca4, { map: 'brick', rough: 0.95 }), wood: () => mat(0xb09a80, { map: 'wood', rough: 0.95 }),
-    stone: () => mat(0xb4b0a6, { map: 'stone', rough: 0.95 }), metal: () => mat(0x8a8a88, { map: 'metal', metal: 0.4, rough: 0.6 }),
-    hay: () => mat(0xc0a060, { map: 'hay', rough: 1 }), dark: () => mat(0x7a6a5a, { map: 'wood', rough: 1 }),
-    boards: () => mat(0xa8a898, { map: 'boards', rough: 0.95 }), rail: () => mat(0x6a5a48, { map: 'wood', rough: 0.95 }), hull: () => mat(0x6a5440, { map: 'boards', rough: 0.9 }),
-    canvas: () => mat(0xffffff, { map: 'canvas', rough: 0.95 }), booth: () => mat(0x5a8a8a, { map: 'wood', rough: 0.85 }), fence: () => mat(0x8a8a88, { map: 'metal', metal: 0.5, rough: 0.5 }),
-    trailer: () => mat(0xd8d0c0, { map: 'metal', metal: 0.3, rough: 0.6 }), truck: () => mat(0x7a1e14, { map: 'metal', metal: 0.4, rough: 0.55 }), logs: () => mat(0xc0a080, { map: 'logs', rough: 0.95 }),
-    snowcap: () => mat(0xf0f4ff, { map: 'snow', rough: 0.8 }),
+    brick: () => mat(0xc0aca4, { map: 'brick', rough: 0.95, uvm: 1.6, tint: 0 }), wood: () => mat(0xb09a80, { map: 'wood', rough: 0.95, tint: 0 }),
+    stone: () => mat(0xb4b0a6, { map: 'stone', rough: 0.95, uvm: 1.15, tint: 0 }), metal: () => mat(0x8a8a88, { map: 'metal', metal: 0.4, rough: 0.6, tint: 0 }),
+    hay: () => mat(0xc0a060, { map: 'hay', rough: 1 }), dark: () => mat(0x7a6a5a, { map: 'wood', photo: 'dark', rough: 1, tint: 0.15 }),
+    boards: () => mat(0xa8a898, { map: 'boards', rough: 0.95, tint: 0 }), rail: () => mat(0x6a5a48, { map: 'wood', rough: 0.95, tint: 0.3 }), hull: () => mat(0x6a5440, { map: 'boards', rough: 0.9, tint: 0.3 }),
+    canvas: () => mat(0xffffff, { map: 'canvas', rough: 0.95 }), booth: () => mat(0x5a8a8a, { map: 'wood', rough: 0.85, tint: 0.65 }), fence: () => mat(0x8a8a88, { map: 'metal', photo: 'paint', metal: 0.5, rough: 0.5, tint: 0.15 }),
+    trailer: () => mat(0xd8d0c0, { map: 'metal', photo: 'paint', metal: 0.3, rough: 0.6, tint: 0.3 }), truck: () => mat(0x7a1e14, { map: 'metal', metal: 0.4, rough: 0.55, tint: 0.75 }), logs: () => mat(0xc0a080, { map: 'logs', rough: 0.95, tint: 0 }),
+    snowcap: () => mat(0xf0f4ff, { map: 'snow', rough: 0.8, tint: 0 }),
   };
   const addBox = (key, b, y0, y1, hx = b.hx, hz = b.hz, tile = 2) => {
     const h = y1 - y0;
@@ -173,7 +192,7 @@ export function buildWorld(M, quality = 'medium') {
   for (const v of M.visual) if (v.type === 'lintel') addBox(v.style, { x: v.x, z: v.z }, v.y0, v.y1, v.hx, v.hz, tileOf(v.style));
   const moss = new THREE.Color(0x3e4a2a), grime = new THREE.Color(0x4a4034);
   for (const key in groups) {
-    const material = key === 'bark' ? mat(0x6a5a4a, { map: 'bark' }) : (styleMat[key] || styleMat.stone)();
+    const material = key === 'bark' ? mat(0x6a5a4a, { map: 'bark', photo: 'deadbark', uvm: [1.6, 3], tint: 0 }) : (styleMat[key] || styleMat.stone)();
     const geo = mergeGeos(groups[key]);
     if (key !== 'hay' && key !== 'bark') {
       // vertex colors: moss & grime creeping up from the ground, streaks of damp
@@ -194,7 +213,7 @@ export function buildWorld(M, quality = 'medium') {
   }
 
   // ---------- trees (instanced): natural pines + twisted dead trees ----------
-  const barkM = mat(0x4e4034, { map: 'bark', rough: 1 });
+  const barkM = mat(0x4e4034, { map: 'bark', rough: 1, uvm: [1.9, 9.5], tint: 0.1 });
   const ft = tex('foliage');
   const needleM = lite ? new THREE.MeshLambertMaterial({ vertexColors: true, map: ft.map }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, map: ft.map, normalMap: ft.normalMap });
   const trees = [...M.trees.map(t => ({ ...t, inner: true }))];
@@ -226,12 +245,18 @@ export function buildWorld(M, quality = 'medium') {
   } else if (LK.trees === 'dead') {
     inst(deadTree.trunk, barkM, [...pines.flat(), ...deads], t => { const k = t.h / 8; const w = Math.max(k * 0.9, t.r / 0.32); return new THREE.Vector3(w, k, w); });
   } else {
-    pines.forEach((list, v) => { const g = pineGeo(v + 3); inst(g.trunk, barkM, list, pineScale); inst(LK.trees === 'snowpine' ? snowify(g.leaves) : g.leaves, needleM, list, pineScale); });
+    if (!lite && realistic()) {
+      // realistic: real-looking fir fronds instead of stacked cones
+      const frondM = new THREE.MeshStandardMaterial({ map: tex('needles').map, vertexColors: true, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.9, color: LK.trees === 'snowpine' ? 0xbcc4b8 : 0x9aa48a });
+      frondM.envMapIntensity = 0.3;
+      const pScale = t => { const k = t.h / 10.8; const w = Math.max(k, t.r / 0.32) * (0.9 + (t.s - 1) * 0.3); return new THREE.Vector3(w, k * 1.05, w); };
+      pines.forEach((list, v) => { const g = pineCards(v + 3, LK.trees === 'snowpine'); inst(g.trunk, barkM, list, pScale); inst(g.leaves, frondM, list, pScale); });
+    } else pines.forEach((list, v) => { const g = pineGeo(v + 3); inst(g.trunk, barkM, list, pineScale); inst(LK.trees === 'snowpine' ? snowify(g.leaves) : g.leaves, needleM, list, pineScale); });
     inst(deadTree.trunk, barkM, deads, t => { const k = t.h / 8; const w = Math.max(k * 0.9, t.r / 0.32); return new THREE.Vector3(w, k, w); });
   }
 
   // ---------- rocks, pebbles, bushes, fallen logs ----------
-  const rockM = mat(0x8a8680, { map: 'rock', rough: 0.95 });
+  const rockM = mat(0x8a8680, { map: 'rock', rough: 0.95, uvm: 3, tint: 0.1 });
   for (let v = 0; v < 3; v++) {
     const list = M.rocks.filter((_, i) => i % 3 === v);
     inst(rockGeo(v + 1), rockM, list, t => new THREE.Vector3(t.r * 1.15, Math.max(0.5, t.h * 0.75), t.r * 1.15));
@@ -271,12 +296,34 @@ export function buildWorld(M, quality = 'medium') {
   // ---------- grass ----------
   if (q.grass && LK.grass > 0) {
     const gq = [];
-    const plane = new THREE.PlaneGeometry(0.7, 0.5); plane.translate(0, 0.25, 0);
-    gq.push({ geo: plane, matrix: new THREE.Matrix4() }, { geo: plane, matrix: new THREE.Matrix4().makeRotationY(Math.PI / 2) });
+    const real = !lite && realistic();
+    const plane = real ? new THREE.PlaneGeometry(0.75, 0.55, 1, 2) : new THREE.PlaneGeometry(0.7, 0.5); plane.translate(0, real ? 0.275 : 0.25, 0);
+    for (const ry of real ? [0, Math.PI / 3, Math.PI * 2 / 3] : [0, Math.PI / 2]) gq.push({ geo: plane, matrix: new THREE.Matrix4().makeRotationY(ry) });
     const ggeo = mergeGeos(gq);
-    const gm = new THREE.MeshLambertMaterial({ map: tex('grass').map, alphaTest: 0.45, side: THREE.DoubleSide, color: LK.grassTint });
+    let gm;
+    if (real) {
+      // lit like the ground it grows from (normals up, so no black back faces), swaying in the wind
+      const n = ggeo.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+      gm = new THREE.MeshStandardMaterial({ map: tex('grassr').map, alphaTest: 0.4, side: THREE.DoubleSide, color: LK.grassTint, roughness: 0.95 });
+      gm.envMapIntensity = 0.25;
+      const T = W.grassT = { value: 0 };
+      gm.onBeforeCompile = sh => {
+        sh.uniforms.gT = T;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float gT;')
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+            #ifdef USE_INSTANCING
+            vec3 gw = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+            #else
+            vec3 gw = vec3(0.0);
+            #endif
+            float sway = sin(gT * 1.7 + gw.x * 0.35 + gw.z * 0.27) * 0.6 + sin(gT * 3.1 + gw.x * 1.3) * 0.25;
+            transformed.x += sway * 0.09 * position.y * position.y * 3.0;
+            transformed.z += sway * 0.05 * position.y * position.y * 3.0;`);
+      };
+    } else gm = new THREE.MeshLambertMaterial({ map: tex('grass').map, alphaTest: 0.45, side: THREE.DoubleSide, color: LK.grassTint });
     const list = [];
-    for (let i = 0; i < q.grass * 3 * LK.grass && list.length < q.grass * LK.grass; i++) {
+    const nGrass = q.grass * LK.grass * (real ? 1.8 : 1);
+    for (let i = 0; i < nGrass * 3 && list.length < nGrass; i++) {
       const x = R.range(-HF - 8, HF + 8), z = R.range(-HF - 8, HF + 8);
       let bad = false;
       for (const b of M.boxes) if (Math.abs(x - b.x) < b.hx + 0.2 && Math.abs(z - b.z) < b.hz + 0.2) { bad = true; break; }
@@ -287,7 +334,7 @@ export function buildWorld(M, quality = 'medium') {
     }
     const im = new THREE.InstancedMesh(ggeo, gm, list.length);
     const m = new THREE.Matrix4(), qq = new THREE.Quaternion(), e = new THREE.Euler();
-    list.forEach((t, i) => { e.set(0, t.rot, 0); qq.setFromEuler(e); m.compose(new THREE.Vector3(t.x, 0, t.z), qq, new THREE.Vector3(t.s, t.s * R.range(0.7, 1.4), t.s)); im.setMatrixAt(i, m); im.setColorAt(i, new THREE.Color().setHSL(0.17 + R() * 0.08, 0.32, 0.36 + R() * 0.24)); });
+    list.forEach((t, i) => { e.set(0, t.rot, 0); qq.setFromEuler(e); m.compose(new THREE.Vector3(t.x, 0, t.z), qq, new THREE.Vector3(t.s, t.s * R.range(0.7, 1.4), t.s)); im.setMatrixAt(i, m); im.setColorAt(i, real ? new THREE.Color().setHSL(0.16 + R() * 0.1, 0.25 + R() * 0.15, 0.5 + R() * 0.3) : new THREE.Color().setHSL(0.17 + R() * 0.08, 0.32, 0.36 + R() * 0.24)); });
     im.receiveShadow = true;
     scene.add(im);
   }
@@ -370,6 +417,7 @@ export function addInteractables(W, M) {
 
 // per-frame updates for props, driven by state
 export function updateWorld(W, M, S, t, dt, follow) {
+  if (W.grassT) W.grassT.value = t;
   if (follow) {
     W.fill.position.set(follow.x, 3.2, follow.z);
     W.moon.target.position.set(follow.x, 0, follow.z);

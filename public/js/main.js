@@ -7,6 +7,7 @@ import { Game } from './game.js';
 import { QUALITY } from './world.js';
 import { setDetail } from './models.js';
 import { setStyle, realistic, nightEnv } from './gfx.js';
+import { initPhoto } from './pbr.js';
 import { MenuScene } from './menu.js';
 import { loadForeman, onForemanReady, loadBatman } from './foremanGlb.js';
 import { loadChucky, onChuckyReady, chuckyReady } from './chuckyGlb.js';
@@ -109,6 +110,7 @@ function makeRenderer() {
   renderer.setSize(innerWidth, innerHeight);
   $('game').appendChild(renderer.domElement);
   setStyle(settings.style, renderer);
+  initPhoto(renderer, settings.quality);
   setDetail(settings.quality);
 }
 makeRenderer();
@@ -371,7 +373,7 @@ function renderSettings() {
 }
 $('set-name').addEventListener('input', e => { settings.name = e.target.value.trim().slice(0, 16) || 'Player'; saveSettings(); renderShowcase(); });
 const SHINT = {
-  realistic: 'Realistic: sharper high-resolution textures, soft sheen on skin and fabric, smoother characters, night-sky reflections, anti-aliasing, and ambient occlusion on High.',
+  realistic: 'Realistic: real photo-scanned ground, stone, brick, wood, metal and bark (Medium/High), real fir trees, swaying grass, moonlight shafts, ambient occlusion, night colour vision and softer shadows. Needs a decent GPU: use Classic on older laptops.',
   classic: 'Classic: the original Nightbound look. Lighter on older laptops.',
 };
 seg('set-style', v => { settings.style = v; saveSettings(); $('set-style-hint').textContent = SHINT[v]; stopBG(); makeRenderer(); startBG(); });

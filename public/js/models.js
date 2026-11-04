@@ -9,6 +9,7 @@ import { makeRealism } from './realism.js';
 import { makeStaticKiller, animateStaticKiller, cloneStatic } from './glbModels.js';
 import { applySkinFx } from './skinfx.js';
 import { GFX, realistic, surface } from './gfx.js';
+import { photoMaterial } from './pbr.js';
 
 // ---------- aura material ----------
 const auraMats = new Map();
@@ -51,6 +52,8 @@ export function mat(color, opts = {}) {
   if (realistic()) {
     if (m.normalMap) m.normalScale.set(1.6, 1.6);
     m.envMapIntensity = (opts.metal ?? 0) > 0.4 ? 1.2 : 0.55;
+    // real photo-scanned surface (streams in; props keep about half of their own colour)
+    if (opts.map && opts.photo !== false) photoMaterial(m, opts.photo || opts.map, opts.uvm ?? 2, opts.tint ?? 0.55);
   }
   stdCache.set(key, m);
   return m;
@@ -1179,6 +1182,44 @@ export function pineGeo(seed) {
     layers.push({ geo: g, matrix: M(0, 2.2 + i * 1.08, 0, (rnd() - 0.5) * 0.12, rnd() * 6, (rnd() - 0.5) * 0.12), color: new THREE.Color(0.085 * shade, 0.105 * shade, 0.05 * shade) });
   }
   return { trunk, leaves: mergeGeos(layers) };
+}
+// realistic pine: a trunk and ~80 drooping fir fronds (alpha cards, two crossed planes each),
+// with normals bent outward from the crown so the tree lights softly like real foliage
+export function pineCards(seed, snow = false) {
+  let a = seed * 9301 + 49297; const rnd = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
+  const trunk = mergeGeos([{ geo: new THREE.CylinderGeometry(0.06, 0.32, 10, 10, 4), matrix: new THREE.Matrix4().makeTranslation(0, 5, 0) }]);
+  const parts = [], whorls = 15, top = 10.4, bottom = 1.5;
+  const e = new THREE.Euler(), qq = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+  for (let w = 0; w < whorls; w++) {
+    const f = w / (whorls - 1), y = bottom + f * (top - bottom - 0.4) + (rnd() - 0.5) * 0.25;
+    const L = 0.45 + 2.5 * Math.pow(1 - f, 0.95) + rnd() * 0.3, n = f > 0.8 ? 4 : 6, ph = rnd() * 6.28;
+    for (let b = 0; b < n; b++) {
+      const yaw = ph + b / n * Math.PI * 2 + (rnd() - 0.5) * 0.5, pitch = -(0.12 + f * 0.1 + rnd() * 0.18), droop = 0.18 + rnd() * 0.16;
+      for (const roll of [0, 1.15 + rnd() * 0.3]) {
+        const g = new THREE.PlaneGeometry(L, L * 0.5 + 0.25, 4, 1); g.translate(L / 2, 0, 0); g.rotateX(-Math.PI / 2 + roll);
+        const p = g.attributes.position;
+        for (let k = 0; k < p.count; k++) { const t = p.getX(k) / L; p.setY(k, p.getY(k) - droop * t * t * L); }
+        e.set(0, yaw, pitch, 'YZX'); qq.setFromEuler(e);
+        parts.push({ geo: g, matrix: new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), qq, one) });
+      }
+    }
+  }
+  // a few short fronds capping the tip
+  for (let i = 0; i < 4; i++) { const g = new THREE.PlaneGeometry(0.9, 0.4); g.translate(0.45, 0, 0); g.rotateZ(1.1); parts.push({ geo: g, matrix: new THREE.Matrix4().makeRotationY(i * 1.57).setPosition(0, top - 0.6, 0) }); }
+  const leaves = mergeGeos(parts);
+  const p = leaves.attributes.position, nrm = leaves.attributes.normal, col = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  const mid = 4.8, snowC = new THREE.Color(0.86, 0.9, 0.96), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z);
+    v.set(x, (y - mid) * 0.45 + 0.9, z).normalize(); nrm.setXYZ(i, v.x, v.y, v.z);
+    const crown = (y - bottom) / (top - bottom), inner = Math.min(1, r / (0.5 + 2.6 * (1 - crown)));
+    const k = (0.45 + 0.55 * inner) * (0.72 + 0.4 * crown);
+    c.setRGB(k, k * (0.98 + rnd() * 0.06), k * 0.95);
+    if (snow) c.lerp(snowC, Math.max(0, Math.min(1, inner * 1.2 - 0.25)) * 0.75);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  leaves.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return { trunk, leaves };
 }
 export function bushGeo(seed) {
   const g = new THREE.IcosahedronGeometry(0.7, 2), p = g.attributes.position;

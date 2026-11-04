@@ -400,8 +400,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.30.0';
+export const VERSION = '2.31.0';
 export const INBOX = [
+  {
+    id: 'v2.31.0', version: '2.31.0', date: 'Nov 2026', title: 'Graphics Overhaul: Realistic Mode', tag: 'Update',
+    body: [
+      'Realistic mode rebuilt from the ground up. Every outdoor map now uses real photo-scanned materials: forest floor, mud, snow, weathered brick, old stone, rusted metal, planks and tree bark, with true relief and roughness.',
+      'Trails are worn into the ground and blend naturally into the forest floor. Pines are now real fir trees made of hundreds of needle fronds, and the grass sways in the wind.',
+      'New lighting: moonlight shafts break through the branches, ambient occlusion grounds every wall and prop, real night contrast, and colour fades to blue-grey in the dark like it does for your eyes.',
+      'Classic mode is unchanged and still runs on low-end laptops. Low and Potato quality keep the light textures too.',
+    ],
+  },
   {
     id: 'v2.30.0', version: '2.30.0', date: 'Nov 2026', title: 'Nightbound for Windows', tag: 'Update',
     body: [

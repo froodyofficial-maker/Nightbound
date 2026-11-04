@@ -378,6 +378,48 @@ export function tex(name) {
       out = { map, normalMap: null };
       break;
     }
+    case 'needles': {
+      // a photo-like fir frond for the realistic pines: a stem, side twigs and hundreds of needles
+      const W = 512, Hh = 256, c = document.createElement('canvas'); c.width = W; c.height = Hh;
+      const x = c.getContext('2d'), R = rng(77);
+      const needle = (px, py, ang, len) => {
+        const g = 0.6 + R() * 0.5, dry = R() < 0.08;
+        x.strokeStyle = dry ? `rgb(${70 * g | 0},${62 * g | 0},${34 * g | 0})` : `rgb(${(22 + R() * 22) * g | 0},${(44 + R() * 34) * g | 0},${(18 + R() * 16) * g | 0})`;
+        x.lineWidth = 1.2 + R() * 1.1; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(ang) * len, py + Math.sin(ang) * len); x.stroke();
+      };
+      const twig = (x0, y0, ang, len, depth) => {
+        const steps = Math.max(4, len / 5 | 0); let px = x0, py = y0, a = ang;
+        x.strokeStyle = '#2a2016'; x.lineWidth = depth ? 2 : 3.5; x.beginPath(); x.moveTo(px, py);
+        const pts = [];
+        for (let i = 0; i < steps; i++) { a += (R() - 0.5) * 0.06; px += Math.cos(a) * len / steps; py += Math.sin(a) * len / steps; x.lineTo(px, py); pts.push([px, py, a, i / steps]); }
+        x.stroke();
+        for (const [qx, qy, qa, f] of pts) {
+          const nl = (depth ? 11 : 14) * (1 - f * 0.45) + R() * 4;
+          for (let k = 0; k < (depth ? 3 : 4); k++) { needle(qx, qy, qa - 0.9 - R() * 0.5, nl); needle(qx, qy, qa + 0.9 + R() * 0.5, nl); }
+          if (!depth && R() < 0.42 && f < 0.9) { const side = R() < 0.5 ? -1 : 1; twig(qx, qy, qa + side * (0.55 + R() * 0.35), (1 - f) * len * 0.42 + 18, 1); }
+        }
+      };
+      twig(4, Hh / 2, 0, W - 20, 0);
+      const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = GFX.aniso;
+      out = { map, normalMap: null };
+      break;
+    }
+    case 'grassr': {
+      // dense, fine blades with lighter tips, some dry and straw-coloured
+      const S = 256, c = canvas(S), x = c.getContext('2d'), R = rng(91);
+      const tips = ['#5f7a34', '#71843a', '#86804a', '#4e6a2c', '#9a9058', '#62743a'];
+      for (let i = 0; i < 70; i++) {
+        const bx = 8 + R() * (S - 16), w = 1.6 + R() * 2.6, h = S * (0.35 + R() * 0.62), lean = (R() - 0.5) * 70;
+        const g = x.createLinearGradient(0, S, 0, S - h);
+        g.addColorStop(0, '#141c0e'); g.addColorStop(0.45, R() < 0.5 ? '#2c3c1a' : '#34401e'); g.addColorStop(1, tips[R() * tips.length | 0]);
+        x.fillStyle = g; x.beginPath(); x.moveTo(bx - w, S);
+        x.quadraticCurveTo(bx - w * 0.5 + lean * 0.25, S - h * 0.55, bx + lean, S - h);
+        x.quadraticCurveTo(bx + w * 0.5 + lean * 0.25, S - h * 0.55, bx + w, S); x.fill();
+      }
+      const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = GFX.aniso;
+      out = { map, normalMap: null };
+      break;
+    }
     case 'glow': {
       const c = canvas(64), ctx = c.getContext('2d');
       const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);

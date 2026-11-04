@@ -5,6 +5,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { initPhoto } from './pbr.js';
 import { realistic, nightEnv } from './gfx.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, RULES, MODES, ITEMS, skinOf } from './config.js';
 import { buildWorld, updateWorld, pointBlocked, QUALITY } from './world.js';
@@ -55,13 +57,45 @@ const SanitizeShader = {
       if (any(bad)) v = vec3(0.0);
       gl_FragColor = vec4(clamp(v, 0.0, 48.0), 1.0); }`,
 };
-const PostShader = {
-  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.01 }, pulse: { value: 0 } },
+// moonlight shafts (realistic look): bright sky pixels around the moon are smeared toward it, so
+// the light breaks through branches and over walls as visible rays
+const RaysShader = {
+  uniforms: { tDiffuse: { value: null }, moon: { value: new THREE.Vector2(0.5, 0.5) }, on: { value: 0 }, aspect: { value: 1.7 }, col: { value: new THREE.Color(0.55, 0.65, 0.9) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float time, red, desat, flash, vig, grain, pulse; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 moon; uniform float on, aspect; uniform vec3 col; varying vec2 vUv;
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (on > 0.001) {
+        vec2 d = moon - vUv; vec2 st = d / 32.0;
+        float j = fract(sin(dot(vUv * 913.0, vec2(12.9898, 78.233))) * 43758.5453);
+        vec2 uv = vUv + st * j; float acc = 0.0, w = 1.0;
+        for (int i = 0; i < 32; i++) {
+          vec3 s = texture2D(tDiffuse, clamp(uv, 0.001, 0.999)).rgb;
+          float l = dot(s, vec3(0.2126, 0.7152, 0.0722));
+          acc += smoothstep(0.035, 0.4, l) * w; w *= 0.97; uv += st;
+        }
+        float fall = exp(-length(d * vec2(aspect, 1.0)) * 1.6);
+        c.rgb += col * acc / 32.0 * fall * on * 0.55;
+      }
+      gl_FragColor = c;
+    }`,
+};
+
+const PostShader = {
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, red: { value: 0 }, desat: { value: 0 }, flash: { value: 0 }, vig: { value: 0.9 }, grain: { value: 0.01 }, pulse: { value: 0 }, real: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float time, red, desat, flash, vig, grain, pulse, real; varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + time*7.0) * 43758.5453); }
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
+      if (real > 0.0) {
+        // lens: faint colour fringing toward the frame edges
+        vec2 ca = (vUv - 0.5) * 0.0028 * real;
+        c.r = texture2D(tDiffuse, vUv + ca).r; c.b = texture2D(tDiffuse, vUv - ca).b;
+        // night vision (Purkinje shift): in the dark the eye loses colour and sees blue-grey
+        float lq = dot(max(c.rgb, 0.0), vec3(0.2126, 0.7152, 0.0722));
+        c.rgb = mix(c.rgb, vec3(0.62, 0.72, 1.0) * lq, (1.0 - smoothstep(0.0, 0.16, lq)) * 0.5 * real);
+      }
       float l = dot(max(c.rgb, 0.0), vec3(0.2126, 0.7152, 0.0722));
       c.rgb = mix(c.rgb, vec3(l), desat);
       // grade (scene is still linear HDR here): slightly cool shadows, warm highlights,
@@ -79,6 +113,21 @@ const PostShader = {
       gl_FragColor = c;
     }`,
 };
+
+// ambient occlusion for the realistic look: soft contact shadows where walls meet the ground,
+// under props and in corners. Only solid surfaces feed it (no grass cards, fog, sky or particles).
+class NightAO extends GTAOPass {
+  constructor(scene, camera, w, h, k) { super(scene, camera, w * k, h * k); this.k = k; }
+  setSize(w, h) { super.setSize(Math.max(1, Math.round(w * this.k)), Math.max(1, Math.round(h * this.k))); }
+  overrideVisibility() {
+    const cache = this._visibilityCache;
+    this.scene.traverse(o => {
+      cache.set(o, o.visible);
+      const m = o.material;
+      if (o.isPoints || o.isLine || o.isSprite || (m && !Array.isArray(m) && (m.transparent || m.alphaTest > 0 || m.isShaderMaterial || m.depthWrite === false || m.side === THREE.BackSide))) o.visible = false;
+    });
+  }
+}
 
 // ---------- particles ----------
 class Particles {
@@ -327,6 +376,7 @@ export class Game {
   start() {
     resetVoices(); KB_SETTINGS = this.settings;
     const q = QUALITY[this.settings.quality] || QUALITY.medium;
+    initPhoto(this.renderer, this.settings.quality);
     this.W = buildWorld(this.M, this.settings.quality);
     this.scene = this.W.scene;
     this.camera = new THREE.PerspectiveCamera(this.settings.fov || 75, innerWidth / innerHeight, 0.05, q.far);
@@ -360,10 +410,19 @@ export class Game {
       const rt = real ? new THREE.WebGLRenderTarget(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio(), { type: THREE.HalfFloatType, samples: 4 }) : undefined;
       this.composer = new EffectComposer(r, rt);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
+      if (real) {
+        const hi = this.settings.quality === 'high';
+        this.ao = new NightAO(this.scene, this.camera, innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio(), hi ? 0.75 : 0.5);
+        this.ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: hi ? 16 : 10, distanceFallOff: 1, screenSpaceRadius: false });
+        this.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: hi ? 16 : 8 });
+        this.ao.blendIntensity = 0.9;
+        this.composer.addPass(this.ao);
+      }
       // guard: one bad (NaN / infinite) pixel would otherwise be smeared by bloom into growing black squares
       this.composer.addPass(new ShaderPass(SanitizeShader));
+      if (real && !this.M.indoor) { this.rays = new ShaderPass(RaysShader); this.composer.addPass(this.rays); }
       if (q.bloom) { this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.5, 0.8); this.composer.addPass(this.bloom); }
-      this.post = new ShaderPass(PostShader); this.composer.addPass(this.post);
+      this.post = new ShaderPass(PostShader); this.post.uniforms.real.value = real ? 1 : 0; this.composer.addPass(this.post);
       this.composer.addPass(new OutputPass());
     } else { this.composer = null; this.post = null; }
     // HUD
@@ -651,6 +710,14 @@ export class Game {
     this.updateHUD(dt, S, me);
     this.sparks.update(dt); this.blood.update(dt); this.smoke.update(dt); this.decals.update(dt); this.updateBleeding(dt, S);
     { const m = this.mine(); this.scratches.update(dt, !!m && m.role === 'killer'); }
+    if (this.rays) {
+      const v = this._mv || (this._mv = new THREE.Vector3());
+      v.set(30, 60, 20).normalize().multiplyScalar(400).add(this.camera.position).project(this.camera);
+      const ru = this.rays.uniforms, inFront = v.z < 1;
+      ru.moon.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5); ru.aspect.value = this.camera.aspect;
+      const off = Math.max(Math.abs(v.x), Math.abs(v.y));
+      ru.on.value = inFront ? 1 - Math.min(1, Math.max(0, (off - 1) / 1.2)) : 0;
+    }
     if (this.composer) { this.post.uniforms.time.value = this.t; this.composer.render(dt); }
     else this.renderer.render(this.scene, this.camera);
     this.perf(dt);
