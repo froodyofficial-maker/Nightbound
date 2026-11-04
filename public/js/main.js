@@ -26,7 +26,7 @@ import { hostRoom, joinRoom, relayAvailable } from './net.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
-import { Friends, fmtCode } from './friends.js';
+import { Friends, fmtCode, GIFT_MAX } from './friends.js';
 
 window.__nbBooted = true;
 for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
@@ -1247,7 +1247,7 @@ function renderFriends() {
     ${friends.requests.size ? `<div class="lo-sub"><span>Friend requests</span></div>${[...friends.requests].map(([id, nm]) => `<div class="fr-row"><span class="dot on"></span><b>${esc(nm)}</b><small>${fmtCode(id)}</small><button class="btn primary" data-acc="${id}">Accept</button><button class="btn" data-dec="${id}">Decline</button></div>`).join('')}` : ''}
     ${profile.outgoing.length ? `<div class="lo-sub"><span>Sent requests</span></div>${profile.outgoing.map(o => `<div class="fr-row"><span class="dot"></span><b>${fmtCode(o.id)}</b><small>waiting for them to accept</small><button class="btn" data-cancel="${o.id}">Cancel</button></div>`).join('')}` : ''}
     <div class="lo-sub"><span>Friends</span><span>${friends.onlineCount()} online</span></div>
-    ${list.length ? list.map(f => { const s = st(f.id); return `<div class="fr-row"><span class="dot ${s.on ? 'on' : ''}"></span><b>${esc(f.name)}</b><small>${s.txt}</small>${s.code ? `<button class="btn" data-join="${s.code}">Join</button>` : ''}${s.on && canInvite ? `<button class="btn primary" data-inv="${f.id}">Invite</button>` : ''}<button class="btn" data-chat="${f.id}">Chat${friends.unread.get(f.id) ? ` <span class="newtag">${friends.unread.get(f.id)}</span>` : ''}</button><button class="btn x" data-rm="${f.id}" title="Remove friend">×</button></div>${chatWith === f.id ? chatHTML(f) : ''}`; }).join('') : '<p class="hint">No friends yet. Send them your code, or add theirs above.</p>'}
+    ${list.length ? list.map(f => { const s = st(f.id); return `<div class="fr-row"><span class="dot ${s.on ? 'on' : ''}"></span><b>${esc(f.name)}</b><small>${s.txt}</small>${s.code ? `<button class="btn" data-join="${s.code}">Join</button>` : ''}${s.on && canInvite ? `<button class="btn primary" data-inv="${f.id}">Invite</button>` : ''}<button class="btn" data-gift="${f.id}" title="Gift Embers">${icon('gift')} Gift</button><button class="btn" data-chat="${f.id}">Chat${friends.unread.get(f.id) ? ` <span class="newtag">${friends.unread.get(f.id)}</span>` : ''}</button><button class="btn x" data-rm="${f.id}" title="Remove friend">×</button></div>${chatWith === f.id ? chatHTML(f) : ''}`; }).join('') : '<p class="hint">No friends yet. Send them your code, or add theirs above.</p>'}
     <p class="hint">${canInvite ? 'You are in a lobby: invite online friends straight in.' : 'Host or join an Online Match to invite friends into your lobby. Friends in a lobby can be joined directly.'}</p>`;
   const B = $('friends-body');
   $('fr-copy').onclick = async () => { try { await navigator.clipboard.writeText(fmtCode(friends.id)); toast('Friend code copied'); } catch { toast(fmtCode(friends.id)); } };
@@ -1258,6 +1258,7 @@ function renderFriends() {
   B.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => friends.remove(b.dataset.rm));
   B.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => { friends.invite(b.dataset.inv, lobby.code); toast('Invite sent'); sound.play('click'); });
   B.querySelectorAll('[data-join]').forEach(b => b.onclick = () => { closePanel(); doJoin(b.dataset.join); });
+  B.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => giftDialog(b.dataset.gift));
   B.querySelectorAll('[data-chat]').forEach(b => b.onclick = () => { chatWith = chatWith === b.dataset.chat ? null : b.dataset.chat; friends.unread.delete(chatWith); renderFriends(); renderFriendsBadge(); });
   const ci = $('fr-chat-in');
   if (ci) {
@@ -1268,6 +1269,33 @@ function renderFriends() {
   }
 }
 friends.on('change', () => { renderFriendsBadge(); renderFriends(); });
+// gifting Embers to a friend: pick an amount, confirm, and they arrive even if the friend is offline
+function giftDialog(id) {
+  const f = profile.friends.find(x => x.id === id); if (!f) return;
+  const have = profile.stats.embers, c = $('invite-card');
+  c.innerHTML = `<b>Gift Embers to ${esc(f.name)}</b><small class="gift-have">You have ${price(have)}</small>
+    <div class="gift-amts">${[100, 500, 1000, 2500, 5000].map(a => `<button class="btn" data-amt="${a}" ${a > have ? 'disabled' : ''}>${a.toLocaleString()}</button>`).join('')}</div>
+    <div class="gift-row"><input id="gift-amt" type="number" min="1" max="${Math.min(have, GIFT_MAX)}" placeholder="Other amount"><button class="btn primary" id="gift-send">Send</button><button class="btn" id="gift-no">Cancel</button></div>`;
+  c.classList.remove('hidden');
+  const inp = $('gift-amt'); inp.onkeydown = e => e.stopPropagation();
+  c.querySelectorAll('[data-amt]').forEach(b => b.onclick = () => { inp.value = b.dataset.amt; c.querySelectorAll('[data-amt]').forEach(x => x.classList.toggle('on', x === b)); });
+  $('gift-no').onclick = () => c.classList.add('hidden');
+  $('gift-send').onclick = () => {
+    const amt = Math.floor(+inp.value || 0);
+    if (amt < 1) { toast('Pick how many Embers to send.'); return; }
+    if (amt > profile.stats.embers) { toast('You do not have that many Embers.'); return; }
+    const err = friends.gift(id, amt);
+    if (err) { toast(err); return; }
+    profile.stats.embers -= amt; saveProfile(); renderShowcase();
+    c.classList.add('hidden'); sound.play('escaped');
+    toast(`Sent ${amt.toLocaleString()} Embers to ${f.name}${friends.online(id) ? '' : ' (they will get them next time they are online)'}`, 5000);
+  };
+}
+friends.on('gift', (id, name, amount) => {
+  profile.stats.embers += amount; saveProfile(); renderShowcase();
+  sound.play('escaped'); toast(`🎁 ${name} gifted you ${amount.toLocaleString()} Embers!`, 7000);
+  if (!$('store').classList.contains('hidden')) renderStore();
+});
 friends.on('chat', (id, name, text) => { if (chatWith === id && !$('p-friends').classList.contains('hidden')) { friends.unread.delete(id); return; } toast(`${name || 'Friend'}: ${String(text).slice(0, 80)}`, 5000); sound.play('click'); });
 friends.on('request', (id, name) => toast(`${name || 'Someone'} sent you a friend request`, 5000));
 friends.on('accepted', (id, name) => toast(`${name || 'A player'} accepted your friend request`, 5000));
@@ -1361,4 +1389,4 @@ startBG();
 requestAnimationFrame(loop);
 const qj = new URLSearchParams(location.search).get('join');
 if (qj) { openPanel('p-online', 'Online Match'); $('join-code').value = qj.toUpperCase(); setTimeout(() => doJoin(qj), 300); }
-window.__nb = { get session() { return session; }, get lobby() { return lobby; }, settings, profile };
+window.__nb = { get session() { return session; }, get lobby() { return lobby; }, settings, profile, friends };

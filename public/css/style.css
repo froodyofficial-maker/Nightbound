@@ -723,3 +723,11 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .tm-shp.low div { background: linear-gradient(90deg, #a01810, #e04020); }
 #team.compact .tm-shp { width: 90px; }
 .of-god { position: absolute; top: 6px; left: 6px; font: 700 10px/1 'Bebas Neue', Impact, sans-serif; letter-spacing: .08em; padding: 3px 6px; border-radius: 3px; color: #1a0e00; background: linear-gradient(90deg, #ffd860, #ff8a2a); box-shadow: 0 0 10px #ff8a2a88; }
+
+/* gifting Embers */
+.gift-have { display: block; opacity: .75; margin: 4px 0 8px; }
+.gift-amts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.gift-amts .btn.on { border-color: #e0b84a; color: #ffd870; }
+.gift-row { display: flex; gap: 6px; align-items: center; }
+.gift-row input { width: 130px; padding: 7px 8px; background: #120d0c; border: 1px solid rgba(233,224,208,.2); color: #eee; }
+.fr-row .btn svg { width: 14px; height: 14px; vertical-align: -2px; }

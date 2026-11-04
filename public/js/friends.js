@@ -5,6 +5,7 @@
 //   nightbound/v2/u/<id>/acc/<from>  retained acceptance (cleared once seen)
 //   nightbound/v2/u/<id>/inv         live lobby invites
 //   nightbound/v2/u/<id>/msg         live chat messages from friends
+//   nightbound/v2/u/<id>/gift/<gid>  retained Ember gifts (delivered even while offline, cleared once received)
 import { Mqtt, MQTT_BROKERS } from './net.js';
 
 const CH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -15,12 +16,13 @@ const len = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); 
 export const fmtCode = c => (c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^(.{4})(.+)$/, '$1-$2');
 export const cleanCode = c => (c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const ONLINE_MS = 45000;
+export const GIFT_MAX = 50000;
 
 export class Friends {
   constructor(profile, save, getName) {
     this.p = profile; this.save = save; this.getName = getName;
     profile.fid ||= Array.from({ length: 8 }, () => CH[Math.floor(Math.random() * CH.length)]).join('');
-    profile.friends ||= []; profile.outgoing ||= [];
+    profile.friends ||= []; profile.outgoing ||= []; profile.giftsGot ||= {};
     this.requests = new Map(); // from id -> name
     this.chats = new Map();    // friend id -> [{ me, text, t }]
     this.unread = new Map();   // friend id -> count
@@ -44,7 +46,7 @@ export class Friends {
     const me = T(this.id);
     this.mq.on('message', (topic, text) => this.onMessage(topic, text));
     this.mq.on('closed', () => { this.mq = null; clearInterval(this.beat); setTimeout(() => this.connect(), 5000); this.emit('change'); });
-    for (const t of [me + '/req/+', me + '/acc/+', me + '/inv', me + '/msg']) this.mq.subscribe(t);
+    for (const t of [me + '/req/+', me + '/acc/+', me + '/inv', me + '/msg', me + '/gift/+']) this.mq.subscribe(t);
     for (const f of this.p.friends) this.mq.subscribe(T(f.id) + '/st');
     this.heartbeat(); clearInterval(this.beat); this.beat = setInterval(() => this.heartbeat(), 15000);
     this.ticker ||= setInterval(() => this.emit('change'), 10000);
@@ -74,6 +76,16 @@ export class Friends {
       this.p.outgoing = this.p.outgoing.filter(x => x.id !== from); this.save();
       this.publish(me + '/acc/' + from, '', true);
       this.emit('accepted', from, m.name);
+    } else if (topic.startsWith(me + '/gift/')) {
+      // an Ember gift: count it once, then clear it from the relay
+      const gid = topic.split('/').pop();
+      if (!m) return;
+      this.publish(topic, '', true);
+      if (this.p.giftsGot[gid] || !m.from || !this.p.friends.some(f => f.id === m.from)) return;
+      const amount = Math.max(1, Math.min(GIFT_MAX, Math.floor(+m.amount || 0)));
+      this.p.giftsGot[gid] = Date.now(); this.save();
+      this.log(m.from, { me: false, text: `🎁 sent you ${amount.toLocaleString()} Embers`, t: Date.now() });
+      this.emit('gift', m.from, String(m.name || 'A friend').slice(0, 24), amount);
     } else if (topic === me + '/inv') {
       if (m && m.from && m.code && this.p.friends.some(f => f.id === m.from)) this.emit('invite', m.from, m.name, m.code);
     } else if (topic === me + '/msg') {
@@ -119,6 +131,17 @@ export class Friends {
     if (!this.mq) return false;
     this.publish(T(id) + '/msg', JSON.stringify({ from: this.id, name: this.getName(), text }));
     this.log(id, { me: true, text, t: Date.now() }); this.emit('change'); return true;
+  }
+  // send Embers: the caller takes them off this profile; the gift waits on the relay until they're online
+  gift(id, amount) {
+    amount = Math.floor(+amount || 0);
+    if (!this.mq) return 'Not connected to the online relay yet. Try again in a moment.';
+    if (!this.p.friends.some(f => f.id === id)) return 'You can only gift Embers to friends.';
+    if (amount < 1 || amount > GIFT_MAX) return `Gifts are 1 to ${GIFT_MAX.toLocaleString()} Embers.`;
+    const gid = this.id + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    this.publish(T(id) + '/gift/' + gid, JSON.stringify({ from: this.id, name: this.getName(), amount, t: Date.now() }), true);
+    this.log(id, { me: true, text: `🎁 gifted ${amount.toLocaleString()} Embers`, t: Date.now() }); this.emit('change');
+    return '';
   }
   invite(id, code) { this.publish(T(id) + '/inv', JSON.stringify({ from: this.id, name: this.getName(), code })); }
 }

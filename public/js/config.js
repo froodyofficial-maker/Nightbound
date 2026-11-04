@@ -412,8 +412,15 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.33.0';
+export const VERSION = '2.34.0';
 export const INBOX = [
+  {
+    id: 'v2.34.0', version: '2.34.0', date: 'Nov 2026', title: 'Gift Embers to Friends', tag: 'Update',
+    body: [
+      'You can now gift Embers to your friends: open Friends (top right), press Gift next to a friend, pick an amount (or type one, up to 50,000) and Send.',
+      'Gifts arrive instantly if your friend is online, and are waiting for them the next time they open the game if not. Each gift shows up in your chat with that friend.',
+    ],
+  },
   {
     id: 'v2.33.0', version: '2.33.0', date: 'Nov 2026', title: 'New Survivor: Spider-Man', tag: 'Update',
     body: [
