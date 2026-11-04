@@ -152,6 +152,9 @@ export const SURVIVORS = {
   // Ghostbusters fan-made crossover
   raghuvir: { id: 'raghuvir', name: 'Raghuvir', skin: 0xb08058, hair: 0x0e0a08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', big: true, gb: true },
   abeer: { id: 'abeer', name: 'Abeer', skin: 0xa87650, hair: 0x120c08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', gb: true },
+  // Marvel fan-made crossover (model: "Spiderman_topy" by sabra, sketchfab.com/sabrayf, CC BY 4.0)
+  spiderman: { id: 'spiderman', name: 'Spider-Man', skin: 0x8a1418, hair: 0x8a1418, shirt: 0x9a1a1e, pants: 0x1a2040, hairStyle: 'short', fan: true,
+    web: { name: 'Web Shooters', shots: 4, range: 20, slow: 0.45, time: 4, carryTime: 2.5, cd: 0.6, desc: 'Press R to fire a web where you aim (4 shots, 20m). A webbed killer is slowed by 55% for 4s; a killer carrying someone is forced to drop them.' } },
 };
 
 export const SURV_PERKS = {
@@ -238,6 +241,11 @@ export const LORE = {
     'Thankfully, Abeer was able to force the demon to un-possess him. Unfortunately, once both were united, a portal opened up, and the entity grabbed both, pulling them into the realm of Nightbound.',
     'Somewhere, in some alternate universe, things went differently. They were saved. But the entity? It can warp reality to get what it wants.',
   ] },
+  spiderman: { title: 'The Wall-Crawler', story: [
+    'One night the city went quiet. No sirens, no traffic, no lights in the windows. Peter swung toward the only light left: a campfire burning on a rooftop that should not have been there.',
+    'When he landed, the rooftop was a clearing in the woods and the skyline was gone. His spider-sense has not stopped buzzing since.',
+    'Here nobody needs saving from a mugger. They need someone fast enough to pull them off a killer\'s shoulder. He only has a few cartridges of web fluid left, so he makes every shot count.',
+  ] },
   abeer: { title: 'The Partner', story: [
     'Was with the Ghostbusters ever since it had started. After the business fell into shambles, and Raghuvir got possessed, he ended up un-possessing Raghuvir.',
     'However, the entity pulled both into the realm of Nightbound.',
@@ -321,6 +329,9 @@ export const SKINS = {
     { id: 'realism', name: 'Realism', price: 6000, glb: 'ray', desc: 'A fully realistic Ghostbuster: worn khaki flight suit, straps, name patch and a heavy proton pack. (Model: "Ghostbusters - Dr. Ray Stantz" by spinningblade, CC BY 4.0.)' },
     { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
+  spiderman: [
+    { id: 'default', name: 'Classic Suit', price: 0, glb: 'spiderman', desc: 'Red and blue, raised webbing, silver lenses. Your friendly neighbourhood Spider-Man. (Model: "Spiderman_topy" by sabra, CC BY 4.0.)' },
+  ],
   abeer: [
     { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Ready to bust.', fx: [['face', { kind: 'a', skin: 0xa87650 }], 'mophair', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
     { id: 'street', name: 'Navy Jacket', price: 1500, shirt: 0x161c30, pants: 0x1a1c22, desc: 'Off duty: navy hooded jacket with a red stripe.', fx: [['face', { kind: 'a', skin: 0xa87650 }], 'mophair', ['stripe', { color: 0xc01e1e }]] },
@@ -401,8 +412,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.32.0';
+export const VERSION = '2.33.0';
 export const INBOX = [
+  {
+    id: 'v2.33.0', version: '2.33.0', date: 'Nov 2026', title: 'New Survivor: Spider-Man', tag: 'Update',
+    body: [
+      'Spider-Man swings into the fog (fan-made crossover, free for everyone). Fully rigged 3D model with the survivor walk, run, crouch, vault, repair, heal, down and carried animations.',
+      'His own power, Web Shooters: press R to fire a web where you aim (4 shots, 20m). A webbed killer is slowed by 55% for 4 seconds, and a killer carrying a survivor is forced to drop them on the spot.',
+      'Spider-Man bots use their webs too, mostly to pull teammates off the killer\'s shoulder.',
+      'Model: "Spiderman_topy" by sabra (sketchfab.com/sabrayf), CC BY 4.0.',
+    ],
+  },
   {
     id: 'v2.32.0', version: '2.32.0', date: 'Nov 2026', title: 'God Tier Grandpa & a Limitless Bat Rush', tag: 'Update',
     body: [

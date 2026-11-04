@@ -554,6 +554,11 @@ export class Game {
       if (e.code === 'KeyQ') this.send({ t: 'act', a: 'drop-carry' });
       if (e.code === 'KeyG' && this.mine() && this.mine().role === 'killer' && this.mine().char === 'granny') { const m = this.mine(); if (m.teleCd <= 0 && !m.tele && m.carry == null) this.creepHeld = true; else this.feed(m.tele ? 'Already creeping…' : m.carry != null ? 'Not while carrying someone.' : `Creep recharging (${Math.ceil(m.teleCd)}s)`); }
       if (e.code === 'KeyG') this.send({ t: 'act', a: 'trap' });
+      if (e.code === 'KeyR' && this.mine() && this.mine().role === 'survivor' && this.mine().char === 'spiderman') {
+        const m = this.mine();
+        if (m.st === 'ok' && !m.act && m.webs > 0) { m.yaw = this.camYaw; this.send({ t: 'act', a: 'web', yaw: this.camYaw }); }
+        else if (!(m.webs > 0)) this.feed('Out of web fluid.');
+      }
       if (e.code === 'KeyR' && this.mine() && this.mine().char === 'lamplighter') this.send({ t: 'act', a: 'teleport', yaw: this.mine().yaw });
       if (e.code === 'KeyR' && this.mine() && this.mine().role === 'killer' && KILLERS[this.mine().char].ability2) this.send({ t: 'act', a: 'ability2' });
       if (e.code === 'KeyG' && this.mine() && this.mine().role === 'killer' && (this.mine().char === 'chucky' || this.mine().disguise)) this.send({ t: 'act', a: 'possess' });
@@ -1521,6 +1526,7 @@ export class Game {
     for (const z of this.zaps.filter(z => z.t > 0.45)) this.scene.remove(z.line);
     this.zaps = this.zaps.filter(z => z.t <= 0.45);
     // a tazed killer crackles with sparks
+    for (const p of S.players) if (p.webK > 0 && Math.random() < 0.35) this.smoke.spawn(p.x + (Math.random() - 0.5) * 0.7, 0.3 + Math.random() * 1.5, p.z + (Math.random() - 0.5) * 0.7, 1, 0xf4f4ec, 0.2, 0.7, -0.5, 0.25);
     for (const p of S.players) if (p.zap > 0 && Math.random() < 0.6) this.sparks.spawn(p.x + (Math.random() - 0.5) * 0.6, 0.6 + Math.random() * 1.4, p.z + (Math.random() - 0.5) * 0.6, 2, 0x8ad8ff, 1.5, 0.3, 0, 0.6, 0.5);
   }
   // ---------------- Granny's Creep: markers on every window, pallet, generator and hook ----------------
@@ -1723,6 +1729,25 @@ export class Game {
         case 'chestswap': {
           const c = this.M.chests && this.M.chests[e.id]; if (c) sound.play('click', c.x, c.z);
           if (e.by === this.myId) { this.feed('You took the ' + (ITEMS[e.item] || ITEMS.flashlight).name + ' and left your ' + (ITEMS[e.left] || ITEMS.flashlight).name + '.'); this.flashHeld = false; }
+          break;
+        }
+        case 'web': {
+          // a pale strand shot from the wrist, and a splat where it lands
+          const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, 1.35, e.z), new THREE.Vector3(e.tx, e.hit ? 1.3 : 1.1, e.tz)]);
+          const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xf2f2ea, transparent: true, opacity: 0.95, depthWrite: false }));
+          this.scene.add(line);
+          const t0 = this.t, fade = () => { const k = (this.t - t0) / 0.7; if (k >= 1 || this.disposed) { this.scene.remove(line); g.dispose(); line.material.dispose(); return; } line.material.opacity = 0.95 * (1 - k); requestAnimationFrame(fade); };
+          requestAnimationFrame(fade);
+          sound.play('thwip', e.x, e.z);
+          this.smoke.spawn(e.tx, 1.2, e.tz, 8, 0xf0f0e8, 0.7, 0.8, -1, 0.3);
+          if (e.id === this.myId && !e.hit) this.feed(`Missed. ${e.left} web${e.left === 1 ? '' : 's'} left.`);
+          break;
+        }
+        case 'webhit': {
+          sound.play('thunk', e.x, e.z);
+          if (e.id === this.myId) { this.feed(e.freed != null ? 'Webbed! You dropped ' + name(e.freed) + '.' : 'Webbed! You are stuck in it.', 'big'); this.shake = 0.4; }
+          else if (e.by === this.myId) this.feed(e.freed != null ? 'Thwip! ' + name(e.id) + ' dropped ' + name(e.freed) + '!' : 'Thwip! ' + name(e.id) + ' is webbed and slowed.', 'big');
+          else if (e.freed === this.myId) this.feed('Spider-Man webbed the killer: you are free!', 'big');
           break;
         }
         case 'taser': {
@@ -2135,9 +2160,10 @@ export class Game {
     $('item').innerHTML = this.itemHTML(me);
   }
   itemHTML(me) {
-    if (me.item === 'taser') return `<div class="iti">${icon('taser')}</div><div class="itt"><div class="itn">Taser <span id="trapn"></span></div><div class="keyl"><kbd>RMB</kbd> fire at the killer (3s stun)</div></div>`;
-    return me.item === 'trap' ? `<div class="iti">${icon('gen')}</div><div class="itt"><div class="itn">Ghost Trap <span id="trapn"></span></div><div class="keyl">${kbd('item')} set a trap in front of you</div></div>`
-      : `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">${SURVIVORS[me.char] && SURVIVORS[me.char].gb ? 'Proton Stream' : 'Flashlight'}</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div></div>`;
+    const web = me.char === 'spiderman' ? `<div class="keyl web-l">${kbd('ability2')} Web Shooters <b id="webn">×${me.webs || 0}</b></div>` : '';
+    if (me.item === 'taser') return `<div class="iti">${icon('taser')}</div><div class="itt"><div class="itn">Taser <span id="trapn"></span></div><div class="keyl"><kbd>RMB</kbd> fire at the killer (3s stun)</div>${web}</div>`;
+    return me.item === 'trap' ? `<div class="iti">${icon('gen')}</div><div class="itt"><div class="itn">Ghost Trap <span id="trapn"></span></div><div class="keyl">${kbd('item')} set a trap in front of you</div>${web}</div>`
+      : `<div class="iti">${icon('flashlight')}</div><div class="itt"><div class="itn">${SURVIVORS[me.char] && SURVIVORS[me.char].gb ? 'Proton Stream' : 'Flashlight'}</div><div class="itb"><div></div></div><div class="keyl"><kbd>RMB</kbd> hold to blind the killer</div>${web}</div>`;
   }
   updateHUD(dt, S, me) {
     if (!me) return;
@@ -2148,8 +2174,9 @@ export class Game {
       if (bar) bar.style.width = (Math.max(0, me.flash) / RULES.flashBattery * 100).toFixed(1) + '%';
       $('item').classList.toggle('active', !!this.flashHeld && me.flash > 0);
       $('item').classList.toggle('empty', me.item === 'trap' ? !(me.traps > 0) : me.item === 'taser' ? !(me.tasers > 0) : me.flash <= 0);
+      const wn = document.getElementById('webn'); if (wn) wn.textContent = '×' + (me.webs || 0);
       const tn = document.getElementById('trapn'); if (tn) tn.textContent = '×' + ((me.item === 'taser' ? me.tasers : me.traps) || 0);
-      $('crosshair').classList.toggle('hidden', !((this.flashHeld && me.flash > 0) || (me.item === 'taser' && me.tasers > 0 && me.st === 'ok')));
+      $('crosshair').classList.toggle('hidden', !((this.flashHeld && me.flash > 0) || (me.item === 'taser' && me.tasers > 0 && me.st === 'ok') || (me.char === 'spiderman' && me.webs > 0 && me.st === 'ok')));
     }
     const glare = me.role === 'killer' ? Math.max((me.glare || 0) * 0.75, me.blind > 0 ? Math.min(1, me.blind / 1.2) : 0) : 0;
     if (Math.abs(glare - (this.glareShown || 0)) > 0.01) { this.glareShown = glare; $('glare').style.opacity = glare.toFixed(2); }

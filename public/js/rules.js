@@ -69,6 +69,7 @@ export function speedOf(p, S, sprint, crouch) {
   if (p.char === 'butcher' && p.ab === 1) s = 8.6;
   if (p.char === 'wisp') { if (p.ab === 1) s *= 1.15; else if (p.ab === 2 || p.ab === 3) s *= 0.4; }
   // (Chucky keeps full speed while coiling a pounce)
+  if (p.webK > 0) s *= 0.45; // Spider-Man's web: stuck, wading through it
   if (p.char === 'granny' && p.ab === 1) return 0; // listening
   if (p.char === 'granny' && p.dash) return 0; // (the rush moves her itself)
   if (p.char === 'granny' && p.aim) s *= 0.55;  // winding up the bat

@@ -12,7 +12,7 @@ import { MenuScene } from './menu.js';
 import { loadForeman, onForemanReady, loadBatman } from './foremanGlb.js';
 import { loadChucky, onChuckyReady, chuckyReady } from './chuckyGlb.js';
 import { loadTed } from './sidekicks.js';
-import { loadRealism } from './realism.js';
+import { loadRealism, realismReady } from './realism.js';
 import { loadStatic } from './glbModels.js';
 import { loadScene, sceneReady } from './sceneGlb.js';
 import { loadGranny, grannyReady, onGrannyReady, loadGrandpa, loadSpiderMom } from './grannyGlb.js';
@@ -93,6 +93,7 @@ const BIOS = {
   raghuvir: 'Big, steady and impossible to scare. Carries the heaviest proton pack on the team, and two Ghost Traps.',
   abeer: 'Quick hands, quicker wit. Swears the readings on his PKE meter spell out names. Carries two Ghost Traps.',
   tomas: 'Former park ranger. Knows every trail on the moor, and that none of them lead out.',
+  spiderman: 'Fan-made crossover. Fast, agile, and armed with Web Shooters: 4 shots (R) that slow the killer hard or make him drop whoever he is carrying.',
 };
 
 // ---------- renderer (recreated when graphics quality changes) ----------
@@ -151,6 +152,7 @@ loadGranny().then(m => { if (m) { forgetArt('granny'); if (menu && menu.killerCh
 loadGrandpa().then(m => { if (m) forgetArt('granny'); });
 loadSpiderMom();
 loadStatic('slimer').then(m => { if (!m) return; forgetArt('slimer'); if (menu && menu.killerChar === 'slimer') menu.setKiller('slimer', menu.killerSkin); });
+loadRealism('spiderman').then(m => { if (!m) return; forgetArt('spiderman'); if (menu) menu.setSurvivor(profile.survivor.char, skinId(profile.survivor.char)); if (!$('store').classList.contains('hidden')) { menu && (menu.showFor = null); renderStore(); } });
 loadRealism('ray').then(m => { if (!m) return; forgetArt('raghuvir'); if (menu) menu.setSurvivor(profile.survivor.char, skinId(profile.survivor.char)); if (!$('store').classList.contains('hidden')) { menu && (menu.showFor = null); renderStore(); } });
 // Chucky's model is 5MB: once it arrives, redraw every place that may have drawn the stand-in doll
 onChuckyReady(() => {
@@ -164,6 +166,7 @@ loadChucky().then(g => { if (!g) toast("Chucky's 3D model couldn't load, so a si
 const spiderOk = () => !!window.__nbSpiderLoaded;
 loadSpiderMom().then(m => { window.__nbSpiderLoaded = !!m; });
 async function waitForModels(need) {
+  if (need && need.spider && !realismReady('spiderman')) { loading(true, 'Spider-Man is swinging in…'); await Promise.race([loadRealism('spiderman'), new Promise(r => setTimeout(r, 25000))]); }
   // the Granny's House scenery (a big model) must be in before any match can use the map
   if (!sceneReady('granny_map')) { loading(true, 'Unlocking Granny\'s front door…'); await Promise.race([loadScene('granny_map'), new Promise(r => setTimeout(r, 25000))]); }
   // Granny and her granddaughter, when she's in the match
@@ -874,7 +877,7 @@ async function startHostMatch(roster, opts) {
   loading(true, 'Entering the fog…');
   await nextFrame();
   // Chucky can appear in any match (picked, random bot killer, or an Infection turn)
-  await waitForModels({ granny: roster.some(r => r.char === 'granny') || opts.mode === 'infection', chucky: roster.some(r => r.char === 'chucky') || opts.mode === 'infection' });
+  await waitForModels({ spider: roster.some(r => r.char === 'spiderman'), granny: roster.some(r => r.char === 'granny') || opts.mode === 'infection', chucky: roster.some(r => r.char === 'chucky') || opts.mode === 'infection' });
   loading(true, 'Entering the fog…');
   stopBG();
   $('menu').classList.add('hidden');
@@ -1081,7 +1084,7 @@ setInterval(() => {
 async function startClientMatch(m) {
   loading(true, 'Entering the fog…');
   await nextFrame();
-  await waitForModels({ granny: (m.roster || []).some(r => r.char === 'granny') || m.mode === 'infection', chucky: (m.roster || []).some(r => r.char === 'chucky') || m.mode === 'infection' });
+  await waitForModels({ spider: (m.roster || []).some(r => r.char === 'spiderman'), granny: (m.roster || []).some(r => r.char === 'granny') || m.mode === 'infection', chucky: (m.roster || []).some(r => r.char === 'chucky') || m.mode === 'infection' });
   loading(true, 'Entering the fog…');
   stopBG();
   $('menu').classList.add('hidden');

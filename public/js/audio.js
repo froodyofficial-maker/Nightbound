@@ -143,6 +143,7 @@ export class Sound {
         this.tone(d, t, 1.6, 'sine', 880 + Math.random() * 200, 640, 0.03 * (opt.vol || 1), 0.4);
         break;
       }
+      case 'thwip': if (!(d = o(4, 40))) return; this.noise(d, t, 0.16, 'bandpass', 5200, 1600, 3, 0.55, 0.002); this.tone(d, t, 0.1, 'triangle', 1400, 500, 0.15, 0.002); break;
       case 'shotgun': if (!(d = o(10, 110))) return; this.noise(d, t, 0.5, 'lowpass', 5200, 260, 2.2, 0.9, 0.001); this.tone(d, t, 0.32, 'sine', 120, 38, 1.4, 0.001); this.noise(d, t + 0.42, 0.07, 'bandpass', 1800, 900, 0.6, 0.5); this.noise(d, t + 0.58, 0.08, 'bandpass', 1400, 700, 0.6, 0.5); break;
       case 'thud': if (!(d = o(5, 40))) return; this.tone(d, t, 0.18, 'sine', 95, 40, 1, 0.003); this.noise(d, t, 0.09, 'lowpass', 900, 200, 1, 0.8); break;
       case 'lightsout': d = o(); this.tone(d, t, 1.2, 'sawtooth', 120, 30, 0.35, 0.01); this.noise(d, t, 0.25, 'highpass', 3000, null, 1, 0.5); this.tone(d, t + 0.05, 2.5, 'sine', 45, 38, 0.5, 0.3); break;

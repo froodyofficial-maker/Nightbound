@@ -1,5 +1,5 @@
 // Authoritative game simulation. Runs only on the host (or in single-player).
-import { RULES, KILLERS, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
+import { RULES, KILLERS, SURVIVORS, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
 import { barBox, losBlocked, moveCircle, findPath, cellOf, cellPos, levelOf, levelsMeet, losL, heightAt, levelStep } from './map.js';
 import {
   has, fwd, dist, killerOf, killersOf, nearestKiller, anyKillerHas, playerById, findInteraction, actionTime, terrorRadius, inExit, findSpace, vaultDuration, findExecute, angDiff,
@@ -70,7 +70,7 @@ export class Sim {
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : r.char === 'bateman' ? 1 : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
-        item: r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, dash: null, swapCd: 0,
+        item: r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
         possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false,
         pet: typeof r.pet === 'string' && ['ted', 'rosy'].includes(r.pet) ? r.pet : '',
@@ -183,6 +183,31 @@ export class Sim {
         p.emote = n;
         (this.emoteAt ||= new Map()).set(p.id, { x: p.x, z: p.z, t: S.t });
         if (n) this.ev({ k: 'emote', id: p.id, n });
+        break;
+      }
+      case 'web': {
+        // Spider-Man's Web Shooters: a strand along the aim; the first killer it reaches is webbed
+        // (slowed hard), and one carrying a survivor drops them
+        const W = SURVIVORS.spiderman.web;
+        if (p.role !== 'survivor' || p.char !== 'spiderman' || p.st !== 'ok' || p.act || p.vault || !(p.webs > 0) || ((this.webCd ||= new Map()).get(p.id) || 0) > S.t) return;
+        p.webs--; this.webCd.set(p.id, S.t + W.cd);
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw);
+        let hit = null, hd = W.range;
+        for (const K of S.players) {
+          if (K.role !== 'killer' || K.st === 'dead' || K.disguise || !levelsMeet(p, K)) continue;
+          const dx = K.x - p.x, dz = K.z - p.z, along = dx * f.x + dz * f.z, side = Math.abs(dx * f.z - dz * f.x);
+          if (along < 0.2 || along > hd || side > 0.8 || losL(M, p, K, 1.2)) continue;
+          hit = K; hd = along;
+        }
+        let reach = hit ? hd : W.range;
+        if (!hit) for (let d = 0.5; d < W.range; d += 0.25) if (losL(M, p, { x: p.x + f.x * d, z: p.z + f.z * d, fl: p.fl }, 1.2)) { reach = d; break; }
+        this.ev({ k: 'web', id: p.id, x: p.x, z: p.z, tx: +(hit ? hit.x : p.x + f.x * reach).toFixed(2), tz: +(hit ? hit.z : p.z + f.z * reach).toFixed(2), hit: hit ? hit.id : null, left: p.webs });
+        if (hit) {
+          const carried = hit.carry;
+          if (carried != null) { this.releaseCarry(hit, true); hit.webK = Math.max(hit.webK || 0, W.carryTime); p.score.d += 900; }
+          else { hit.webK = Math.max(hit.webK || 0, W.time); p.score.d += 400; }
+          this.ev({ k: 'webhit', id: hit.id, by: p.id, freed: carried, x: hit.x, z: hit.z });
+        }
         break;
       }
       case 'taser': {
@@ -557,6 +582,7 @@ export class Sim {
       if (p.spied > 0) p.spied = Math.max(0, p.spied - dt);
       if (p.heard > 0) { p.heard = Math.max(0, p.heard - dt); if (p.st !== 'ok') p.heard = 0; }
       if (p.webbed > 0) p.webbed = Math.max(0, p.webbed - dt);
+      if (p.webK > 0) p.webK = Math.max(0, p.webK - dt);
       if (p.swapCd > 0) p.swapCd = Math.max(0, p.swapCd - dt);
       if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt);
       if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
