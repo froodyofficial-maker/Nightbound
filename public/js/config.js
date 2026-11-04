@@ -400,8 +400,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.28.0';
+export const VERSION = '2.29.0';
 export const INBOX = [
+  {
+    id: 'v2.29.0', version: '2.29.0', date: 'Nov 2026', title: 'Friends & Chat', tag: 'Update',
+    body: [
+      'Friends: every player has a friend code (the people icon, top right). Add friends by code; requests wait for them even if they are offline.',
+      'See which friends are online and whether they are in the menu, a lobby or a match. Join a friend\'s lobby in one click.',
+      'Invite online friends into your lobby, and chat with them from the Friends panel.',
+    ],
+  },
   {
     id: 'v2.28.0', version: '2.28.0', date: 'Nov 2026', title: 'Ranks, Levels & Season 1', tag: 'Update', gift: { embers: 1000, label: 'Season 1 launch gift: 1,000 Embers' },
     body: [

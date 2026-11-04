@@ -45,7 +45,7 @@
 
     <div class="showcase" id="showcase"></div>
     <button class="news-card" id="news-card"><div class="granny-art"></div><div class="nc-txt"><span>New chapter · Watch the trailer</span><b>Granny <i>×</i> Nightbound</b></div></button>
-    <div class="topright"><button class="inbox-btn" id="inbox-btn" title="Inbox"><span class="ib-ico"></span><span class="badge hidden" id="inbox-badge"></span></button><div class="profile" id="profile"></div></div>
+    <div class="topright"><button class="inbox-btn friends-btn" id="friends-btn" title="Friends"><span class="fr-ico"></span><span class="badge hidden" id="friends-badge"></span></button><button class="inbox-btn" id="inbox-btn" title="Inbox"><span class="ib-ico"></span><span class="badge hidden" id="inbox-badge"></span></button><div class="profile" id="profile"></div></div>
     <div class="last-updated" id="last-updated" title=""></div>
     <div id="show-drag" class="hidden"><span>Drag to rotate · Scroll to zoom</span></div>
 
@@ -155,6 +155,7 @@
 
         <!-- help -->
         <section id="p-pass" class="hidden"><div id="pass-body"></div></section>
+        <section id="p-friends" class="hidden"><div id="friends-body"></div></section>
         <section id="p-help" class="hidden">
           <div class="help">
             <div>
@@ -268,6 +269,7 @@
 
   <div id="loading" class="overlay hidden"><div class="loading-text">Entering the fog…</div></div>
   <div id="toast"></div>
+  <div id="invite-card" class="hidden"></div>
 
   <script>
     // If the module scripts never start (file:// or a very old browser), explain what to do.

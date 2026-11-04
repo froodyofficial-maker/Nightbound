@@ -25,6 +25,7 @@ import { hostRoom, joinRoom, relayAvailable } from './net.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
+import { Friends, fmtCode } from './friends.js';
 
 window.__nbBooted = true;
 for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
@@ -206,6 +207,7 @@ function openPanel(id, title, wide = false) {
   if (id === 'p-online') detectModeHint();
   if (id === 'p-inbox') renderInbox();
   if (id === 'p-pass') renderPass();
+  if (id === 'p-friends') renderFriends();
 }
 function closePanel() {
   if (openSection === 'p-lobby' && lobby) { leaveOnline(); return; }
@@ -1206,6 +1208,62 @@ function renderPass() {
     saveProfile(); sound.play('escaped'); toast(`Claimed: ${t.label}`); renderPass(); renderShowcase();
   });
 }
+
+// ---------- friends ----------
+const friends = new Friends(profile, saveProfile, () => settings.name);
+friends.stateFn = () => session ? { state: 'match' } : lobby ? { state: 'lobby', code: lobby.inGame ? null : lobby.code } : { state: 'menu' };
+let chatWith = null, chatFocus = false;
+function chatHTML(f) {
+  const msgs = friends.chats.get(f.id) || [];
+  return `<div class="fr-chat"><div id="fr-chat-log">${msgs.length ? msgs.map(m => `<div class="cm ${m.me ? 'me' : ''}"><b>${m.me ? 'You' : esc(f.name)}</b> ${esc(m.text)}</div>`).join('') : `<p class="hint">Say hi to ${esc(f.name)}. Messages only reach them while they are online.</p>`}</div><div class="fr-chat-row"><input id="fr-chat-in" maxlength="300" placeholder="Message ${esc(f.name)}…"><button class="btn primary" id="fr-chat-send">Send</button></div></div>`;
+}
+function renderFriendsBadge() { const n = friends.onlineCount(), r = friends.requests.size + [...friends.unread.values()].reduce((a, b) => a + b, 0); $('friends-badge').textContent = r ? r : n; $('friends-badge').classList.toggle('hidden', !n && !r); $('friends-badge').classList.toggle('req', !!r); }
+function renderFriends() {
+  if ($('p-friends').classList.contains('hidden')) return;
+  const ae = document.activeElement; chatFocus = !!(ae && ae.id === 'fr-chat-in'); const draft = ae && ae.id === 'fr-chat-in' ? ae.value : (document.getElementById('fr-chat-in') || {}).value;
+  const st = id => { const s = friends.status.get(id); if (!friends.online(id)) return { on: false, txt: 'Offline' }; return { on: true, txt: s.state === 'match' ? 'In a match' : s.state === 'lobby' ? 'In a lobby' : 'In the menu', code: s.state === 'lobby' ? s.code : null }; };
+  const list = profile.friends.slice().sort((a, b) => (friends.online(b.id) ? 1 : 0) - (friends.online(a.id) ? 1 : 0));
+  const canInvite = !!(lobby && lobby.code && !lobby.inGame);
+  $('friends-body').innerHTML = `
+    <div class="fr-me"><small>Your friend code</small><b>${fmtCode(friends.id)}</b><button class="btn" id="fr-copy">Copy</button><span class="fr-conn ${friends.mq ? 'on' : ''}">${friends.mq ? 'Online' : 'Connecting…'}</span></div>
+    <div class="fr-add"><input id="fr-code" maxlength="9" placeholder="Friend's code, e.g. ABCD-2345"><button class="btn primary" id="fr-send">Add friend</button></div>
+    ${friends.requests.size ? `<div class="lo-sub"><span>Friend requests</span></div>${[...friends.requests].map(([id, nm]) => `<div class="fr-row"><span class="dot on"></span><b>${esc(nm)}</b><small>${fmtCode(id)}</small><button class="btn primary" data-acc="${id}">Accept</button><button class="btn" data-dec="${id}">Decline</button></div>`).join('')}` : ''}
+    ${profile.outgoing.length ? `<div class="lo-sub"><span>Sent requests</span></div>${profile.outgoing.map(o => `<div class="fr-row"><span class="dot"></span><b>${fmtCode(o.id)}</b><small>waiting for them to accept</small><button class="btn" data-cancel="${o.id}">Cancel</button></div>`).join('')}` : ''}
+    <div class="lo-sub"><span>Friends</span><span>${friends.onlineCount()} online</span></div>
+    ${list.length ? list.map(f => { const s = st(f.id); return `<div class="fr-row"><span class="dot ${s.on ? 'on' : ''}"></span><b>${esc(f.name)}</b><small>${s.txt}</small>${s.code ? `<button class="btn" data-join="${s.code}">Join</button>` : ''}${s.on && canInvite ? `<button class="btn primary" data-inv="${f.id}">Invite</button>` : ''}<button class="btn" data-chat="${f.id}">Chat${friends.unread.get(f.id) ? ` <span class="newtag">${friends.unread.get(f.id)}</span>` : ''}</button><button class="btn x" data-rm="${f.id}" title="Remove friend">×</button></div>${chatWith === f.id ? chatHTML(f) : ''}`; }).join('') : '<p class="hint">No friends yet. Send them your code, or add theirs above.</p>'}
+    <p class="hint">${canInvite ? 'You are in a lobby: invite online friends straight in.' : 'Host or join an Online Match to invite friends into your lobby. Friends in a lobby can be joined directly.'}</p>`;
+  const B = $('friends-body');
+  $('fr-copy').onclick = async () => { try { await navigator.clipboard.writeText(fmtCode(friends.id)); toast('Friend code copied'); } catch { toast(fmtCode(friends.id)); } };
+  $('fr-send').onclick = () => { const err = friends.request($('fr-code').value); if (err) toast(err); else { toast('Friend request sent'); sound.play('click'); } };
+  B.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { friends.accept(b.dataset.acc); toast('Friend added'); });
+  B.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => friends.decline(b.dataset.dec));
+  B.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => friends.cancel(b.dataset.cancel));
+  B.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => friends.remove(b.dataset.rm));
+  B.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => { friends.invite(b.dataset.inv, lobby.code); toast('Invite sent'); sound.play('click'); });
+  B.querySelectorAll('[data-join]').forEach(b => b.onclick = () => { closePanel(); doJoin(b.dataset.join); });
+  B.querySelectorAll('[data-chat]').forEach(b => b.onclick = () => { chatWith = chatWith === b.dataset.chat ? null : b.dataset.chat; friends.unread.delete(chatWith); renderFriends(); renderFriendsBadge(); });
+  const ci = $('fr-chat-in');
+  if (ci) {
+    if (draft) ci.value = draft;
+    const send = () => { if (friends.say(chatWith, ci.value)) { ci.value = ''; } else if (ci.value.trim()) toast('Not connected to the online relay yet.'); };
+    $('fr-chat-send').onclick = send; ci.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') send(); };
+    const log = $('fr-chat-log'); log.scrollTop = 1e6; if (chatFocus) ci.focus();
+  }
+}
+friends.on('change', () => { renderFriendsBadge(); renderFriends(); });
+friends.on('chat', (id, name, text) => { if (chatWith === id && !$('p-friends').classList.contains('hidden')) { friends.unread.delete(id); return; } toast(`${name || 'Friend'}: ${String(text).slice(0, 80)}`, 5000); sound.play('click'); });
+friends.on('request', (id, name) => toast(`${name || 'Someone'} sent you a friend request`, 5000));
+friends.on('accepted', (id, name) => toast(`${name || 'A player'} accepted your friend request`, 5000));
+friends.on('invite', (id, name, code) => {
+  const c = $('invite-card');
+  c.innerHTML = `<b>${esc(name || 'A friend')}</b> invited you to their lobby<div><button class="btn primary" id="inv-join">Join</button><button class="btn" id="inv-no">Not now</button></div>`;
+  c.classList.remove('hidden'); sound.play('click');
+  $('inv-no').onclick = () => c.classList.add('hidden');
+  $('inv-join').onclick = () => { c.classList.add('hidden'); if (session) { toast('Finish or leave your match first.'); return; } if (lobby) leaveOnline(true); doJoin(code); };
+  clearTimeout(c.hideT); c.hideT = setTimeout(() => c.classList.add('hidden'), 30000);
+});
+$('friends-btn').onclick = () => { sound.init(); sound.play('click'); openPanel('p-friends', 'Friends'); };
+friends.connect();
 
 // ---------- main loop ----------
 let last = performance.now();
