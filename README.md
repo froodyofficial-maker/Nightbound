@@ -30,9 +30,21 @@ No server is needed. The host listens two ways at once:
 
 Joining players try the direct connection first and switch to the relay automatically.
 
-The host runs the match and sends compact snapshots 20 times a second (a full keyframe once a second). Clients draw other players slightly in the past, interpolated between snapshots, so late or bunched packets don't cause stutter. Killer hits are lag-compensated against what the killer saw.
+The host runs the match and sends compact snapshots 30 times a second (a full keyframe once a second). On WebRTC, snapshots and player positions use a second, unordered data channel that never retransmits, so a lost packet is simply replaced by the next one and nothing waits behind it. Events (hits, generators, messages) and actions stay on the reliable channel. Clients draw other players slightly in the past, interpolated between snapshots, so late or bunched packets don't cause stutter. The host draws remote players the same way. Killer hits are lag-compensated against what the killer saw, for the host too. The host keeps simulating at full speed when its tab is in the background, and all players must be on the same network protocol version (older copies are asked to refresh).
 
 When the page is served by `node server.js`, everyone on that server uses its built-in WebSocket relay instead. Empty slots can be filled with bots, and a bot takes over if a player disconnects.
+
+## Game modes
+
+Pick one in the bot match setup or the online lobby (the host chooses).
+
+| Mode | |
+| --- | --- |
+| **Classic** | 1 killer vs 4 survivors. |
+| **Two Killers** | 2 killers vs 8 survivors; 6 generators power the gates. Online lobbies hold up to 10 players. |
+| **Lights Out** | The map stays dark: thick fog, no auras for survivors, flashlights at half charge. |
+| **Survivor Rush** | 5-minute matches: generators and gates twice as fast, killer speed burst after every hit. When time runs out the gates power up and the night collapses in 40s. |
+| **Infection** | 2 killers vs 10 survivors on big Infection maps (Quarantine Woods, Outbreak Fairground). No cages: downed survivors rise as a random killer 3s later; every 60s the infected sense all survivors. Escape, or be the last survivor standing and survive a 45s last stand. |
 
 ## Killers
 
@@ -43,6 +55,9 @@ When the page is served by `node server.js`, everyone on that server uses its bu
 | **The Harrower** | *Bone Spear*: 3 regrowing spears | *Trophy Mark*: speared survivors are revealed | Trophy Hunt |
 | **The Lamplighter** | *Cursed Lanterns* reveal nearby survivors | *Shadow Step* (R): teleport to a lantern | Last Light |
 | **The Foreman** *(OFFAL crossover chapter)* | *Lights Out*: the whole map goes dark, fog closes in, he goes silent | *Hunts by Sound*: runners near him are revealed in the dark, and one hook hit downs | Reassignment |
+| **Chucky** *(Child's Play fan-made, third person)* | *Pounce*: coil and leap up to 10m over fences and pallets; landing on a survivor strikes them | *Laugh* (R) reveals survivors within 28m. *Jump* (Space) over windows and pallets. *Possession* (G, every 10 min): secretly take over a downed survivor; they become an invisible ghost. *Soul Split* (V, one generator left): jump into a spare doll, the old body hunts on but can't cage | Friends Till the End |
+| **Granny** *(Granny fan-made, Chapter VIII)* | *Bat Rush*: hold to wind up, release to charge 3–8m, steered with the mouse; crashes through windows, smashes dropped pallets (+2m each), strikes the first survivor in her way (downs a Heard survivor); fully wound up it ends in a Ground Slam; rushing into a wall stuns her | *I Hear You* (R) reveals everyone running, repairing, healing or unhooking and marks them Heard for 15s: her next hit on them downs. *Creep* (hold G, aim at a marker, release): teleport to any generator, hook, window or pallet, then a burst of speed. *Body Swap* (V): switch places with Spider Mom any time (hold to look through her eyes first). *Sharp Ears*: runners within 22m and failed skill checks are heard. *Spider Mom* patrols the generators; anyone she finds repairing is revealed and webbed (slowed). | Bedtime Trap |
+| **Patrick Bateman** *(American Psycho fan-made)* | *Chainsaw Toss*: a thrown chainsaw that downs on hit; go and pick it up | *Business Card* (R): intimidates (reveals + slows) survivors in front of him; speed burst after hits | Hip to Be Square |
 | **The Slimer** *(Ghostbusters fan-made)* | *Slime Spit*: puddles that slow and reveal survivors | *Ectoplasmic*: floats silently with a small terror radius | Slimed |
 
 Executions (**F**) work on a downed survivor who has been caged twice or on the last survivor alive.
@@ -93,11 +108,16 @@ There are three difficulties (Easy, Normal, Hard).
 | Context | Space: vault, drop barricade, skill check | Space: vault |
 | Flashlight | RMB (hold) | – |
 | Ghost Trap | G: set a trap that stuns the killer when he steps on it | – |
+| Taser | RMB (click): fire at the killer, who is electrocuted and frozen for 3s. 3 shots. Only found in chests (20% of them) | – |
 | After dying | T: take over a bot survivor, LMB: switch spectated player | – |
 | Attack / power | – | LMB / RMB (R: Shadow Step) |
 | Execute | – | F |
 
+**Chests** sit on every map (4, or 7 on the big Infection maps). Hold **E** to search one; what's inside is rolled when it opens: a fresh flashlight, ghost traps, or (one time in five) a Taser. Hold **E** at an open chest to swap: you take its item and leave yours behind, used up or not, for whoever comes next.
+
 Tab shows the scoreboard. Esc pauses. Settings has graphics presets (Very Low → High, auto-detected on first launch), dynamic resolution, an FPS counter, sensitivity, FOV, invert-Y and audio.
+
+The Slimer's model is "Ghostbuster's Slimer" by Nom (sketchfab.com/nomthewise), CC BY 4.0. Raghuvir's Realism outfit is "Ghostbusters - Dr. Ray Stantz" by spinningblade (sketchfab.com/jakeacc), CC BY 4.0. Bateman's axe is "Fire Axe" by denis_cliofas (sketchfab.com/denis_cliofas), CC BY 4.0. The ghost trap is "HW Detail #4 GHOST TRAP" by Kirumba86 (sketchfab.com/MorisKirumba86), CC BY 4.0. Ted (sidekick) is "Ted" by diegolitooliva36 (sketchfab.com/diegooliva), CC BY 4.0. Chucky's model is "Real-Time Chucky" by Leopoldo Rojas (sketchfab.com/HushDamacy), used under the Sketchfab Standard licence. Granny's model is "Granny official model pc (Granny 3)" by alessio.fnf.bf (sketchfab.com/alessio.fnf.bf), CC BY 4.0, animated with the clips from "Granny (7)" by Yandu27 (sketchfab.com/Yandu27), CC BY 4.0. Spider Mom and Granny's Grandpa outfit are the Granny 3 "Spider Mom" and "Grandpa" models by DVUnit (sketchfab.com/DVUnit), CC BY 4.0 (converted from specular-glossiness to metal-roughness). Granny's House is built from the "Granny 3" map model (every floor is playable: two staircases and a spiral staircase up to the tower room; per-floor collision is generated by tools/granny-map/upstairs.py) (converted from USDZ; see tools/granny-map). Granny, Grandpa and Spider Mom are characters by DVloper. The Bedtime Trap's bear trap is "Granny bear trap" by Eri Game Dev (sketchfab.com/blerko0178), CC BY 4.0. The Taser is "Taser Gun" by Mati236 (sketchfab.com/chenjunliu6), CC BY 4.0. The Foreman's limited edition Dark Knight outfit is "Batman" by #3D $Resource$ (sketchfab.com/lopuh22721), CC BY 4.0, auto-skinned to the Foreman's skeleton; Batman is a DC character, used here as a fan-made outfit not affiliated with DC. Chucky, Patrick Bateman, Granny and the Ghostbusters characters are fan-made crossovers, not affiliated with or endorsed by their rights holders.
 
 ## Development
 

@@ -3,7 +3,12 @@
 import * as THREE from 'three';
 import { tex } from './textures.js';
 import { makeForemanGlb, animateGlb } from './foremanGlb.js';
+import { makeChuckyGlb, animateChucky } from './chuckyGlb.js';
+import { makeGrannyGlb, animateGranny } from './grannyGlb.js';
+import { makeRealism } from './realism.js';
+import { makeStaticKiller, animateStaticKiller, cloneStatic } from './glbModels.js';
 import { applySkinFx } from './skinfx.js';
+import { GFX, realistic, surface } from './gfx.js';
 
 // ---------- aura material ----------
 const auraMats = new Map();
@@ -27,8 +32,11 @@ const stdCache = new Map();
 export const DETAIL = { lite: false, seg: 1 };
 export function setDetail(quality) {
   const lite = quality === 'potato' || quality === 'low';
-  if (lite !== DETAIL.lite) stdCache.clear();
-  DETAIL.lite = lite; DETAIL.seg = quality === 'potato' ? 0.5 : quality === 'low' ? 0.7 : 1;
+  // the realistic look rounds characters out with more polygons
+  const seg = realistic() ? ({ potato: 0.5, low: 0.8, medium: 1.35, high: 1.7 }[quality] ?? 1) : quality === 'potato' ? 0.5 : quality === 'low' ? 0.7 : 1;
+  const style = GFX.style;
+  if (lite !== DETAIL.lite || style !== DETAIL.style) stdCache.clear();
+  DETAIL.lite = lite; DETAIL.seg = seg; DETAIL.style = style;
 }
 export function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
@@ -38,7 +46,12 @@ export function mat(color, opts = {}) {
     stdCache.set(key, m);
     return m;
   }
-  const m = new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0, ...(opts.emissive ? { emissive: opts.emissive, emissiveIntensity: opts.ei ?? 1 } : {}), ...(opts.map ? { map: tex(opts.map).map, normalMap: tex(opts.map).normalMap } : {}), ...(opts.transparent ? { transparent: true, opacity: opts.opacity } : {}), ...(opts.side ? { side: opts.side } : {}) });
+  const base = { color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0, ...(opts.emissive ? { emissive: opts.emissive, emissiveIntensity: opts.ei ?? 1 } : {}), ...(opts.map ? { map: tex(opts.map).map, normalMap: tex(opts.map).normalMap } : {}), ...(opts.transparent ? { transparent: true, opacity: opts.opacity } : {}), ...(opts.side ? { side: opts.side } : {}) };
+  const m = (opts.map && surface(opts.map, base)) || new THREE.MeshStandardMaterial(base);
+  if (realistic()) {
+    if (m.normalMap) m.normalScale.set(1.6, 1.6);
+    m.envMapIntensity = (opts.metal ?? 0) > 0.4 ? 1.2 : 0.55;
+  }
   stdCache.set(key, m);
   return m;
 }
@@ -254,10 +267,13 @@ export function makeSurvivor(def, sk = {}) {
   };
   if (def.big) R.root.scale.set(1.13, 1.05, 1.16);
   applySkinFx(R, sk);
+  // realistic outfits: a rigged model posed from this (hidden) procedural rig
+  if (sk.glb) { const X = makeRealism(sk.glb, R); if (X) return X; }
   return R;
 }
 
 export function makeKiller(id, sk = {}) {
+  if (id === 'slimer') { const g = makeStaticKiller('slimer', sk); if (g) return g; }
   if (id === 'slimer') {
     const R = new Rig();
     // The Slimer (fan-made): a floating translucent green glutton with a huge mouth and a ghostly tail
@@ -278,6 +294,9 @@ export function makeKiller(id, sk = {}) {
     applySkinFx(R, sk);
     return R;
   }
+  if (id === 'bateman') return makeBateman(sk);
+  if (id === 'chucky') return makeChuckyGlb(sk, DETAIL.lite) || makeDoll(sk);
+  if (id === 'granny') { const g = makeGrannyGlb(sk, DETAIL.lite); if (g) return g; }
   if (id === 'foreman') { const g = makeForemanGlb(sk, DETAIL.lite); if (g) { applySkinFx(g, sk); return g; } }
   const R = new Rig();
   if (id === 'foreman') {
@@ -404,11 +423,165 @@ export function makeKiller(id, sk = {}) {
   return R;
 }
 
+// Patrick Bateman (American Psycho, fan-made): a charcoal pinstripe double-breasted suit,
+// crisp white shirt, red silk tie, slicked-back hair, a cigar in one hand and an axe in the other.
+function makeBateman(sk) {
+  const R = new Rig();
+  const skinM = mat(0xe9c6a8, { map: 'skin', rough: 0.5 });
+  const suit = mat(sk.suit ?? 0x30353c, { map: sk.suit ? 'cloth' : 'pinstripe', rough: 0.7 });
+  const shirt = mat(sk.shirt ?? 0xf4f2ee, { map: 'cloth', rough: 0.6 });
+  const tieM = mat(sk.tie ?? 0xc0262a, { map: 'cloth', rough: 0.45 });
+  const hair = mat(0x241710, { rough: 0.35 });
+  const shoes = mat(0x0c0c0c, { map: 'leather', rough: 0.25 });
+  const robe = sk.id === 'morning';
+  buildBody(R, { skin: skinM, top: suit, sleeve: suit, forearm: suit, hand: skinM, pants: robe ? skinM : sk.saw ? mat(0x26282c, { map: 'cloth', rough: 0.8 }) : suit, shoes: robe ? mat(0xf2efe8, { map: 'cloth' }) : shoes, hair, bulk: 1.04, legLen: 0.48, eye: 0x4a5a6a });
+  // slicked-back hair with a little lift at the front
+  R.mesh('head', G.sph(0.106, 18, 12), hair, 0, 0.14, -0.018, -0.12, 0, 0, 0.94, 0.7, 1.08);
+  R.mesh('head', G.sph(0.07, 12, 8), hair, 0.008, 0.185, 0.035, 0.3, 0, 0.08, 1.25, 0.42, 1.0);
+  for (const s of [-1, 1]) R.mesh('head', G.sph(0.03, 8, 6), hair, s * 0.085, 0.13, -0.02, 0, 0, 0, 0.5, 1.1, 1.2, false);
+  // shirt collar and front, red tie
+  R.mesh('spine', G.tor(0.056, 0.016), shirt, 0, 0.56, 0.01, Math.PI / 2 - 0.1, 0, 0, 1.1, 1, 0.85);
+  if (sk.saw) {
+    // Bloodbath: no jacket, a white shirt soaked through
+    const blood = mat(0x7a0606, { rough: 0.2 }), dried = mat(0x4a0404, { rough: 0.4 });
+    for (const [x, y, z, sx, sy, m] of [[0.04, 0.4, 0.12, 0.09, 0.14, blood], [-0.07, 0.25, 0.115, 0.06, 0.1, dried], [0.08, 0.12, 0.1, 0.05, 0.08, blood], [-0.02, 0.05, 0.11, 0.08, 0.05, dried], [0.12, 0.33, 0.07, 0.04, 0.07, blood]])
+      R.mesh('spine', G.sph(1, 10, 8), m, x, y, z, 0, 0, 0, sx, sy, 0.012, false);
+    for (const s of ['L', 'R']) R.mesh('el' + s, G.sph(1, 8, 6), blood, 0, -0.18, 0.03, 0, 0, 0, 0.035, 0.07, 0.03, false);
+    R.mesh('head', G.sph(1, 8, 6), blood, 0.04, 0.06, 0.085, 0, 0, 0, 0.025, 0.035, 0.01, false);
+  } else if (!robe) {
+    R.mesh('spine', G.box(0.11, 0.2, 0.02), shirt, 0, 0.44, 0.105, -0.1, 0, 0);
+    R.mesh('spine', G.box(0.04, 0.035, 0.03), tieM, 0, 0.53, 0.115, 0, 0, 0, 1, 1, 1, false);
+    R.mesh('spine', G.box(0.05, 0.24, 0.012), tieM, 0, 0.4, 0.118, -0.1, 0, 0, 1, 1, 1, false);
+    // double-breasted jacket: wide peaked lapels, six buttons, a pocket square
+    for (const s of [-1, 1]) R.mesh('spine', G.box(0.075, 0.24, 0.02), suit, s * 0.068, 0.42, 0.112, -0.12, 0, s * -0.42, 1, 1, 1, false);
+    R.mesh('spine', G.box(0.2, 0.3, 0.02), suit, 0.012, 0.18, 0.112, 0, 0, 0, 1, 1, 1, false);
+    const btn = mat(0x15171a, { rough: 0.3 });
+    for (let r = 0; r < 3; r++) for (const s of [-1, 1]) R.mesh('spine', G.sph(0.011, 6, 4), btn, s * 0.06, 0.27 - r * 0.075, 0.125, 0, 0, 0, 1, 1, 0.6, false);
+    R.mesh('spine', G.box(0.05, 0.02, 0.01), shirt, -0.1, 0.4, 0.118, 0, 0, 0, 1, 1, 1, false);
+    // white shirt cuffs
+    for (const s of ['L', 'R']) R.mesh('el' + s, G.cyl(0.028, 0.027, 0.03, 10), shirt, 0, -0.255, 0, 0, 0, 0, 1, 1, 1, false);
+  } else {
+    // Morning Routine: towelling robe, herb-mint mask, Walkman headphones
+    R.mesh('hips', lathe(0.62, [[0, 0.18], [0.5, 0.21], [1, 0.22]], 'down', 16), mat(0xf2efe8, { map: 'cloth', rough: 1, side: THREE.DoubleSide }), 0, 0.12, 0);
+    R.mesh('spine', G.box(0.03, 0.4, 0.02), mat(0xe2ded6, { map: 'cloth' }), 0, 0.3, 0.12, 0, 0, 0.35, 1, 1, 1, false);
+    R.mesh('head', G.sph(0.098, 16, 12), mat(sk.mask ?? 0xd8ead0, { rough: 0.9 }), 0, 0.085, 0.022, 0, 0, 0, 0.84, 0.9, 0.95);
+    for (const s of [-1, 1]) {
+      R.mesh('head', G.sph(0.022, 8, 6), mat(0x1a1a1a), s * 0.034, 0.112, 0.094, 0, 0, 0, 1.2, 0.8, 0.5, false);
+      R.mesh('head', G.cyl(0.04, 0.04, 0.03, 12), mat(0x2a2a2e, { rough: 0.4 }), s * 0.1, 0.1, 0, 0, 0, Math.PI / 2, 1, 1, 1, false);
+    }
+    R.mesh('head', G.tor(0.105, 0.008, Math.PI), mat(0x2a2a2e, { metal: 0.5, rough: 0.4 }), 0, 0.12, 0, 0, Math.PI / 2, 0);
+    R.mesh('hips', G.box(0.09, 0.12, 0.03), mat(0x3a3a40, { metal: 0.4, rough: 0.4 }), 0.14, 0.02, 0.1, 0, 0.5, 0, 1, 1, 1, false);
+  }
+  // Hip to Be Square: a clear plastic raincoat over everything
+  if (sk.rain) {
+    const plastic = mat(0xdfeaf0, { rough: 0.08, metal: 0.1, transparent: true, opacity: 0.32, side: THREE.DoubleSide });
+    R.mesh('spine', lathe(0.62, [[0, 0.16], [0.4, 0.2], [0.85, 0.215], [1, 0.12]], 'up', 18), plastic, 0, -0.04, 0, 0, 0, 0, 1.12, 1, 0.82);
+    R.mesh('hips', lathe(0.75, [[0, 0.2], [0.5, 0.25], [1, 0.3]], 'down', 18), plastic, 0, 0.1, 0, 0, 0, 0, 1.08, 1, 0.85);
+    for (const s of ['L', 'R']) { R.mesh('sh' + s, lathe(0.3, [[0, 0.065], [1, 0.05]], 'down', 10), plastic); R.mesh('el' + s, lathe(0.25, [[0, 0.05], [1, 0.045]], 'down', 10), plastic); }
+  }
+  // right hand: the axe (or the chainsaw in the Bloodbath outfit)
+  const steel = mat(0xb8bcc0, { map: 'metal', metal: 0.85, rough: 0.25 });
+  if (sk.saw) {
+    const g = chainsawParts();
+    for (const [geo, m, x, y, z, rx, ry, rz] of g) R.mesh('handR', geo, m, x, y - 0.06, z + 0.1, rx, ry, rz);
+  } else if (!cloneStatic('axe')) {
+    R.mesh('handR', G.cyl(0.018, 0.022, 0.78, 8), mat(0x6a4a2a, { map: 'wood', rough: 0.6 }), 0, -0.05, 0.2, Math.PI / 2, 0, 0);
+    R.mesh('handR', G.box(0.03, 0.18, 0.14), steel, 0, 0.03, 0.56);
+    R.mesh('handR', G.box(0.022, 0.06, 0.05), steel, 0, -0.06, 0.62, 0.5, 0, 0, 1, 1, 1, false);
+  }
+  // left hand: a cigar
+  if (!robe) {
+    R.mesh('handL', G.cyl(0.009, 0.01, 0.13, 8), mat(0x5a3a1e, { rough: 0.8 }), 0.02, -0.09, 0.05, 1.3, 0, 0.3);
+    R.mesh('handL', G.sph(0.011, 6, 4), mat(0xff6a20, { emissive: 0xff4a10, ei: 3 }), 0.035, -0.1, 0.115, 0, 0, 0, 1, 1, 1, false);
+  }
+  R.kind = 'killer'; R.killer = 'bateman';
+  R.root.scale.setScalar(1.07);
+  R.finalize();
+  // the real fire axe (model) in his right hand
+  if (!sk.saw) { const axe = cloneStatic('axe'); if (axe) { const fist = new THREE.Group(); fist.position.set(0, -0.05, 0.02); fist.add(gripAxe(axe, new THREE.Vector3(0, -0.5, 1), new THREE.Vector3(0, -1, 0), 0.14)); R.j.handR.add(fist); } }
+  applySkinFx(R, sk);
+  return R;
+}
+// stand-in Good Guy doll while the real model loads (or if it can't): overalls, a striped
+// shirt, red hair and a kitchen knife, at doll size
+function makeDoll(sk) {
+  const R = new Rig();
+  const skin = mat(sk.tint ?? 0xf0c8a8, { map: 'skin', rough: 0.45 });
+  const denim = mat(0x3a5a9a, { map: 'cloth', rough: 0.9 }), shirt = mat(0xd84a3a, { map: 'cloth' }), hair = mat(0xd8501a, { rough: 0.8 });
+  buildBody(R, { skin, top: shirt, sleeve: shirt, forearm: shirt, hand: skin, pants: denim, shoes: mat(0xe8e8e8, { rough: 0.6 }), hair, bulk: 1.1, legLen: 0.4, eye: 0x2a5aa0 });
+  R.mesh('spine', G.box(0.3, 0.28, 0.24), denim, 0, 0.18, 0.005);
+  R.mesh('head', G.sph(0.12, 14, 10), hair, 0, 0.15, -0.02, 0, 0, 0, 1, 0.7, 1.05);
+  R.mesh('handR', G.box(0.012, 0.03, 0.24), mat(0xc8ccd0, { metal: 0.8, rough: 0.25 }), 0, -0.07, 0.15);
+  R.root.scale.setScalar(0.55);
+  R.kind = 'killer'; R.killer = 'chucky';
+  R.finalize();
+  return R;
+}
+// Put the axe model in a fist: works out which way its handle runs and which end is the head
+// (the end with the wider cross-section) and which way the blade's edge faces, then turns it so
+// the handle runs along `fwd` from the fist, the edge faces `edge`, and the grip (`grip` of the
+// way up from the butt) sits exactly at the fist's origin.
+const _axeInfo = { v: null };
+function axeInfo(axe) {
+  if (_axeInfo.v) return _axeInfo.v;
+  axe.updateMatrixWorld(true);
+  const pts = [], inv = new THREE.Matrix4().copy(axe.matrixWorld).invert(), m = new THREE.Matrix4(), v = new THREE.Vector3();
+  axe.traverse(o => { if (!o.isMesh) return; m.multiplyMatrices(inv, o.matrixWorld); const P = o.geometry.attributes.position; const step = Math.max(1, Math.floor(P.count / 4000)); for (let i = 0; i < P.count; i += step) pts.push(v.fromBufferAttribute(P, i).applyMatrix4(m).toArray()); });
+  const lo = [0, 1, 2].map(k => Math.min(...pts.map(p => p[k]))), hi = [0, 1, 2].map(k => Math.max(...pts.map(p => p[k])));
+  const a = [0, 1, 2].reduce((x, k) => hi[k] - lo[k] > hi[x] - lo[x] ? k : x, 0), len = hi[a] - lo[a];
+  const others = [0, 1, 2].filter(k => k !== a);
+  const band = (f0, f1) => pts.filter(p => p[a] >= lo[a] + f0 * len && p[a] <= lo[a] + f1 * len);
+  const spread = (P, k) => P.length ? Math.max(...P.map(p => p[k])) - Math.min(...P.map(p => p[k])) : 0;
+  const low = band(0, 0.2), high = band(0.8, 1), mid = band(0.3, 0.6);
+  const head = spread(high, others[0]) + spread(high, others[1]) > spread(low, others[0]) + spread(low, others[1]) ? 1 : -1;
+  const H = head > 0 ? high : low;
+  const bAx = spread(H, others[0]) >= spread(H, others[1]) ? others[0] : others[1], cAx = others.find(k => k !== bAx);
+  const med = k => { const s = mid.map(p => p[k]).sort((x, y) => x - y); return s[s.length >> 1] || 0; };
+  const cb = med(bAx), cc = med(cAx);
+  const edge = Math.max(...H.map(p => p[bAx])) - cb >= cb - Math.min(...H.map(p => p[bAx])) ? 1 : -1;
+  const unit = (k, sgn) => { const u = new THREE.Vector3(); u.setComponent(k, sgn); return u; };
+  _axeInfo.v = { along: unit(a, head), edge: unit(bAx, edge), butt: head > 0 ? lo[a] : hi[a], len, a, bAx, cAx, cb, cc };
+  return _axeInfo.v;
+}
+function gripAxe(axe, fwd, edge, grip = 0.12, scale = 1) {
+  const I = axeInfo(axe);
+  const f = fwd.clone().normalize(), e = edge.clone().addScaledVector(f, -edge.dot(f)).normalize();
+  const S = new THREE.Matrix4().makeBasis(I.along, I.edge, I.along.clone().cross(I.edge));
+  const T = new THREE.Matrix4().makeBasis(f, e, f.clone().cross(e));
+  axe.quaternion.setFromRotationMatrix(T.multiply(S.transpose()));
+  axe.scale.setScalar(scale);
+  const p = new THREE.Vector3(); p.setComponent(I.a, I.butt); p.setComponent(I.bAx, I.cb); p.setComponent(I.cAx, I.cc);
+  p.addScaledVector(I.along, grip * I.len);
+  axe.position.copy(p.applyQuaternion(axe.quaternion).multiplyScalar(-scale));
+  return axe;
+}
+// chainsaw parts as [geo, material, x, y, z, rx, ry, rz] (shared by the prop and the outfit)
+function chainsawParts() {
+  const body = mat(0xd89a1e, { rough: 0.5 }), dark = mat(0x1a1a1a, { rough: 0.5 }), bar = mat(0x9a9ea2, { map: 'metal', metal: 0.8, rough: 0.3 });
+  return [
+    [G.box(0.12, 0.16, 0.3), body, 0, 0, 0, 0, 0, 0],
+    [G.box(0.1, 0.05, 0.12), dark, 0, 0.1, -0.04, 0, 0, 0],
+    [G.tor(0.06, 0.012, Math.PI), dark, 0, 0.1, 0.06, 0, Math.PI / 2, 0],
+    [G.box(0.025, 0.06, 0.55), bar, 0, -0.02, 0.4, 0, 0, 0],
+    [G.box(0.03, 0.075, 0.57), mat(0x2a2a2a, { metal: 0.6, rough: 0.4 }), 0, -0.02, 0.4, 0, 0, 0],
+  ];
+}
+export function makeChainsaw() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  for (const [geo, m, x, y, z, rx, ry, rz] of chainsawParts()) { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z - 0.2); me.rotation.set(rx, ry, rz); me.castShadow = true; inner.add(me); }
+  g.userData.inner = inner;
+  return g;
+}
+
 // ---------- animation ----------
 const lerp = (a, b, k) => a + (b - a) * k;
 // s: { anim, speed, crouch, injured, t, atk, vaultF, ... }
 export function animate(R, s, dt) {
   if (R.fxTick) R.fxTick(dt, (R.t || 0) + dt);
+  if (R.retarget) { animate(R.proc, s, dt); R.copy(); return; }
+  if (R.staticGlb) return animateStaticKiller(R, s, dt);
+  if (R.chucky) return animateChucky(R, s, dt);
+  if (R.granny) return animateGranny(R, s, dt);
   if (R.glb) return animateGlb(R, s, dt);
   R.t += dt;
   const t = R.t;
@@ -448,8 +621,18 @@ export function animate(R, s, dt) {
     P.tiltX = 1.57; P.shL = -1.5 + Math.sin(t * 7) * 0.2; P.shR = -1.6 + Math.sin(t * 7 + 1) * 0.2; P.lgL = -1.3; P.lgR = -1.4; P.knL = 0.6; P.knR = 0.4; P.headX = 0.4;
     if (s.struggle) { P.lgL += Math.sin(t * 14) * 0.4; P.lgR -= Math.sin(t * 14) * 0.4; }
   } else if (a === 'caged') {
-    P.shL = -2.7 + Math.sin(t * 1.3) * 0.05; P.shR = -2.75; P.elL = -0.3; P.elR = -0.35; P.headX = 0.3; P.spineX += 0.05;
-    P.hipsY = Math.sin(t * 1.3) * 0.01;
+    // hanging from the hook by the left shoulder: that hand clutches at the hook overhead, the
+    // other arm and the legs dangle; in the struggle phase they thrash against the Entity's legs
+    const sw = Math.sin(t * 1.1);
+    if (s.hookPhase >= 2) {
+      const f = Math.sin(t * 7), g = Math.sin(t * 9 + 1);
+      P.shL = -2.85 + f * 0.15; P.elL = -0.5; P.shLz = 0.15; P.shR = -1.6 + g * 0.9; P.shRz = -0.5; P.elR = -0.9 + f * 0.4;
+      P.lgL = -0.3 + f * 0.45; P.lgR = -0.3 - f * 0.45; P.knL = 0.6 + g * 0.3; P.knR = 0.6 - g * 0.3; P.headX = -0.35 + g * 0.1; P.spineX -= 0.1; P.spineY = f * 0.15;
+    } else {
+      P.shL = -2.8 + sw * 0.04; P.elL = -0.45; P.shLz = 0.2; P.shR = 0.12 + sw * 0.08; P.shRz = -0.12; P.elR = -0.25;
+      P.lgL = 0.08 + sw * 0.06; P.lgR = -0.06 - sw * 0.06; P.knL = 0.25; P.knR = 0.35; P.headX = 0.45; P.spineX += 0.08; P.spineY = sw * 0.05;
+    }
+    P.tiltY = sw * 0.08;
   } else if (a === 'sit') {
     P.hipsY = -0.46; P.lgL = -1.5; P.lgR = -1.42; P.knL = 1.55; P.knR = 1.4; P.spineX += 0.28 + Math.sin(t * 1.4) * 0.015;
     P.shL = -0.75; P.shR = -0.62; P.elL = -0.95; P.elR = -1.05; P.headX = 0.12 + Math.sin(t * 0.4) * 0.06; P.lgLz = 0.1;
@@ -459,12 +642,31 @@ export function animate(R, s, dt) {
   } else if (a === 'vault') {
     P.tiltX = 0.55; P.lgL = -1.5; P.lgR = -1.1; P.knL = 1.7; P.knR = 1.2; P.shL = -1.6; P.shR = -1.4; P.hipsY = 0;
   }
+  // ---- emotes (survivors) ----
+  if (s.emote && (a === 'idle' || a === 'walk')) {
+    const e = s.emoteT || 0, k = Math.min(1, e * 4), T = {};
+    if (s.emote === 1) { // dance: bounce on the beat, arms pumping, hips and shoulders swaying
+      const b = e * 6.5, sb = Math.sin(b), hb = Math.sin(b / 2);
+      Object.assign(T, { hipsY: -0.07 + Math.abs(sb) * 0.07, spineY: hb * 0.4, spineX: 0.05 + Math.abs(sb) * 0.08, headX: sb * 0.15, shL: -1.5 + sb * 1.1, shR: -1.5 - sb * 1.1, shLz: 0.35, shRz: -0.35, elL: -1.3, elR: -1.3, lgL: hb * 0.35, lgR: -hb * 0.35, knL: 0.15 + Math.max(0, sb) * 0.55, knR: 0.15 + Math.max(0, -sb) * 0.55, tiltY: hb * 0.12 });
+    } else if (s.emote === 2) { // wave: arm up and out, hand swinging
+      Object.assign(T, { shR: -2.5, shRz: -0.55, elR: -0.7 + Math.sin(e * 11) * 0.55, spineY: -0.15, headX: -0.08, shL: 0.1, elL: -0.2 });
+    } else if (s.emote === 3) { // cheer: both fists pumping overhead with a hop
+      const w = Math.sin(e * 9);
+      Object.assign(T, { shL: -2.85 + w * 0.3, shR: -2.85 - w * 0.3, shLz: 0.25, shRz: -0.25, elL: -0.25, elR: -0.25, hipsY: Math.max(0, w) * 0.09, headX: -0.25, knL: 0.15 + Math.max(0, -w) * 0.3, knR: 0.15 + Math.max(0, -w) * 0.3 });
+    } else if (s.emote === 4) { // bow: hand across the chest, deep bend, back up
+      const d = Math.sin(Math.min(1, e / 2.4) * Math.PI);
+      Object.assign(T, { spineX: (R.hunch || 0) + 0.95 * d, headX: 0.35 * d, shR: -0.85, shRz: 0.65, elR: -1.9, shL: 0.35 * d, shLz: 0.15, elL: -0.2, lgR: 0.2 * d, knL: 0.1 + 0.15 * d });
+    }
+    for (const key in T) P[key] = lerp(P[key] ?? 0, T[key], k);
+  }
   if (s.injured && (a === 'walk' || a === 'run' || a === 'idle')) { P.spineX += 0.12; P.shL = -0.55; P.elL = -1.7; P.shLz = -0.2; }
   if (s.flash && R.kind !== 'killer') { P.shR = -1.45; P.elR = -0.12; P.shRz = -0.05; } // torch held out in front
   // hit reaction: jolt forward, arch back, arms flung out
   if (s.hitF != null && s.hitF < 1 && a !== 'down') {
-    const j = Math.sin(s.hitF * Math.PI);
-    P.spineX -= 0.55 * j; P.headX -= 0.6 * j; P.shLz += 0.9 * j; P.shRz -= 0.9 * j; P.shL -= 0.6 * j; P.shR -= 0.5 * j; P.elL -= 0.6 * j; P.elR -= 0.6 * j;
+    // the blow lands: snap forward and twist away, head whips back, arms fly, then a stumbling step
+    const j = Math.sin(Math.min(1, s.hitF * 1.6) * Math.PI), st = Math.sin(Math.max(0, s.hitF - 0.3) / 0.7 * Math.PI);
+    P.spineX -= 0.65 * j; P.spineY += 0.45 * j; P.headX -= 0.8 * j; P.shLz += 1.0 * j; P.shRz -= 1.0 * j; P.shL -= 0.7 * j; P.shR -= 0.6 * j; P.elL -= 0.8 * j; P.elR -= 0.7 * j;
+    P.lgL -= 0.55 * st; P.knL += 0.7 * st; P.lgR += 0.25 * st; P.spineX += 0.35 * st; P.tiltX -= 0.08 * j;
   }
   // collapsing to the ground
   if (a === 'down' && s.fallF != null && s.fallF < 1) {
@@ -503,7 +705,7 @@ export function animate(R, s, dt) {
     const downPose = () => { P.tiltX = 1.45; P.hipsY = -0.75; P.shL = -2.5; P.shR = -2.4; P.elL = -0.3; P.elR = -0.3; P.lgL = 0.1; P.lgR = -0.1; P.knL = 0.3; P.knR = 0.3; P.headX = -0.5; P.spineX = 0; };
     if (s.exec.role === 'killer') {
       P.spineX = R.hunch || 0; P.spineY = 0; P.lgL = 0; P.lgR = 0; P.knL = 0.05; P.knR = 0.05; P.hipsY = 0;
-      if (ch === 'butcher') {
+      if (ch === 'butcher' || ch === 'bateman') {
         if (f < 0.2) { P.spineX += 0.75; P.knL = P.knR = 0.7; P.lgL = P.lgR = -0.45; P.hipsY = -0.14; P.shL = -1.2; P.shR = -0.5; }
         else {
           P.shL = -1.75; P.elL = -0.25;
@@ -521,7 +723,7 @@ export function animate(R, s, dt) {
         else { P.shR = -1.2; P.shL = -0.5; P.spineY = -0.5; }
       }
     } else {
-      if (ch === 'butcher') {
+      if (ch === 'butcher' || ch === 'bateman') {
         if (f < 0.2 || f > 0.86) downPose();
         else {
           const alive = f < 0.6 ? 1 : 0.2;
@@ -529,6 +731,19 @@ export function animate(R, s, dt) {
           P.shL = -2.2 * alive + Math.sin(t * 11) * 0.3 * alive; P.elL = -1.6 * alive; P.shR = -1.9 * alive; P.elR = -1.5 * alive;
           P.lgL = Math.sin(t * 13) * 0.5 * alive - 0.1; P.lgR = -Math.sin(t * 13) * 0.5 * alive - 0.1; P.knL = 0.5; P.knR = 0.4;
         }
+      } else if (ch === 'granny') {
+        // hauled onto their knees, then pushed face-first into the trap in front of them
+        if (f < 0.1) downPose();
+        else {
+          const push = ramp(0.36, 0.55), alive = 1 - ramp(0.6, 0.85);
+          P.tiltX = push * 0.35; P.hipsY = -0.48; P.lgL = P.lgR = 0.05; P.knL = P.knR = 1.55;
+          P.spineX = 0.15 + push * 1.05; P.headX = -0.35 + push * 0.6;
+          if (f < 0.36) { P.shL = -0.9 + Math.sin(t * 10) * 0.25; P.shR = -0.8 - Math.sin(t * 9) * 0.25; P.elL = P.elR = -1.2; }
+          else { P.shL = -1.6 * alive - 0.2 + Math.sin(t * 17) * 0.4 * alive; P.shR = -1.5 * alive - 0.2 - Math.sin(t * 15) * 0.4 * alive; P.elL = P.elR = -0.3; }
+        }
+      } else if (ch === 'chucky') {
+        downPose();
+        if (f > 0.28 && f < 0.85) { P.shL = -2.6 + Math.sin(t * 18) * 0.35; P.shR = -2.5 - Math.sin(t * 15) * 0.35; P.knL = 0.5 + Math.sin(t * 13) * 0.3; P.headX = -0.7 + Math.sin(t * 20) * 0.1; }
       } else if (ch === 'wisp') {
         const life = 1 - ramp(0.45, 0.8);
         P.tiltX = 0; P.hipsY = 0; P.headX = -0.6 + (1 - life) * 1.0; P.spineX = -0.05;
@@ -556,7 +771,8 @@ export function animate(R, s, dt) {
     const f = s.exec.f;
     if (f >= 0.28) { P.tiltX = 0; P.hipsY = 0; P.headX = -0.9; P.spineX = -0.1; P.shL = 0.2 + Math.sin(t * 9) * (f < 0.5 ? 0.4 : 0.05); P.shR = 0.15; P.elL = -0.2; P.elR = -0.3; P.lgL = 0.1 + Math.sin(t * 11) * (f < 0.5 ? 0.5 : 0); P.lgR = -0.1; P.knL = 0.3; P.knR = 0.4; }
   }
-  const k = 1 - Math.exp(-dt * (a === 'vault' ? 20 : s.exec ? 16 : (a === 'down' && s.fallF < 1) ? 5 : (s.atk === 1 ? 24 : 12)));
+  // executions blend more slowly between their beats (no snapping between poses)
+  const k = 1 - Math.exp(-dt * (a === 'vault' ? 20 : s.exec ? 8 : (a === 'down' && s.fallF < 1) ? 5 : (s.atk === 1 ? 24 : 12)));
   for (const key in P) R.pose[key] = lerp(R.pose[key] ?? P[key], P[key], k);
   const q = R.pose, j = R.j;
   j.tilt.rotation.x = q.tiltX;
@@ -571,18 +787,20 @@ export function animate(R, s, dt) {
 }
 
 // ---------- first-person killer viewmodel ----------
-export function makeViewModel(id) {
+export function makeViewModel(id, vsk = {}, real = {}) {
   const g = new THREE.Group();
   const arm = new THREE.Group(); g.add(arm);          // right arm + weapon, animated as a whole
   const add = (parent, geo, m, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.scale.set(sx, sy, sz); parent.add(me); return me; };
-  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a, foreman: 0xb89990, slimer: 0x7aff4a }[id];
+  const skin = { butcher: 0x9a7a68, wisp: 0xc9d6da, harrower: 0x3a2c20, lamplighter: 0x1a1d1a, foreman: 0xb89990, slimer: 0x7aff4a, bateman: 0xe9c6a8, granny: 0x9a8a80 }[id];
   const bk = id === 'butcher' ? 1.5 : id === 'harrower' ? 1.25 : id === 'wisp' ? 0.85 : 1;
-  const armM = mat(skin, { map: id === 'lamplighter' || id === 'harrower' ? 'cloth' : 'skin', rough: 0.75 });
-  const handM = id === 'lamplighter' ? mat(0x111111, { map: 'leather' }) : mat(skin, { map: 'skin', rough: 0.7 });
-  add(arm, lathe(0.42, [[0, 0.03 * bk], [0.3, 0.04 * bk], [0.75, 0.05 * bk], [1, 0.055 * bk]]), armM, 0, -0.02, 0.03, -Math.PI / 2, 0, 0);
-  add(arm, G.sph(0.045 * bk, 12, 10), handM, 0, -0.005, 0.0, 0, 0, 0, 1.0, 0.75, 1.15);
-  for (let i = 0; i < 4; i++) add(arm, G.cap(0.011 * bk, 0.03), handM, -0.028 * bk + i * 0.019 * bk, 0.022, -0.012, 0, 0, Math.PI / 2, 1, 1, 1);
-  add(arm, G.cap(0.012 * bk, 0.03), handM, 0.035 * bk, 0.015, 0.02, 0.6, 0, 0.4);
+  // (Batman: black armoured sleeves and gauntlets)
+  const armParts = [], leftParts = [];
+  const armM = real.armM || (vsk.batman ? mat(0x1a1c20, { map: 'leather', rough: 0.45 }) : id === 'bateman' ? mat(0x30353c, { map: 'pinstripe', rough: 0.7 }) : mat(skin, { map: id === 'lamplighter' || id === 'harrower' ? 'cloth' : 'skin', rough: 0.75 }));
+  const handM = real.handM || vsk.batman ? mat(0x121316, { map: 'leather', rough: 0.4 }) : id === 'lamplighter' ? mat(0x111111, { map: 'leather' }) : mat(skin, { map: 'skin', rough: 0.7 });
+  armParts.push(add(arm, lathe(0.42, [[0, 0.03 * bk], [0.3, 0.04 * bk], [0.75, 0.05 * bk], [1, 0.055 * bk]]), armM, 0, -0.02, 0.03, -Math.PI / 2, 0, 0));
+  armParts.push(add(arm, G.sph(0.045 * bk, 12, 10), handM, 0, -0.005, 0.0, 0, 0, 0, 1.0, 0.75, 1.15));
+  for (let i = 0; i < 4; i++) armParts.push(add(arm, G.cap(0.011 * bk, 0.03), handM, -0.028 * bk + i * 0.019 * bk, 0.022, -0.012, 0, 0, Math.PI / 2, 1, 1, 1));
+  armParts.push(add(arm, G.cap(0.012 * bk, 0.03), handM, 0.035 * bk, 0.015, 0.02, 0.6, 0, 0.4));
   const tip = new THREE.Object3D(), base = new THREE.Object3D();
   if (id === 'butcher') {
     add(arm, G.cyl(0.025, 0.03, 0.2), mat(0x3a2414), 0, 0.02, -0.05, Math.PI / 2, 0, 0);
@@ -596,8 +814,29 @@ export function makeViewModel(id) {
     add(arm, G.cyl(0.018, 0.022, 1.3), mat(0xd8ccae), 0, 0, -0.3, Math.PI / 2, 0, 0);
     add(arm, G.cone(0.04, 0.2, 6), mat(0xd8ccae), 0, 0, -1.04, -Math.PI / 2, 0, 0);
     tip.position.set(0, 0, -1.1); base.position.set(0, 0, -0.5);
+  } else if (id === 'bateman') {
+    add(arm, G.cyl(0.033, 0.032, 0.04, 10), mat(0xf4f2ee, { map: 'cloth' }), 0, -0.01, 0.03, -Math.PI / 2, 0, 0);
+    const axe = cloneStatic('axe');
+    if (axe) { const fist = new THREE.Group(); fist.position.set(0, 0.0, -0.01); arm.add(fist); fist.add(gripAxe(axe, new THREE.Vector3(0, Math.sin(0.3), -Math.cos(0.3)), new THREE.Vector3(0, -Math.cos(0.3), -Math.sin(0.3)), 0.1, 0.8)); }
+    else {
+      add(arm, G.cyl(0.018, 0.022, 0.7, 8), mat(0x6a4a2a, { map: 'wood', rough: 0.6 }), 0, 0.02, -0.25, Math.PI / 2, 0, 0);
+      add(arm, G.box(0.03, 0.2, 0.15), mat(0xb8bcc0, { map: 'metal', metal: 0.85, rough: 0.25 }), 0, 0.09, -0.56);
+    }
+    tip.position.set(0, 0.18, -0.6); base.position.set(0, 0.02, -0.3);
+  } else if (id === 'granny') {
+    // her bloody baseball bat: one piece, gripped at the handle, tip raised a little
+    const bat = new THREE.Group(); bat.position.set(0, 0.0, -0.02); bat.rotation.x = 0.28; arm.add(bat);
+    const wood = mat(0xb08858, { map: 'wood', rough: 0.55 }), blood = mat(0x6a0505, { rough: 0.15 });
+    add(bat, G.cyl(0.024, 0.02, 0.3, 10), mat(0x6a4426, { map: 'wood', rough: 0.6 }), 0, 0, -0.1, Math.PI / 2, 0, 0);
+    add(bat, G.cyl(0.044, 0.026, 0.4, 12), wood, 0, 0, -0.45, Math.PI / 2, 0, 0);
+    add(bat, G.cyl(0.046, 0.044, 0.2, 12), blood, 0, 0, -0.73, Math.PI / 2, 0, 0);
+    add(bat, G.sph(0.046, 10, 8), blood, 0, 0, -0.83, 0, 0, 0, 1, 1, 0.6);
+    tip.position.set(0, Math.sin(0.28) * 0.83, -Math.cos(0.28) * 0.83); base.position.set(0, Math.sin(0.28) * 0.25, -Math.cos(0.28) * 0.25);
+  } else if (id === 'slimer') {
+    // no weapon: he grabs with his slimy hands
+    tip.position.set(0, 0.02, -0.12); base.position.set(0, 0, 0.05);
   } else if (id === 'foreman') {
-    const steel = mat(0x8a8a88, { map: 'metal', metal: 0.8, rough: 0.35 });
+    const steel = vsk.batman ? mat(0x1a1c20, { map: 'metal', metal: 0.85, rough: 0.3 }) : mat(0x8a8a88, { map: 'metal', metal: 0.8, rough: 0.35 });
     add(arm, G.cyl(0.014, 0.014, 0.25, 6), steel, 0, 0.03, -0.14, Math.PI / 2, 0, 0);
     add(arm, G.tor(0.13, 0.016, Math.PI * 1.35), steel, 0, 0.06, -0.38, Math.PI / 2, Math.PI, Math.PI * 0.35);
     tip.position.set(0, 0.12, -0.5); base.position.set(0, 0.02, -0.2);
@@ -606,6 +845,12 @@ export function makeViewModel(id) {
     add(arm, G.tor(0.1, 0.014, Math.PI * 1.2), mat(0x2a2a28, { metal: 0.7 }), 0, 0.06, -1.15, 0, Math.PI / 2, 0);
     tip.position.set(0, 0.1, -1.2); base.position.set(0, 0, -0.6);
   }
+  // the killer's own forearm and hand (and weapon, if the model holds one) from their model
+  if (real.R) {
+    for (const m of armParts) m.visible = false;
+    if (real.R.weapon) { for (const o of arm.children) if (!armParts.includes(o)) o.visible = false; tip.position.copy(real.R.tip); base.position.copy(real.R.base); }
+    arm.add(real.R.group);
+  }
   arm.add(tip); arm.add(base);
   // blood smear on the business end, revealed after a hit
   const bloodMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshStandardMaterial({ color: 0x5a0505, roughness: 0.15, transparent: true, opacity: 0 }));
@@ -613,15 +858,21 @@ export function makeViewModel(id) {
   arm.add(bloodMesh); g.userData.bloodMesh = bloodMesh;
   // left hand (holds the lantern for the Lamplighter)
   const left = new THREE.Group(); g.add(left);
-  add(left, lathe(0.4, [[0, 0.03 * bk], [0.3, 0.04 * bk], [0.75, 0.05 * bk], [1, 0.055 * bk]]), armM, 0, 0, 0.03, -Math.PI / 2, 0, 0);
-  add(left, G.sph(0.045 * bk, 12, 10), handM, 0, 0, 0, 0, 0, 0, 1.0, 0.7, 1.2);
-  for (let i = 0; i < 4; i++) add(left, G.cap(0.01 * bk, 0.045), handM, -0.026 * bk + i * 0.018 * bk, -0.005, -0.06, -Math.PI / 2 + 0.3, 0, 0);
+  leftParts.push(add(left, lathe(0.4, [[0, 0.03 * bk], [0.3, 0.04 * bk], [0.75, 0.05 * bk], [1, 0.055 * bk]]), armM, 0, 0, 0.03, -Math.PI / 2, 0, 0));
+  leftParts.push(add(left, G.sph(0.045 * bk, 12, 10), handM, 0, 0, 0, 0, 0, 0, 1.0, 0.7, 1.2));
+  for (let i = 0; i < 4; i++) leftParts.push(add(left, G.cap(0.01 * bk, 0.045), handM, -0.026 * bk + i * 0.018 * bk, -0.005, -0.06, -Math.PI / 2 + 0.3, 0, 0));
+  if (real.L) { for (const m of leftParts) m.visible = false; left.add(real.L.group); }
   if (id === 'lamplighter') {
     const lant = new THREE.Group(); lant.position.set(0, -0.12, -0.05); left.add(lant);
     add(lant, G.box(0.12, 0.16, 0.12), mat(0x1a2a1a, { transparent: true, opacity: 0.5 }), 0, 0, 0);
     add(lant, G.sph(0.04), mat(0x9fffb0, { emissive: 0x5aff7a, ei: 6 }), 0, 0, 0);
     add(lant, G.cone(0.09, 0.06, 4), mat(0x2a2a28), 0, 0.11, 0, 0, Math.PI / 4, 0);
     g.userData.lantern = lant;
+  }
+  if (id === 'bateman') {
+    // the chainsaw rides in his left hand until he throws it
+    const saw = makeChainsaw(); saw.position.set(0.0, -0.06, -0.1); saw.rotation.set(0, Math.PI, 0); saw.scale.setScalar(0.55); left.add(saw);
+    g.userData.saw = saw;
   }
   g.userData = { ...g.userData, arm, left, tip, base, pose: null, id, bloodMesh };
   g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.renderOrder = 5; } });
@@ -641,7 +892,7 @@ const VP = {
   act:     [0.2, -0.5, -0.5, 0.6, 0.1, 0.2],
   tele:    [0.25, -0.55, -0.4, 0.4, 0.3, 0.3],
 };
-const LP = { idle: [-0.34, -0.44, -0.5, 0.2, -0.1, 0], carry: [-0.3, -0.25, -0.42, -0.4, -0.2, 0.3], wipe: [-0.12, -0.3, -0.38, 0.4, -0.6, 0], stun: [-0.18, -0.2, -0.28, -0.7, -0.2, -0.5], act: [-0.2, -0.5, -0.5, 0.6, -0.1, -0.2], lantern: [-0.3, -0.2, -0.52, 0.1, 0.15, 0], tele: [-0.1, -0.15, -0.45, -0.6, 0, 0] };
+const LP = { saw: [-0.4, -0.38, -0.6, 0.35, -0.35, 0.2], sawAim: [-0.34, -0.3, -0.8, 0.15, 0.45, -0.15], idle: [-0.34, -0.44, -0.5, 0.2, -0.1, 0], carry: [-0.3, -0.25, -0.42, -0.4, -0.2, 0.3], wipe: [-0.12, -0.3, -0.38, 0.4, -0.6, 0], stun: [-0.18, -0.2, -0.28, -0.7, -0.2, -0.5], act: [-0.2, -0.5, -0.5, 0.6, -0.1, -0.2], lantern: [-0.3, -0.2, -0.52, 0.1, 0.15, 0], tele: [-0.1, -0.15, -0.45, -0.6, 0, 0] };
 const mixP = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
 // s: { atk, atkF, atkHit, recF, aim, stun, rampage, carry, act, moving, speed, t, tele }
 export function animateView(v, s, dt) {
@@ -670,12 +921,13 @@ export function animateView(v, s, dt) {
   const kk = 1 - Math.exp(-dt * k);
   u.pose = mixP(cur, target, kk);
   u.arm.position.set(u.pose[0], u.pose[1], u.pose[2]); u.arm.rotation.set(u.pose[3], u.pose[4], u.pose[5]);
-  let lt = s.stun ? LP.stun : s.tele ? LP.tele : (s.atk === 2 && s.atkHit) ? LP.wipe : s.act ? LP.act : s.carry ? LP.carry : u.id === 'lamplighter' ? LP.lantern : LP.idle;
+  let lt = s.stun ? LP.stun : s.tele ? LP.tele : (s.atk === 2 && s.atkHit) ? LP.wipe : s.act ? LP.act : s.carry ? LP.carry : u.id === 'lamplighter' ? LP.lantern : u.saw && s.saw ? (s.aim ? LP.sawAim : LP.saw) : LP.idle;
   lt = lt.slice(); lt[1] += Math.abs(Math.sin(s.t * 4.5 + 1)) * 0.015 * bob;
   if (s.atk === 2 && s.atkHit) lt[0] += Math.sin(s.t * 7) * 0.06;
   u.lpose = mixP(u.lpose || lt, lt, 1 - Math.exp(-dt * 12));
   u.left.position.set(u.lpose[0], u.lpose[1], u.lpose[2]); u.left.rotation.set(u.lpose[3], u.lpose[4], u.lpose[5]);
-  u.left.visible = u.id === 'lamplighter' || s.carry || s.act || s.stun || (s.atk === 2 && s.atkHit) || s.tele;
+  u.left.visible = u.id === 'lamplighter' || (u.saw && s.saw) || s.carry || s.act || s.stun || (s.atk === 2 && s.atkHit) || s.tele;
+  if (u.saw) { u.saw.visible = !!s.saw && !s.carry; if (s.aim) u.saw.rotation.z = Math.sin(s.t * 60) * 0.02; }
   if (u.lantern) u.lantern.rotation.z = Math.sin(s.t * 3) * 0.15;
 }
 
@@ -720,23 +972,63 @@ export function makeGenerator() {
   return g;
 }
 
-export function makeCage() {
+// A sacrificial meat hook: a rough post with an arm, a chain and a curved hook whose point sits
+// right over the hook's centre (where the survivor hangs), on a blood-stained base. The Entity's
+// spider legs (hidden until the struggle phase) wait coiled around it.
+export const HOOK_Y = 2.02; // height of the hook's point
+export function makeHook() {
   const g = new THREE.Group();
-  const iron = mat(0x3a3430, { metal: 0.7, rough: 0.55, map: 'metal' });
-  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.castShadow = true; g.add(me); return me; };
-  add(G.cyl(0.95, 1.05, 0.2, 16), mat(0x4a4642, { map: 'stone' }), 0, 0.1, 0);
-  for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; add(G.cyl(0.025, 0.025, 2.5, 6), iron, Math.cos(a) * 0.72, 1.45, Math.sin(a) * 0.72); }
-  for (const y of [0.25, 1.4, 2.65]) add(new THREE.TorusGeometry(0.72, 0.035, 6, 24), iron, 0, y, 0, Math.PI / 2);
-  add(G.cone(0.8, 0.7, 14), iron, 0, 3.0, 0);
-  add(G.cone(0.04, 0.5, 6), iron, 0, 3.55, 0);
-  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; add(G.cone(0.03, 0.35, 5), iron, Math.cos(a) * 0.75, 2.85, Math.sin(a) * 0.75, Math.cos(a) * 0.6, 0, -Math.sin(a) * 0.6); }
-  // glowing sigil ring on the base (lit while someone is caged)
-  const ringMat = new THREE.MeshStandardMaterial({ color: 0x220a04, emissive: 0xff4a1a, emissiveIntensity: 0, roughness: 0.6 });
-  const ring = add(new THREE.TorusGeometry(0.85, 0.03, 6, 32), ringMat, 0, 0.21, 0, Math.PI / 2);
-  const auraM = new THREE.Mesh(G.cyl(0.8, 0.8, 3.0, 12), auraMat(0xffffff)); auraM.position.y = 1.5; auraM.visible = false; auraM.renderOrder = 10; g.add(auraM);
-  g.userData = { ring, aura: auraM };
+  const iron = mat(0x2e2a27, { metal: 0.75, rough: 0.5, map: 'metal' }), rust = mat(0x5a3020, { metal: 0.4, rough: 0.75, map: 'metal' });
+  const wood = mat(0x3a2a1e, { map: 'wood', rough: 0.85 });
+  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.scale.set(sx, sy, sz); me.castShadow = true; g.add(me); return me; };
+  // base: broken stones and a dark stain
+  add(G.cyl(0.85, 0.95, 0.12, 12), mat(0x3a3632, { map: 'stone' }), -0.25, 0.06, 0);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.3; add(new THREE.DodecahedronGeometry(0.12 + (i % 3) * 0.04), mat(0x4a4642, { map: 'rock' }), -0.25 + Math.cos(a) * 0.82, 0.1, Math.sin(a) * 0.82, i, i * 2, 0); }
+  const stain = add(new THREE.CircleGeometry(0.75, 20), mat(0x2a0404, { rough: 0.25 }), 0.05, 0.125, 0.02, -Math.PI / 2); stain.castShadow = false;
+  // the post, leaning slightly, bound with iron bands
+  const post = new THREE.Group(); post.position.set(-0.55, 0, 0); post.rotation.z = -0.04; g.add(post);
+  const pm = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx, ry, rz); me.castShadow = true; post.add(me); return me; };
+  pm(new THREE.BoxGeometry(0.16, 2.9, 0.16), wood, 0, 1.45, 0);
+  for (const y of [0.4, 1.3, 2.2]) pm(new THREE.BoxGeometry(0.19, 0.05, 0.19), iron, 0, y, 0);
+  pm(new THREE.BoxGeometry(0.75, 0.12, 0.12), wood, 0.32, 2.78, 0);              // arm
+  pm(new THREE.BoxGeometry(0.06, 0.5, 0.06), wood, 0.24, 2.5, 0, 0, 0, -0.75);    // brace
+  // chain from the arm's end down to the hook
+  for (let i = 0; i < 5; i++) add(G.tor(0.035, 0.01), rust, 0, 2.7 - i * 0.075, 0, 0, i % 2 ? Math.PI / 2 : 0, 0);
+  // the hook: an open curve ending in a point, with the point at HOOK_Y right over the centre
+  add(G.cyl(0.018, 0.018, 0.22, 6), iron, 0, 2.29, 0);
+  add(G.tor(0.12, 0.02, Math.PI * 1.35), iron, 0, 2.14, 0, 0, Math.PI / 2, Math.PI * 0.82);
+  add(G.cone(0.022, 0.12, 6), iron, 0, HOOK_Y + 0.05, 0.11, 0.35, 0, 0);
+  // glow under the hook while someone hangs from it
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0x220a04, emissive: 0xff3a10, emissiveIntensity: 0, roughness: 0.6, transparent: true, opacity: 0.85, depthWrite: false });
+  const ring = add(new THREE.RingGeometry(0.5, 0.78, 32), ringMat, 0, 0.13, 0, -Math.PI / 2); ring.castShadow = false;
+  // the Entity's legs: four jointed, spiked claws that rise out of the ground around the hook
+  const legM = mat(0x0c0806, { rough: 0.35, metal: 0.2 }), spikeM = mat(0x2a120a, { rough: 0.4 });
+  const legs = [];
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+    const base = new THREE.Group(); base.position.set(Math.cos(a) * 1.05, 0, Math.sin(a) * 1.05); base.rotation.y = -a + Math.PI / 2; g.add(base);
+    const seg = (parent, len, r0, r1) => { const j = new THREE.Group(); parent.add(j); const m = new THREE.Mesh(G.cyl(r1, r0, len, 6), legM); m.position.y = len / 2; m.castShadow = true; j.add(m); for (let k = 0; k < 2; k++) { const sp = new THREE.Mesh(G.cone(0.025, 0.14, 4), spikeM); sp.position.set(0, len * (0.35 + k * 0.3), r0 * 0.8); sp.rotation.x = 1.0; j.add(sp); } return { j, len }; };
+    const s1 = seg(base, 1.1, 0.07, 0.05), s2 = seg(s1.j, 0.9, 0.05, 0.035), s3 = seg(s2.j, 0.6, 0.035, 0.004);
+    s2.j.position.y = s1.len; s3.j.position.y = s2.len;
+    base.scale.setScalar(0.001); base.visible = false;
+    legs.push({ base, s1: s1.j, s2: s2.j, s3: s3.j, ph: i * 1.7 });
+  }
+  const auraM = new THREE.Mesh(G.cyl(0.5, 0.5, 2.9, 12), auraMat(0xffffff)); auraM.position.set(-0.3, 1.45, 0); auraM.visible = false; auraM.renderOrder = 10; g.add(auraM);
+  g.userData = { ring, aura: auraM, legs, legF: 0 };
   return g;
 }
+// legs: f = 0 (gone) .. 1 (risen, curling over the survivor), stab = 0..1 (plunging in)
+export function poseHookLegs(h, f, t, stab = 0) {
+  for (const L of h.userData.legs) {
+    L.base.visible = f > 0.01; L.base.scale.setScalar(Math.max(0.001, f));
+    const w = Math.sin(t * 1.6 + L.ph) * 0.12;
+    // rise almost straight up, then arch over and point down at the survivor's chest
+    L.s1.rotation.x = -0.15 + w * 0.4 - stab * 0.1;
+    L.s2.rotation.x = -0.7 + w * 0.6 - stab * 0.3;
+    L.s3.rotation.x = -1.0 + Math.sin(t * 2.3 + L.ph) * 0.2 - stab * 0.7;
+  }
+}
+export const makeCage = makeHook;
 
 export function makeBarricade(half) {
   const pivot = new THREE.Group();

@@ -13,6 +13,8 @@ export const LOOK = {
     ground: [0x2e3a22, 0x3e4a28, 0x3a3020, 0x221c12, 0x3a3420, 0x1e2216], groundTex: 'ground2', ruins: true, trees: 'cypress', bushes: 1.2, bush: 0x26341c, grass: 1.25, grassTint: 0x8a9a50, lamp: 0xe8d070, groundFog: 0x7a9a70, groundFogK: 2.4, particles: 'fireflies' },
   carnival: { fog: 0x1c1220, density: 1.1, hemi: [0x7a5a7a, 0x2a1a14, 1.6], amb: 0x2e2434, moon: [0xf0d0e0, 2.4], sky: [0x070410, 0x1a0e22], moonDisc: 0xffe8f0, halo: 0xd890b0,
     ground: [0x4a3a28, 0x5a4630, 0x2a2828, 0x3a2c20, 0x5a4a30, 0x2a221a], groundTex: 'ground2', ruins: false, trees: 'dead', bushes: 0.35, bush: 0x3a3420, grass: 0.35, grassTint: 0x8a8050, lamp: 0xffd080, groundFog: 0x8a6a8a, groundFogK: 1.2 },
+  granny: { fog: 0x161a1e, density: 1.15, hemi: [0x5a6470, 0x2a2018, 1.6], amb: 0x2a3038, moon: [0xc0cce0, 2.4], sky: [0x030407, 0x0c1118], moonDisc: 0xeef2ff, halo: 0x8a9ab8,
+    ground: [0x343c26, 0x4a5232, 0x4e3e2c, 0x30261a, 0x3e3222, 0x262418], groundTex: 'ground2', ruins: true, trees: 'dead', bushes: 0.5, bush: 0x262e1c, grass: 0.8, grassTint: 0x8a9060, lamp: 0xffa850, groundFog: 0x5a6470, groundFogK: 1.4 },
   snow: { fog: 0x222c3a, density: 0.95, hemi: [0x8aa0c4, 0x2a3240, 1.45], amb: 0x2e3648, moon: [0xc8d8f4, 2.3], sky: [0x03060e, 0x0e1a30], moonDisc: 0xf4f8ff, halo: 0xa8c0e8,
     ground: [0xc8d2e0, 0xdde4f0, 0x9aa2ae, 0xb0bac8, 0xc0c8d4, 0x9aa4b4], groundTex: 'snow', ruins: false, snowcaps: true, trees: 'snowpine', bushes: 0.4, bush: 0xb8c4d0, grass: 0, grassTint: 0x8a8a70, lamp: 0xffc070, groundFog: 0xc8d8f0, groundFogK: 1.6, particles: 'snow' },
 };

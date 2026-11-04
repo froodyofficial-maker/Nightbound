@@ -1,11 +1,13 @@
 // Builds the 3D scene for a generated map.
 import * as THREE from 'three';
 import { HALF } from './config.js';
+import { realistic } from './gfx.js';
+import { cloneScene } from './sceneGlb.js';
 import { rng, barBox } from './map.js';
 import { tex } from './textures.js';
 import { buildMeatWorld, updateMeatLights } from './meatworld.js';
 import { LOOK, cypressGeos, snowify, buildThemeExtras, updateThemeFx } from './themeworld.js';
-import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, bushGeo, rockGeo, makeGenerator, makeCage, makeBarricade, makeGate, makeSwitch } from './models.js';
+import { setDetail, mat, boxGeo, mergeGeos, treeGeos, pineGeo, bushGeo, rockGeo, makeGenerator, makeCage, poseHookLegs, makeBarricade, makeGate, makeSwitch } from './models.js';
 
 export const QUALITY = {
   // potato: for very weak laptops / integrated graphics. No shadows, no post-processing, cheap materials.
@@ -25,6 +27,7 @@ function segDist(px, pz, ax, az, bx, bz) {
 const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export function buildWorld(M, quality = 'medium') {
+  const HF = M.half || HALF;
   if (M.indoor) return buildMeatWorld(M, quality);
   const LK = LOOK[M.map] || LOOK.woods, FOG_COLOR = LK.fog;
   const q = QUALITY[quality] || QUALITY.medium;
@@ -46,7 +49,8 @@ export function buildWorld(M, quality = 'medium') {
   moon.position.set(30, 60, 20);
   if (q.shadow) {
     moon.castShadow = true;
-    moon.shadow.mapSize.set(q.shadow, q.shadow);
+    const sm = realistic() ? q.shadow * 2 : q.shadow; // crisper shadows in the realistic look
+    moon.shadow.mapSize.set(sm, sm);
     const s = moon.shadow.camera; s.left = -38; s.right = 38; s.top = 38; s.bottom = -38; s.near = 5; s.far = 160;
     moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.04;
   }
@@ -109,7 +113,7 @@ export function buildWorld(M, quality = 'medium') {
     tmp.lerp(cDirt, 1 - sstep(pathW * 0.6, pathW * 1.6, pd));
     for (const g of M.gens) { const d = Math.hypot(x - g.x, z - g.z); if (d < 4) tmp.lerp(cMud, (1 - sstep(1.2, 4, d)) * 0.9); }
     for (const t of M.trees) { const d = Math.hypot(x - t.x, z - t.z); if (d < 3) tmp.lerp(cLitter, (1 - sstep(0.6, 3, d)) * 0.7); }
-    if (Math.abs(x) > HALF + 1 || Math.abs(z) > HALF + 1) tmp.lerp(cForest, sstep(HALF + 1, HALF + 8, Math.max(Math.abs(x), Math.abs(z))) * 0.8);
+    if (Math.abs(x) > HF + 1 || Math.abs(z) > HF + 1) tmp.lerp(cForest, sstep(HF + 1, HF + 8, Math.max(Math.abs(x), Math.abs(z))) * 0.8);
     const v = 0.88 + (Math.sin(x * 1.7) * Math.cos(z * 1.3)) * 0.06;
     gcol[i * 3] = tmp.r * v; gcol[i * 3 + 1] = tmp.g * v; gcol[i * 3 + 2] = tmp.b * v;
   }
@@ -140,7 +144,7 @@ export function buildWorld(M, quality = 'medium') {
   };
   const tileOf = st => st === 'stone' ? 1.15 : st === 'brick' ? 1.6 : 2;
   for (const b of M.boxes) {
-    if (b.kind === 'gen' || b.kind === 'switch' || b.kind === 'logpile') continue;
+    if (b.kind === 'gen' || b.kind === 'switch' || b.kind === 'logpile' || b.kind === 'mesh') continue; // ('mesh': drawn by the map's own model)
     if (b.kind === 'log') {
       const along = b.hx > b.hz;
       const geo = new THREE.CylinderGeometry(0.45, 0.5, (along ? b.hx : b.hz) * 2, 10);
@@ -195,10 +199,10 @@ export function buildWorld(M, quality = 'medium') {
   const needleM = lite ? new THREE.MeshLambertMaterial({ vertexColors: true, map: ft.map }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, map: ft.map, normalMap: ft.normalMap });
   const trees = [...M.trees.map(t => ({ ...t, inner: true }))];
   for (let i = 0; i < q.outer; i++) {
-    const side = R.int(0, 3), along = R.range(-HALF - 30, HALF + 30), out = HALF + 2.5 + Math.pow(R(), 0.7) * 32;
+    const side = R.int(0, 3), along = R.range(-HF - 30, HF + 30), out = HF + 2.5 + Math.pow(R(), 0.7) * 32;
     const x = side === 0 ? along : side === 1 ? along : side === 2 ? out : -out;
     const z = side === 0 ? out : side === 1 ? -out : along;
-    if (M.gates.some(g => Math.abs(x - g.x) < 7 && Math.sign(z) === g.dir && Math.abs(z) < HALF + 14)) continue;
+    if (M.gates.some(g => Math.abs(x - g.x) < 7 && Math.sign(z) === g.dir && Math.abs(z) < HF + 14)) continue;
     trees.push({ x, z, s: R.range(0.8, 1.4), h: R.range(8, 14), rot: R.range(0, 6.28), r: 0.4 });
   }
   const inst = (geo, material, list, scaleFn, shadow = true) => {
@@ -240,9 +244,9 @@ export function buildWorld(M, quality = 'medium') {
   const scatter = (n, pad, inside = true) => {
     const out = [];
     for (let i = 0; i < n * 4 && out.length < n; i++) {
-      const x = inside ? R.range(-HALF + 1, HALF - 1) : R.range(-HALF - 20, HALF + 20), z = inside ? R.range(-HALF + 1, HALF - 1) : R.range(-HALF - 20, HALF + 20);
+      const x = inside ? R.range(-HF + 1, HF - 1) : R.range(-HF - 20, HF + 20), z = inside ? R.range(-HF + 1, HF - 1) : R.range(-HF - 20, HF + 20);
       if (inside && blocked(x, z, pad)) continue;
-      if (!inside && Math.abs(x) < HALF + 1 && Math.abs(z) < HALF + 1) continue;
+      if (!inside && Math.abs(x) < HF + 1 && Math.abs(z) < HF + 1) continue;
       let pd = 99; for (const [ax, az, bx, bz] of paths) pd = Math.min(pd, segDist(x, z, ax, az, bx, bz));
       if (pd < 1.6) continue;
       out.push({ x, z, rot: R() * 6.28, s: R.range(0.6, 1.4) });
@@ -273,10 +277,10 @@ export function buildWorld(M, quality = 'medium') {
     const gm = new THREE.MeshLambertMaterial({ map: tex('grass').map, alphaTest: 0.45, side: THREE.DoubleSide, color: LK.grassTint });
     const list = [];
     for (let i = 0; i < q.grass * 3 * LK.grass && list.length < q.grass * LK.grass; i++) {
-      const x = R.range(-HALF - 8, HALF + 8), z = R.range(-HALF - 8, HALF + 8);
+      const x = R.range(-HF - 8, HF + 8), z = R.range(-HF - 8, HF + 8);
       let bad = false;
       for (const b of M.boxes) if (Math.abs(x - b.x) < b.hx + 0.2 && Math.abs(z - b.z) < b.hz + 0.2) { bad = true; break; }
-      if (bad) continue;
+      if (bad || (M.isIndoors && M.isIndoors(x, z))) continue;
       let pd = 99; for (const [ax, az, bx, bz] of paths) pd = Math.min(pd, segDist(x, z, ax, az, bx, bz));
       if (pd < 1.3 && R() < 0.85) continue;
       list.push({ x, z, rot: R() * 6.28, s: R.range(0.7, 1.6) });
@@ -293,7 +297,7 @@ export function buildWorld(M, quality = 'medium') {
   for (const g of M.gens) for (let k = 0; k < 6 && lampSpots.length < M.gens.length * 2; k++) {
     const a = R() * 6.28, r = 3.2 + R() * 2;
     const x = g.x + Math.cos(a) * r, z = g.z + Math.sin(a) * r;
-    if (!blocked(x, z, 0.6) && !M.circles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 0.6)) { lampSpots.push({ x, z }); break; }
+    if (!blocked(x, z, 0.6) && !(M.isIndoors && M.isIndoors(x, z)) && !M.circles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 0.6)) { lampSpots.push({ x, z }); break; }
   }
   for (const gt2 of M.gates) lampSpots.push({ x: gt2.sx - 2.2, z: gt2.sz - gt2.dir * 1.5 });
   const postM = mat(0x2a2622, { map: 'metal', metal: 0.5, rough: 0.6 });
@@ -316,6 +320,8 @@ export function buildWorld(M, quality = 'medium') {
   }
 
   buildThemeExtras(W, M, quality, R);
+  // a map with its own scenery model (Granny's House)
+  if (M.glbScene) { const o = cloneScene(M.glbScene, lite); if (o) { scene.add(o); W.glb = o; } }
   addInteractables(W, M);
   // ---------- rolling ground fog: layered planes with scrolling noise ----------
   const nf = quality === 'potato' ? 0 : quality === 'low' ? 1 : 2;
@@ -396,7 +402,15 @@ export function updateWorld(W, M, S, t, dt, follow) {
   for (let i = 0; i < M.cages.length; i++) {
     const u = W.cages[i].userData, who = S.cages[i];
     u.ring.material.emissiveIntensity = who != null ? 2 + Math.sin(t * 4) * 1 : 0;
-    if (S.cageBroken[i] && !u.broken) { u.broken = true; W.cages[i].rotation.z = 0.12; W.cages[i].rotation.x = -0.08; W.cages[i].position.y = -0.25; }
+    // the Entity's legs rise in the struggle phase and plunge when it claims someone
+    const hp = who != null ? S.players.find(p => p.id === who) : null;
+    const want = hp && hp.stage >= 2 ? 1 : 0;
+    if (u.claimT != null) { u.claimT += dt; if (u.claimT > 2.2) u.claimT = null; }
+    const target = u.claimT != null ? 1 : want;
+    u.legF += (target - u.legF) * Math.min(1, dt * (target ? 1.5 : 3));
+    if (u.legF > 0.005 || u.legs[0].base.visible) poseHookLegs(W.cages[i], u.legF, t, u.claimT != null ? Math.min(1, u.claimT * 3) : 0);
+    if (S.cageBroken[i] && !u.broken) { u.broken = true; u.claimT = 0; } // the Entity takes them, and the hook with them
+    if (u.broken && u.claimT == null && !u.bent) { u.bent = true; W.cages[i].rotation.z = 0.12; W.cages[i].rotation.x = -0.08; W.cages[i].position.y = -0.25; }
   }
   for (let i = 0; i < M.bars.length; i++) {
     const o = W.bars[i], st = S.bars[i];
@@ -426,7 +440,7 @@ export function updateWorld(W, M, S, t, dt, follow) {
 export function pointBlocked(M, x, y, z) {
   if (y < 0.05) return true;
   if (M.ceiling && y > M.ceiling - 0.3) return true;
-  const bucket = M.hash.get(Math.floor((x + HALF + 12) / 8) * 1000 + Math.floor((z + HALF + 12) / 8));
+  const bucket = M.hash.get(Math.floor((x + (M.half || HALF) + 12) / 8) * 1000 + Math.floor((z + (M.half || HALF) + 12) / 8));
   if (!bucket) return false;
   for (const o of bucket) {
     if (o.r !== undefined) { if (o.kind !== 'cage' && y < o.h && Math.hypot(x - o.x, z - o.z) < o.r + 0.15) return true; }

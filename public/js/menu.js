@@ -1,10 +1,13 @@
 // 3D main-menu scene: survivors around a campfire, the killer waiting in red fog.
 import * as THREE from 'three';
-import { SURVIVORS, skinOf } from './config.js';
+import { SURVIVORS, KILLERS, skinOf } from './config.js';
 import { tex } from './textures.js';
 import { mat, makeSurvivor, makeKiller, animate, treeGeos, pineGeo, rockGeo, makeCage } from './models.js';
+import { makeSidekickModel, loadTed } from './sidekicks.js';
 import { rng } from './map.js';
 
+// the showroom: a lit clearing off to the side where the Store and Loadout show one character standing
+const SHOW = new THREE.Vector3(14, 0, 9);
 const VIEWS = {
   survivor: { pos: new THREE.Vector3(3.6, 1.45, 4.6), look: new THREE.Vector3(-1.1, 0.75, -0.2) },
   killer: { pos: new THREE.Vector3(-4.7, 1.5, -6.2), look: new THREE.Vector3(-7.5, 1.45, -9.9) },
@@ -82,6 +85,7 @@ export class MenuScene {
       const a = R() * Math.PI * 2, r = 7.5 + Math.pow(R(), 0.6) * 38;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (Math.hypot(x - 3.6, z - 4.6) < 4) continue;
+      if (Math.hypot(x - SHOW.x, z - SHOW.z) < 6.5) continue; // keep the showroom clearing open
       trees.push({ x, z, s: 0.7 + R() * 0.6, rot: R() * 6, dead: R() < 0.35 });
     }
     const inst = (geo, m, list, f) => {
@@ -115,6 +119,41 @@ export class MenuScene {
     const fogMat = new THREE.SpriteMaterial({ map: tex('fog').map, color: 0x8a2a2a, transparent: true, opacity: 0.18, depthWrite: false });
     for (let i = 0; i < (hiQ ? 10 : 5); i++) { const s = new THREE.Sprite(fogMat); s.scale.set(8 + R() * 5, 2.5 + R() * 2, 1); s.position.set(-6.4 + (R() - 0.5) * 9, 0.8 + R(), -11 + (R() - 0.5) * 4); s.userData.v = 0.15 + R() * 0.25; scene.add(s); this.fogSprites.push(s); }
     this.setKiller('butcher');
+
+    // showroom lights (only on while a character is being shown)
+    this.showKey = new THREE.SpotLight(0xfff0e0, 0, 14, 0.55, 0.5, 1.2);
+    this.showKey.position.set(SHOW.x + 1.6, 4.2, SHOW.z + 3.8); this.showKey.target.position.set(SHOW.x, 0.9, SHOW.z);
+    this.showRim = new THREE.PointLight(0xff3020, 0, 9, 1.4); this.showRim.position.set(SHOW.x - 1.4, 2.4, SHOW.z - 1.8);
+    this.showFill = new THREE.PointLight(0x8aa0d8, 0, 8, 1.6); this.showFill.position.set(SHOW.x - 2.2, 1.4, SHOW.z + 2.4);
+    this.scene.add(this.showKey, this.showKey.target, this.showRim, this.showFill);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ map: tex('glow').map, color: 0x6a4a3a, transparent: true, opacity: 0.55, depthWrite: false }));
+    disc.rotation.x = -Math.PI / 2; disc.position.set(SHOW.x, 0.02, SHOW.z); this.scene.add(disc);
+  }
+
+  // stand one character in the showroom, facing the camera
+  setShowcase(char, skin = 'default', place = 0.3, pet = '') {
+    if (this.showRig) this.scene.remove(this.showRig.root);
+    if (this.showPet) { this.scene.remove(this.showPet.root); this.showPet = null; }
+    if (pet) {
+      const P = makeSidekickModel(pet); P.root.position.set(SHOW.x + 0.75, 0, SHOW.z + 0.35); P.root.rotation.y = -0.2; this.scene.add(P.root); this.showPet = P;
+      if (pet === 'ted' && P.kind !== 'ted') loadTed().then(() => { if (this.showPet === P) this.setShowcase(char, skin, place, pet); });
+    }
+    const killer = !!KILLERS[char];
+    const rig = killer ? makeKiller(char, skinOf(char, skin)) : makeSurvivor(SURVIVORS[char] || SURVIVORS.mara, skinOf(char, skin));
+    rig.root.position.copy(SHOW); rig.root.rotation.y = 0.35;
+    rig.root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    this.scene.add(rig.root);
+    this.showRig = rig; this.showKiller = killer;
+    animate(rig, killer ? { anim: 'idle', speed: 0, t: 0 } : { anim: 'idle', speed: 0, t: 0, injured: false }, 0.016);
+    rig.root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(rig.root);
+    const h = Math.max(0.9, Math.min(2.8, box.max.y - Math.max(0, box.min.y)));
+    // frame the whole body; the shift puts it between the store list (left) and the outfit card
+    // (vertical fov 50deg: feet at ~62% of the screen height, the figure ~30% right of centre)
+    const d = 2 + h * 1.3, ly = 0.112 * d + h * 0.08 - 0.18;
+    this.showBase = { d, ly, place, h };
+    this.applyShowView();
+    this.showRim.color.setHex(killer ? (KILLERS[char].color ?? 0xff3020) : 0x5a8aff);
   }
 
   setSurvivor(char, skin = 'default') {
@@ -147,6 +186,16 @@ export class MenuScene {
     for (const s of this.fogSprites) s.material.color.setHex(char === 'wisp' ? 0x3a6a8a : char === 'lamplighter' ? 0x2a6a3a : 0x8a2a2a);
   }
   setMode(m) { this.mode = m; }
+  // turntable: drag to spin the showcased character, scroll to zoom in on them
+  spinShow(dx) { this.showYaw = (this.showYaw || 0) + dx; }
+  zoomShow(dz) { this.showZoom = Math.max(0.68, Math.min(1.35, (this.showZoom || 1) * dz)); this.applyShowView(); }
+  applyShowView() {
+    const B = this.showBase; if (!B) return;
+    const z = this.showZoom || 1, d = B.d * z;
+    // zooming in drifts the aim up toward the chest/face
+    const ly = B.ly + (1 - z) * B.h * 0.45;
+    VIEWS.show = { pos: new THREE.Vector3(SHOW.x - B.place * d, ly + 0.35 * z, SHOW.z + d), look: new THREE.Vector3(SHOW.x - B.place * d, ly, SHOW.z) };
+  }
   setShift(on) { this.shiftT = on ? 1 : 0; }
 
   update(dt, renderer) {
@@ -154,7 +203,7 @@ export class MenuScene {
     const t = this.t;
     // camera glide
     const v = VIEWS[this.mode];
-    const k = 1 - Math.exp(-dt * 2.2);
+    const k = 1 - Math.exp(-dt * (this.mode === 'show' ? 4.5 : 2.2));
     // when a side panel is open, pan so the character sits between the menu and the panel
     this.shift = (this.shift || 0) + ((this.shiftT || 0) - (this.shift || 0)) * Math.min(1, dt * 3);
     const dx = v.look.x - v.pos.x, dz = v.look.z - v.pos.z, dl = Math.hypot(dx, dz) || 1;
@@ -185,6 +234,14 @@ export class MenuScene {
       if (ep[i * 3 + 1] > 3.2) { ep[i * 3] = (Math.random() - 0.5) * 0.3; ep[i * 3 + 1] = 0.2; ep[i * 3 + 2] = (Math.random() - 0.5) * 0.3; }
     }
     this.embers.geometry.attributes.position.needsUpdate = true;
+    // showroom
+    const showing = this.mode === 'show' && this.showRig;
+    const lk = 1 - Math.exp(-dt * 4);
+    this.showKey.intensity += ((showing ? 70 : 0) - this.showKey.intensity) * lk;
+    this.showRim.intensity += ((showing ? 26 : 0) - this.showRim.intensity) * lk;
+    this.showFill.intensity += ((showing ? 7 : 0) - this.showFill.intensity) * lk;
+    if (this.showRig) { animate(this.showRig, { anim: this.showKiller ? 'idle' : 'idle', speed: 0, t, injured: false }, dt); this.showRig.root.rotation.y = 0.35 + (this.showYaw || 0); }
+    if (this.showPet) this.showPet.pose(t);
     // characters
     for (const r of this.survRigs) animate(r, { anim: r.stand ? 'idle' : 'sit', speed: 0, t, injured: false }, dt);
     animate(this.killerRig, { anim: 'menace', speed: 0, t }, dt);

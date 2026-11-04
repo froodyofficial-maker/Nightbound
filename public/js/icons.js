@@ -41,6 +41,7 @@ const I = {
   fury: `<path d="M32 5c3 10 15 15 15 30a15 15 0 0 1-30 0c0-8 6-12 6-19 4 4 6 9 6 13 4-6 5-14 3-24z"/>`,
   warrant: `<path d="M16 30a16 16 0 1 1 32 0c0 6-3 10-6 12v8H22v-8c-3-2-6-6-6-12z"/><circle cx="25" cy="30" r="4" fill="currentColor"/><circle cx="39" cy="30" r="4" fill="currentColor"/><path d="M28 50v6M36 50v6M32 38v4"/>`,
   irongrip: `<path d="M14 40V26a5 5 0 0 1 10 0v-4a5 5 0 0 1 10 0v2a5 5 0 0 1 10 0v4a5 5 0 0 1 10 0v12c0 10-8 16-20 16S14 50 14 40z"/><path d="M24 26v8M34 24v10M44 28v6"/>`,
+  taser: `<path d="M8 20h30l6 4v8H30l-4 14H16l4-14H8z"/><path d="M46 18l6-6M48 26h8M46 34l6 6"/><path d="M33 23l-4 5h4l-3 5"/>`,
   flashlight: `<path d="M6 26h20l8-6v24l-8-6H6z"/><path d="M40 22l14-8M40 32h16M40 42l14 8"/>`,
   stalker: `<path d="M40 8a24 24 0 1 0 16 32A19 19 0 0 1 40 8z"/><circle cx="34" cy="34" r="3" fill="currentColor"/>`,
   // ---- killer powers ----
@@ -56,7 +57,7 @@ const I = {
   injured: person() + `<path d="M44 20l-6 12 6 2-6 12" stroke="#ff4a3a"/>`,
   down: `<circle cx="14" cy="42" r="6"/><path d="M20 46h26l8 6M26 46l-4-8"/><path d="M8 54h48"/>`,
   carried: `<circle cx="22" cy="14" r="6"/><path d="M22 20v14M14 50l8-16 8 16M10 28l12-4 14 2"/><path d="M36 24h18M44 18v12" />`,
-  caged: `<path d="M14 10h36M14 54h36M18 10v44M26 10v44M38 10v44M46 10v44"/><circle cx="32" cy="24" r="4"/>`,
+  caged: `<path d="M32 6v10"/><path d="M32 16c-9 0-12 8-12 13s4 10 10 10c5 0 8-4 8-8"/><path d="M38 31l-4-4"/><path d="M20 46l6 12M44 46l-6 12M22 50h20"/>`, // a meat hook
   dead: `<path d="M16 30a16 16 0 1 1 32 0c0 6-3 10-6 12v8H22v-8c-3-2-6-6-6-12z"/><circle cx="25" cy="30" r="4" fill="currentColor"/><circle cx="39" cy="30" r="4" fill="currentColor"/>`,
   out: `<path d="M20 8h26v48H20"/><path d="M8 32h24M24 24l8 8-8 8"/>`,
   exec: `<path d="M10 54l30-30M34 12l18 18-8 8-18-18z"/>`,
@@ -69,6 +70,16 @@ const I = {
   check: `<path d="M14 34l12 12 24-26"/>`,
   ember: `<path d="M32 6c6 12 16 18 16 32a16 16 0 0 1-32 0c0-10 8-14 8-22 6 4 8 10 8 16 4-8 2-18 0-26z"/>`,
   skullsmall: `<circle cx="32" cy="28" r="16"/>`,
+  beartrap: `<path d="M10 40a22 22 0 0 0 44 0"/><path d="M10 40h44"/><path d="M14 40l3-7 3 7 3-7 3 7 3-7 3 7 3-7 3 7 3-7 3 7 3-7 2 7"/><circle cx="32" cy="46" r="3"/>`,
+  chainsaw: `<path d="M8 30h16v14H8z"/><path d="M24 33h28a4 4 0 0 1 0 8H24"/><path d="M12 30v-6h10v6"/><path d="M28 33l3-3 3 3 3-3 3 3 3-3 3 3"/>`,
+  knife: `<path d="M12 52l8-8"/><path d="M20 44l26-30c4 6 2 14-4 20L26 50z"/><path d="M14 40l10 10"/>`,
+  triage: `<path d="M26 10h12v16h16v12H38v16H26V38H10V26h16z"/><path d="M14 54l8-8"/>`,
+  overclock: `<circle cx="32" cy="34" r="20"/><path d="M32 34l10-12"/><path d="M26 8h12"/><path d="M48 14l4-4"/>`,
+  exposure: `<rect x="10" y="20" width="44" height="30" rx="4"/><circle cx="32" cy="35" r="9"/><path d="M22 20l4-8h12l4 8"/><path d="M50 12l6-4M54 20h6"/>`,
+  pathfinder: `<path d="M32 6l8 16-8 6-8-6z"/><path d="M32 28v28"/><path d="M14 44h36"/><circle cx="32" cy="44" r="4"/>`,
+  containment: `<rect x="14" y="26" width="36" height="18" rx="3"/><path d="M14 30l-6-8M50 30l6-8"/><path d="M20 44v10M44 44v10"/><path d="M26 34h12"/>`,
+  exorcist: `<circle cx="32" cy="26" r="14"/><path d="M26 22h12M32 16v20"/><path d="M18 52c4-8 24-8 28 0"/>`,
+  card: `<rect x="10" y="18" width="44" height="28" rx="2"/><path d="M18 28h16"/><path d="M18 35h28"/><path d="M18 40h20"/>`,
 };
 
 export function icon(name, cls = '') {
@@ -76,4 +87,4 @@ export function icon(name, cls = '') {
   return `<svg class="ico ${cls}" viewBox="0 0 64 64" ${S} aria-hidden="true">${body}</svg>`;
 }
 export const STATE_ICON = { healthy: 'healthy', injured: 'injured', down: 'down', carried: 'carried', caged: 'caged', dead: 'dead', out: 'out', exec: 'exec' };
-export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern', foreman: 'hook', slimer: 'fade' };
+export const POWER_ICON = { butcher: 'rampage', wisp: 'fade', harrower: 'spear', lamplighter: 'lantern', foreman: 'hook', slimer: 'fade', bateman: 'chainsaw', chucky: 'knife', granny: 'beartrap' };

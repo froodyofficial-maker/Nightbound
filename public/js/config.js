@@ -2,7 +2,9 @@
 
 export const HALF = 56;                 // map spans -HALF..HALF on x and z
 export const TICK = 1 / 60;
-export const SNAP_RATE = 20;            // snapshots per second sent to clients
+// bump when host and clients can no longer understand each other's network messages
+export const NET_PROTOCOL = 11;
+export const SNAP_RATE = 30;            // snapshots per second sent to clients (relay players get ~15)
 
 export const SPEED = {
   walk: 2.3, run: 4.0, crouch: 1.15, crawl: 0.75,
@@ -10,18 +12,28 @@ export const SPEED = {
   killer: 4.6, carry: 4.2, aimSlow: 0.55,
 };
 
+// Survivor items. Flashlight and Ghost Trap can be brought in; everything can turn up in a chest.
+// The Taser only comes out of chests (20% of them): 3 shots, each one locks the killer up for 3s.
+export const ITEMS = {
+  flashlight: { name: 'Flashlight', desc: 'Hold RMB to shine it in the killer\'s eyes.' },
+  trap: { name: 'Ghost Trap', desc: 'Set it down in front of you; the killer who steps on it is stunned.' },
+  taser: { name: 'Taser', shots: 3, stun: 3, range: 9, chance: 0.2, desc: 'Click RMB to fire: a killer you hit is electrocuted and frozen for 3s. 3 shots. Only found in chests.' },
+};
 export const RULES = {
   genCharges: 66,          // seconds of solo repair per generator
   gensTotal: 7,
   healTime: 14,            // seconds to heal a teammate one health state
   pickupTime: 1.4,         // killer picks up a downed survivor
-  cageTime: 1.1,           // killer locks a survivor in a cage
+  cageTime: 1.1,           // killer hangs a survivor on a hook
   rescueTime: 1.2,
   gateTime: 18,
   kickTime: 1.8,
   breakTime: 2.4,
   bleedout: 200,
-  cageStage: [70, 50],     // seconds before the cage claims you (1st, 2nd caging); 3rd caging is instant
+  cageStage: [60, 60],     // hook phases: 60s hanging, then 60s struggling against the Entity; hooked in the struggle phase = sacrificed
+  selfUnhook: 0.04,        // chance per self-unhook attempt (3 attempts, first phase only)
+  selfUnhookCost: 8,       // hook seconds lost per failed attempt
+  struggleMiss: 9,         // hook seconds lost per missed struggle skill check
   wiggleNeed: 1,           // wiggle progress needed to escape the killer's grip
   wiggleRate: 0.012,       // progress per alternating keypress (~15s of struggling)
   collapse: 140,           // seconds after the gates are powered before the night claims everyone left
@@ -34,8 +46,20 @@ export const RULES = {
   stunBarricade: 2.0,
   execTime: 4.2,
   flashBattery: 12, flashRange: 9, flashTime: 1.0, flashStun: 1.6, blindTime: 2.4, blindImmune: 12, // survivor flashlights
+  chestTime: 2.2, swapTime: 0.4,                                          // searching a chest, swapping items with it
   teleTime: 1.2, teleCd: 18, lanternRadius: 9, snuffTime: 2.5,           // length of a killer's execution finisher
 };
+
+// ---------------- Game modes ----------------
+export const MODES = {
+  classic: { name: 'Classic', short: '1 vs 4', desc: 'One killer, four survivors. Repair generators, power the gates and escape.' },
+  duo: { name: 'Two Killers', short: '2 vs 8', killers: 2, survivors: 8, desc: 'Two killers hunt eight survivors. Six generators power the gates.' },
+  dark: { name: 'Lights Out', short: 'Horror', desc: 'The lights never come on. Thick fog, no auras for survivors, half-charged flashlights.' },
+  rush: { name: 'Survivor Rush', short: '5 min', time: 300, desc: 'Five-minute matches. Generators and gates go twice as fast, and the killer gets a burst of speed after every hit. When the clock runs out, the gates power up and the night collapses fast.' },
+  infection: { name: 'Infection', short: '2 vs 10', killers: 2, survivors: 10, bigMap: true, desc: 'No hooks. Two killers, ten survivors, on big maps built for it. Downed survivors rise as killers a few seconds later, and every 60s the infected sense every survivor. Escape through the gates, or be the last survivor standing and survive a 45-second last stand.' },
+};
+// killers an infected survivor can turn into
+export const INFECT_POOL = ['butcher', 'wisp', 'harrower', 'lamplighter', 'slimer', 'bateman', 'chucky'];
 
 export const KILLERS = {
   butcher: {
@@ -88,6 +112,35 @@ export const KILLERS = {
     feature: { name: 'Hunts by Sound', desc: 'Survivors running within 22m of you give away their position with a noise ping, lights or no lights.' },
     color: 0xd8ccbc,
   },
+  chucky: {
+    id: 'chucky', name: 'Chucky', speed: 4.6, terror: 20, weapon: 'Kitchen Knife', crossover: "Child's Play (fan-made)", tpv: true,
+    lore: 'A Good Guy doll with the soul of a strangler inside. He is two and a half feet tall and he does not stop laughing.',
+    exec: { name: 'Friends Till the End', desc: 'Leaps onto the survivor\'s chest and stabs, and stabs, and stabs.' },
+    ability: { name: 'Pounce', cooldown: 5, min: 3, max: 10, coil: 0.8, desc: 'Hold to coil (at full speed), release to leap up to 10m: the longer you coil, the farther you fly. He sails over fences, pallets and other low obstacles. Landing on a survivor strikes them. Leaping into a wall stuns you.' },
+    ability2: { name: "Chucky's Laugh", key: 'R', cooldown: 35, radius: 28, reveal: 5, desc: 'Laugh. Every survivor within 28m hears it and is revealed to you for 5s.' },
+    feature: { name: 'Tiny Terror & Possession', desc: 'Doll-sized and hard to spot: a 20m terror radius and silent footsteps. Space to jump over windows, pallets and rocks. Possession (G, once every 10 minutes): take over a downed survivor in secret. They wander as an invisible ghost, your doll is left as a harmless decoy, and you can let go once you have downed and hooked someone. Soul Split (V, once, with one generator left): jump into a spare doll lying on the map; your old body keeps hunting as a bot that can down survivors but not hook them. Played in third person.' },
+    color: 0xd83a22,
+  },
+  granny: {
+    id: 'granny', name: 'Granny', speed: 4.7, terror: 32, weapon: 'Baseball Bat', crossover: 'Granny (fan-made)',
+    lore: 'She has kept you in her house for five days. She hears every creak of the floorboards, and she does not like guests leaving early.',
+    exec: { name: 'Bedtime Trap', desc: 'Forces the survivor to their knees, sets a bear trap in front of them, and shoves their face into it.' },
+    ability: { name: 'Bat Rush', cooldown: 8, minCharge: 0.25, maxCharge: 1.0, minDist: 3, maxDist: 8, speed: 13, turn: 2.4, palletBonus: 2, slamRadius: 2.6, slamGen: 0.1, wallStun: 0.9, desc: 'Hold to wind up the bat (slowed), release to charge 3 to 8m, further the longer you wound up. Steer the charge with the mouse. She crashes straight through windows and smashes dropped pallets (each one carries her 2m further), and strikes the first survivor in her way; a Heard survivor goes straight down. Fully wound up, the charge ends in a Ground Slam: everyone around her is struck and a nearby generator is damaged. Charging into a wall stuns her.' },
+    ability2: { name: 'I Hear You', key: 'R', cooldown: 25, reveal: 6, heard: 15, desc: 'Stop and listen. Every survivor who is running, repairing, healing or unhooking anywhere on the map is revealed for 6s and Heard for 15s: her next hit on a Heard survivor puts them straight down.' },
+    teleport: { name: 'Creep', key: 'G', cooldown: 25, time: 1.2, haste: 3, desc: 'Hold G: every window, pallet, generator and hook on the map is marked. Release to vanish and reappear at the one in your sights, with a short burst of speed.' },
+    swap: { name: 'Body Swap', key: 'V', cooldown: 6, desc: 'Switch bodies with Spider Mom, any time: Granny appears where Spider Mom was, and Spider Mom where Granny stood. Hold V to look through Spider Mom\'s eyes first, release to swap.' },
+    feature: { name: 'Sharp Ears & Spider Mom', desc: 'She hears everything: survivors who run within 22m of her are revealed, and a failed skill check is heard anywhere. Spider Mom crawls between the generators; anyone she finds repairing is shown to Granny and webbed (slowed for 3s).' },
+    color: 0xd8d0c0,
+  },
+  bateman: {
+    id: 'bateman', name: 'Patrick Bateman', speed: 4.7, terror: 28, weapon: 'Axe', crossover: 'American Psycho (fan-made)',
+    lore: 'Vice president at Pierce & Pierce. Impeccable taste, a flawless skincare routine, and an axe in his briefcase.',
+    exec: { name: 'Hip to Be Square', desc: 'Puts on his raincoat, lectures the survivor about Huey Lewis, then swings the axe.' },
+    ability: { name: 'Chainsaw Toss', cooldown: 2.5, aim: 0.35, range: 24, back: 8, desc: 'Hold to aim (slowed), release to hurl your chainsaw. A hit puts a survivor straight down. Walk over it to pick it up, or it flies back to your hand after 8s.' },
+    ability2: { name: 'Business Card', key: 'R', cooldown: 18, range: 16, desc: 'Show your card. Survivors within 16m in front of you are intimidated: revealed and slowed by 20% for 5s.' },
+    feature: { name: 'Morning Routine', desc: 'After every hit, a 4s burst of +12% speed. Survivors he has intimidated leave him a trail: they stay revealed while they run.' },
+    color: 0xc01a1a,
+  },
 };
 
 export const SURVIVORS = {
@@ -106,27 +159,46 @@ export const SURV_PERKS = {
   hushed:   { name: 'Hushed',       icon: '☾', desc: 'Your footsteps and pained breathing are silent. Crouch speed +25%.' },
   sixth:    { name: 'Sixth Sense',  icon: '◉', desc: 'Every 25 seconds the killer\'s aura is revealed to you for 4 seconds.' },
   shared:   { name: 'Shared Labor', icon: '⚙', desc: '+15% repair speed for each other survivor working on the same generator.' },
-  lockpick: { name: 'Lockpick',     icon: '⚿', desc: 'Free caged survivors twice as fast. Open exit gates 30% faster.' },
-  lastwind: { name: 'Last Wind',    icon: '➶', desc: 'When freed from a cage or picked up from the ground, gain +40% speed for 5 seconds.' },
+  lockpick: { name: 'Quick Release', icon: '⚿', desc: 'Unhook survivors twice as fast. Open exit gates 30% faster.' },
+  lastwind: { name: 'Last Wind',    icon: '➶', desc: 'When unhooked or picked up from the ground, gain +40% speed for 5 seconds.' },
   acrobat:  { name: 'Acrobat',      icon: '⤴', desc: 'Vault windows and barricades 30% faster.' },
   resolve:  { name: 'Resolve',      icon: '♥', desc: 'Struggle free from the killer 40% faster. Bleed out 50% slower and crawl 30% faster.' },
   fleet:    { name: 'Fleet Foot',   icon: '»', desc: 'While injured, run 7% faster. Your post-hit speed burst lasts 50% longer.' },
+  // character-exclusive perks: only that survivor can equip them
+  triage:      { name: 'Triage',      only: 'mara',     desc: 'Help a dying survivor back up twice as fast.' },
+  overclock:   { name: 'Overclock',   only: 'eli',      desc: 'When a generator you are repairing is finished, the nearest unfinished generator jumps ahead by 10%.' },
+  exposure:    { name: 'Exposure',    only: 'june',     desc: 'Blinding the killer with your flashlight reveals the killer\'s aura to every survivor for 6 seconds.' },
+  pathfinder:  { name: 'Pathfinder',  only: 'tomas',    desc: 'You always see the exit gates\' auras, and open them 40% faster.' },
+  containment: { name: 'Containment', only: 'raghuvir', desc: 'Carry one extra Ghost Trap. Your traps stun the killer for 4 seconds instead of 2.6.' },
+  exorcist:    { name: 'Exorcist',    only: 'abeer',    desc: 'You cannot be possessed. A survivor body Chucky has possessed shows up to you in purple within 20m.' },
 };
 
 export const KILLER_PERKS = {
   scent:      { name: 'Scent of Fear', icon: '☠', desc: 'Injured survivors within 24m have their auras revealed to you.' },
-  static:     { name: 'Static Sense',  icon: 'ϟ', desc: 'Generators being repaired glow through walls.' },
+  static:     { name: 'Static Sense',  icon: 'ϟ', desc: 'Survivors repairing a generator are revealed to you.' },
   overload:   { name: 'Overload',      icon: '✸', desc: 'Kicking a generator instantly removes 8% progress, and it regresses 50% faster.' },
   relentless: { name: 'Relentless',    icon: '⟳', desc: 'Recovery after a successful strike is 35% shorter.' },
   dread:      { name: 'Dread',         icon: '♒', desc: 'Terror radius +8m. Survivors inside your terror radius repair 10% slower.' },
   brute:      { name: 'Brute',         icon: '⚒', desc: 'Break barricades and kick generators 35% faster.' },
-  rust:       { name: 'Rusted Locks',  icon: '⛓', desc: 'Cage timers run 20% faster and rescuing a survivor takes twice as long.' },
+  rust:       { name: 'Rusted Hooks',  icon: '⛓', desc: 'Hook timers run 20% faster and unhooking a survivor takes twice as long.' },
   sentry:     { name: 'Sentry',        icon: '◎', desc: 'When a generator is completed, the survivors who finished it are revealed for 6 seconds.' },
   fury:       { name: 'Endgame Fury',  icon: '♨', desc: 'Once the exit gates are powered, gain +8% movement speed.' },
   irongrip:   { name: 'Iron Grip',     icon: '✠', desc: 'Survivors you carry struggle free 30% slower.' },
   stalker:    { name: 'Stalker',       icon: '◐', desc: 'Terror radius -14m. Your lunge reaches 20% farther.' },
 };
 
+// perk prices in Embers (perks not listed are free); exclusive perks cost 2,500
+export const PERK_PRICES = {
+  medic: 1500, hushed: 1500, sixth: 2000, lockpick: 1500, acrobat: 1500, resolve: 2000, fleet: 2000,
+  triage: 2500, overclock: 2500, exposure: 2500, pathfinder: 2500, containment: 2500, exorcist: 2500,
+  static: 1500, dread: 1500, brute: 1500, rust: 2000, sentry: 2000, fury: 1500, irongrip: 2000, stalker: 2500,
+};
+export const PERK_SLOTS = 4;
+// ---------------- Sidekicks (cosmetic companions, for survivors and killers) ----------------
+export const SIDEKICKS = {
+  ted: { name: 'Ted', price: 4000, desc: 'A foul-mouthed teddy bear who came to life and never grew up. He follows you everywhere, cheers you on, panics when you get hurt, and whenever you repair a generator, get hooked or die, he pulls up a camping chair next to you with a beer and his bong.' },
+  rosy: { name: 'Rosy', price: 2500, desc: 'A loyal little rose-coloured dog. Trots at your heels, wags when things go well, runs in circles when they don\'t, and lies down beside you if you fall.' },
+};
 export const DEFAULT_SURV_PERKS = ['steady', 'shared', 'lastwind'];
 export const DEFAULT_KILLER_PERKS = ['scent', 'overload', 'relentless'];
 
@@ -136,6 +208,84 @@ export const DIFFICULTY = {
   easy:   { react: 0.9, skill: 0.75, great: 0.05, aim: 0.4, killerSpeed: 0.93, sight: 22, reach: 2.2 },
   normal: { react: 0.5, skill: 0.9, great: 0.15, aim: 0.6, killerSpeed: 0.95, sight: 28, reach: 2.3 },
   hard:   { react: 0.25, skill: 0.96, great: 0.3, aim: 0.92, killerSpeed: 1.0, sight: 38, reach: 2.9 },
+};
+
+// ---------------- Lore (shown on the Loadout screen and in the Store) ----------------
+export const LORE = {
+  mara: { title: 'The Medic Who Stayed', story: [
+    'Mara Voss spent eleven years on an ambulance crew in a town where the night shift never ended. She learned to keep her hands steady and her voice low, and to never, ever look at the clock.',
+    'The call came in at 3:12 a.m.: a crash on the moor road, four injured. She found the car wrapped around an oak, engine still running, and nobody inside. Just a trail of red handprints leading into the fog.',
+    'She followed it. She always follows it. Somewhere out there, the Entity keeps sending her patients, and Mara keeps patching them up, knowing full well it only wants them fresh for the next hunt.',
+  ] },
+  eli: { title: 'Grease and Grit', story: [
+    'Eli Okafor could fix anything with an engine: tractors, ferries, a 1962 Cadillac nobody else would touch. His garage on the edge of Gravemoor was the last stop before the highway, and the first one back.',
+    'One winter a customer left a car with a note on the dash: Do not drive it at night. Eli drove it at night. The headlights showed him roads that were not on any map, and when the engine finally died, the generators of the Entity\'s realm were humming all around him.',
+    'He has stopped asking how they work. He just knows they want to run, and that every one he brings to life is a door creaking open somewhere.',
+  ] },
+  june: { title: 'The Last Photograph', story: [
+    'June Harlow made her name chasing stories nobody else wanted: missing hikers, ghost towns, a lake where the ice never quite froze. Her editor called her fearless. Her mother called her reckless. They were both right.',
+    'Her final assignment was a roll of film found in a hiker\'s abandoned tent. Thirty-six frames, all of the same treeline, each one a little closer. The thirty-sixth frame showed a lantern, and a hand reaching for the camera.',
+    'She went back to take the thirty-seventh. Now she keeps shooting, frame after frame, convinced that if she gets the right picture she can show the world exactly where everyone went.',
+  ] },
+  tomas: { title: 'Ranger of the Lost Trails', story: [
+    'Tomás Reyes walked the moor trails for twenty years as a park ranger. He knew every stone, every bog, every shortcut. He pulled lost hikers out of the fog more times than he could count.',
+    'Then the trails began to change. A path he had walked a thousand times went on for three days. A cabin he had built himself appeared on a hill it had never stood on. The radio only played whispers.',
+    'He is still on duty. He still counts the survivors at every campfire, still marks the safe routes in chalk. The marks are always gone by morning, but he draws them again anyway.',
+  ] },
+  raghuvir: { title: 'The Founder', story: [
+    'Started the entire Ghostbusters business. It fell into shambles, since after the Ghostbusters\' success of saving the world, nobody needed them anymore. When ghosts started re-appearing, it was too late. Raghuvir had gotten possessed.',
+    'Thankfully, Abeer was able to force the demon to un-possess him. Unfortunately, once both were united, a portal opened up, and the entity grabbed both, pulling them into the realm of Nightbound.',
+    'Somewhere, in some alternate universe, things went differently. They were saved. But the entity? It can warp reality to get what it wants.',
+  ] },
+  abeer: { title: 'The Partner', story: [
+    'Was with the Ghostbusters ever since it had started. After the business fell into shambles, and Raghuvir got possessed, he ended up un-possessing Raghuvir.',
+    'However, the entity pulled both into the realm of Nightbound.',
+  ] },
+  butcher: { title: 'The Man Who Never Clocked Out', story: [
+    'Before the fog, he was the foreman of the Gravemoor slaughterhouse: a big, quiet man who started before dawn and left after dark. The town ate well because of him, and never asked what kept the cleaver so sharp.',
+    'When the plant closed he kept coming in. He kept working. The lights were shut off and the doors were chained, and still the townsfolk heard the cleaver at night, slow and steady, like a heartbeat.',
+    'The Entity did not have to take him. It simply opened a door, and he walked through with his apron on, ready for his shift.',
+  ] },
+  wisp: { title: 'The Drowned Bride', story: [
+    'Her name was Elinor, and she was to be married on the shore of Gravemoor Lake on the first day of spring. The groom never came. She waited on the dock in her white dress until the ice gave way beneath her.',
+    'They never found her body. They found frost on the windows of every house in the village, in the shape of a hand, and they heard a woman singing under the ice.',
+    'She is still waiting for someone to come for her. When the air turns cold and your breath fogs, she has decided it is you.',
+  ] },
+  harrower: { title: 'The Collector', story: [
+    'He was the greatest hunter the old country ever produced, a man who took a trophy from every kill and hung it in a hall of bone. Kings paid him. Wolves fled him. He grew bored.',
+    'He went looking for prey worth his time and followed a white stag into the fog. The stag led him to a realm where the prey runs forever, heals forever and never stops being afraid.',
+    'He wears the antlers of the stag now. Every survivor he marks is a trophy he has not yet hung, and he is very patient.',
+  ] },
+  lamplighter: { title: 'Keeper of the Moor Road', story: [
+    'For forty years, old Silas lit the lamps along the moor road so travellers would not lose their way in the fog. He knew each lamp by name. He knew each traveller by the sound of their footsteps.',
+    'One night the lamps would not light. Silas walked the road with his pole until dawn, and dawn did not come. When the green flame finally caught, it lit a road that went somewhere else.',
+    'He still guides travellers. He simply guides them to him. Every lantern he hangs is a promise: wherever you run in the dark, he can step out of the light beside you.',
+  ] },
+  slimer: { title: 'The Hungry Ghost', story: [
+    'A fan-made crossover. A green, gluttonous spirit from the Ghostbusters\' world, once trapped and contained. When their business collapsed and the containment unit went dark, he was the first one out.',
+    'He ate his way through a hotel kitchen, then a city, then the walls between worlds, and fell straight into the Entity\'s realm. He found it full of frightened people who had never seen a ghost.',
+    'He has never been happier. The Entity feeds him, the survivors run, and somewhere out there two old Ghostbusters are still carrying proton packs. He would very much like to say hello.',
+  ] },
+  foreman: { title: 'Headcount Must Be Maintained', story: [
+    'From the OFFAL crossover chapter. The Hollow Pines Meatworks ran three shifts a day, and the Foreman made sure every one of them was full. Late workers were reassigned. Nobody was quite sure where.',
+    'The night the plant burned, every worker on the floor was counted, and the count came up short. The Foreman went back inside to find the missing ones. He never came out.',
+    'He is still on the clock, hunting by sound and by light, dragging stragglers back to the line. The quota is never met. It never will be.',
+  ] },
+  granny: { title: 'Five Days', story: [
+    'A fan-made crossover. Nobody knows how long she has lived in the old house by the moat, only that the people who wake up in it have five days to find their way out, and that she hears every one of them try.',
+    'She walks the halls with a bloody bat, comes out of nowhere wherever the floor creaks, and stops dead when she hears a door or a dropped plate. Her husband keeps the cellar. And the thing in the attic she calls Spider Mom keeps watch over the generators, and lends Granny her body whenever she asks.',
+    'The Entity did not have to take her anywhere. It simply moved the house. Now the guests are survivors, the trial is her home, and the rules have not changed: be quiet, and do not look at the girl in the white dress.',
+  ] },
+  chucky: { title: 'Friends Till the End', story: [
+    'A fan-made crossover. A Good Guy doll carrying the soul of a strangler who learned a little voodoo and would not stay dead. He has been burned, shot, melted and buried, and every time he has found another body to come back in.',
+    'The Entity found him in a toy factory furnace, still laughing, and offered him a place where the playtime never ends. He said yes before it had finished asking.',
+    'Survivors underestimate him because he is small. That is exactly what he wants. He can hide in their bodies, split his soul between dolls, and he will always, always come back for one more game.',
+  ] },
+  bateman: { title: 'Mergers and Acquisitions', story: [
+    'A fan-made crossover. Vice president at Pierce & Pierce in the late eighties, with a flawless morning routine, an impeccable wardrobe, a business card with a tasteful thickness and a hobby nobody at the office believed.',
+    'The Entity did not need to warp reality to take him. It only had to show him a place where every confession is forgotten, every victim comes back, and nobody ever asks him to return the videotapes.',
+    'He treats the trials like a deal: precise, professional, and slightly bored. He would like you to know his card has a watermark.',
+  ] },
 };
 
 // ---------------- Store: skins (bought with embers) ----------------
@@ -167,6 +317,7 @@ export const SKINS = {
   raghuvir: [
     { id: 'default', name: 'Ghostbuster', price: 0, desc: 'Khaki flight suit, proton pack, name tag. Who you gonna call?', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['nametag', {}], ['wand', {}]] },
     { id: 'street', name: 'Beige Puffer', price: 1500, shirt: 0xb8a48a, pants: 0x1a1a1e, desc: 'Off duty: beige puffer jacket with a black hood and sleeves.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['puffer', { color: 0xb8a48a }]] },
+    { id: 'realism', name: 'Realism', price: 6000, glb: 'ray', desc: 'A fully realistic Ghostbuster: worn khaki flight suit, straps, name patch and a heavy proton pack. (Model: "Ghostbusters - Dr. Ray Stantz" by spinningblade, CC BY 4.0.)' },
     { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
   ],
   abeer: [
@@ -200,22 +351,45 @@ export const SKINS = {
   ],
   slimer: [
     { id: 'default', name: 'Kitchen Raider', price: 0 },
-    { id: 'ectoblue', name: 'Ecto Blue', price: 2500, desc: 'A rarer, colder spirit: icy blue ectoplasm.', fx: [['tint', { color: 0x4aa8ff, k: 0.7, e: 0x0a3a8a, ei: 0.8 }]] },
-    { id: 'golden', name: 'Golden Glutton', price: 5000, desc: 'He ate the hotel safe. Solid gold, still hungry.', fx: [['tint', { color: 0xe8c040, k: 0.75, e: 0x5a3a00, ei: 0.5 }], ['crown', { color: 0xd8b040, gem: 0x40ff40 }]] },
+    { id: 'ectoblue', name: 'Ecto Blue', price: 2500, desc: 'A rarer, colder spirit: icy blue ectoplasm.', fx: [['tint', { color: 0x4aa8ff, k: 0.7, e: 0x0a3a8a, ei: 0.8 }]], tintGlb: { color: 0x9ad0ff, k: 1, emissive: 0x1a5aff, ei: 0.55 } },
+    { id: 'golden', name: 'Golden Glutton', price: 5000, desc: 'He ate the hotel safe. Solid gold, still hungry.', fx: [['tint', { color: 0xe8c040, k: 0.75, e: 0x5a3a00, ei: 0.5 }], ['crown', { color: 0xd8b040, gem: 0x40ff40 }]], tintGlb: { color: 0xffe080, k: 1, emissive: 0x8a5a00, ei: 0.6 } },
+  ],
+  chucky: [
+    { id: 'default', name: 'Good Guy', price: 0, desc: 'Denim overalls, striped shirt, red hair and a kitchen knife. Hi, I\'m Chucky. Wanna play?' },
+    { id: 'charred', name: 'Burnt Out', price: 2500, tint: 0x141210, tintK: 0.88, glow: 0x6a1400, glowK: 0.12, desc: 'Pulled from the toy factory fire. Charred black and still smouldering.' },
+    { id: 'voodoo', name: 'Voodoo', price: 4500, tint: 0x7aff8a, tintK: 0.3, glow: 0x0a6a1a, glowK: 0.7, desc: 'Ade due Damballa. A sickly green glow from the inside.' },
+  ],
+  granny: [
+    { id: 'default', name: 'House Dress', price: 0, desc: 'Her grey nightgown, her bloody bat, and the stare. You know the one.' },
+    { id: 'bloodbath', name: 'Spring Cleaning', price: 3000, tint: 0x8a1010, tintK: 0.35, desc: 'She has been busy. Most of the red is not hers.' },
+    { id: 'grandpa', name: 'Grandpa', price: 5000, grandpa: true, desc: 'Her husband takes the shift: deaf as a post, but he brought his shotgun, and he hits harder than he looks.' },
+    { id: 'ghost', name: 'Pale Visitor', price: 4500, tint: 0xd8e4f0, tintK: 0.5, glow: 0x6a8aa8, glowK: 0.35, desc: 'Drained of colour, glowing faintly, like something that stayed in the house long after it should have left.' },
+  ],
+  bateman: [
+    { id: 'default', name: 'Pierce & Pierce', price: 0, desc: 'Charcoal pinstripe double-breasted suit, crisp white shirt, red silk tie and a cigar. Valentino Couture.' },
+    { id: 'raincoat', name: 'Hip to Be Square', price: 2500, rain: true, desc: 'A clear plastic raincoat over the suit, for the mess. Newspaper on the floor optional.' },
+    { id: 'morning', name: 'Morning Routine', price: 3000, suit: 0xf2efe8, shirt: 0xf2efe8, tie: 0xf2efe8, mask: 0xd8ead0, desc: 'White robe, herb-mint facial mask and a Walkman. Ice pack under the eyes.' },
+    { id: 'bloodbath', name: 'Bloodbath', price: 5000, suit: 0xe8e2d8, shirt: 0x8a0a08, tie: 0x5a0606, saw: true, desc: 'Shirt soaked through, chainsaw in hand. He has to return some videotapes.' },
   ],
   foreman: [
     { id: 'default', name: 'Night Shift', price: 0 },
     { id: 'overtime', name: 'Overtime', price: 2000, flesh: 0x9a8a88, apron: 0x2a1a14, blood: 0x6a0a06, desc: 'Hard hat and a hi-vis vest over the apron. Safety first.', fx: [['hardhat', { color: 0xe0b020, lamp: true }], ['hivis', { color: 0xf09020 }]] },
     { id: 'quota', name: 'Quota Met', price: 3500, bone: 0xc8a050, eye: 0xff3a20, desc: 'Employee of the month: a gold mask, a gold hook and gold chains.', fx: [['metal', { names: ['Foreman_8', 'Foreman_14'], color: 0xd8b040 }], ['chains', { color: 0xd8b040, cross: true }], ['crown', { color: 0xd8b040 }]] },
+    { id: 'batman', name: 'The Dark Knight', price: 6500, limited: true, batman: true, desc: 'Limited edition. The cowl, the cape, the armoured suit, and the Foreman\'s hook turned into a grappling hook. Fan-made; not affiliated with DC.' },
     { id: 'reassigned', name: 'Reassigned', price: 6000, flesh: 0x7a8a8a, bone: 0x2a2a2a, eye: 0x7affd0, apron: 0x101418, desc: 'Moved to the cold store, and never came back out. A gas-masked teal ghost in chains.', fx: [['ghost', { color: 0x7affd0, op: 0.55 }], ['gasmask', { color: 0x1a1c1e, eye: 0x7affd0, filter: 0x2a2a2a }], ['chains', { color: 0x4a4a4a }]] },
   ],
 };
 // ---------------- Store: chapters (DLC) ----------------
 // Bought with Embers. A chapter unlocks playing as its killer; its map is free for everyone.
 export const CHAPTERS = [
-  { id: 'offal', num: 'V', name: 'OFFAL', sub: '× Nightbound', price: 5000, killer: 'foreman', map: 'meatworks', banner: 'offal', isNew: true,
+  { id: 'granny', num: 'VIII', name: 'Granny', sub: '× Nightbound', price: 5000, killer: 'granny', map: 'granny', banner: 'granny', isNew: true,
+    tagline: 'You have five days. She hears everything.',
+    contents: ['Granny: Bat Rush, I Hear You, Creep (teleport), Body Swap', 'Her helper: Spider Mom', 'Execution: Bedtime Trap', "Map: Granny's House (free for everyone)", '2 Granny outfits in the Store'] },
+  { id: 'offal', num: 'V', name: 'OFFAL', sub: '× Nightbound', price: 5000, killer: 'foreman', map: 'meatworks', banner: 'offal',
     tagline: 'Night shift at the Hollow Pines Meatworks. Headcount must be maintained.',
     contents: ['The Foreman: Chain Hook, Lights Out and Hunts by Sound', 'Execution: Reassignment', 'Map: Hollow Pines Meatworks (free for everyone)', '3 Foreman outfits in the Store'] },
+  { id: 'psycho', num: 'VII', name: 'American Psycho', sub: '(fan-made)', killer: 'bateman', base: true, isNew: true, tagline: 'Do you like Huey Lewis and the News?' },
+  { id: 'childsplay', num: 'VI', name: "Child's Play", sub: '(fan-made)', killer: 'chucky', base: true, isNew: true, tagline: 'Hi, I\'m Chucky. Wanna play?' },
   { id: 'base4', num: 'IV', name: 'The Last Light', killer: 'lamplighter', base: true, tagline: 'Every lantern is a door. Every door leads to him.' },
   { id: 'base3', num: 'III', name: 'Trophy Season', killer: 'harrower', base: true, tagline: 'He does not chase. He collects.' },
   { id: 'base2', num: 'II', name: 'Drowned Embrace', killer: 'wisp', base: true, tagline: 'She was here first. She will be here last.' },
@@ -226,8 +400,307 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.9.1';
+export const VERSION = '2.27.0';
 export const INBOX = [
+  {
+    id: 'v2.27.0', version: '2.27.0', date: 'Nov 2026', title: 'Granny: Body Swap & a Wilder Bat Rush', tag: 'Update',
+    body: ['New for Granny: Body Swap (V). Switch bodies with Spider Mom at any moment: Granny appears where Spider Mom was, and Spider Mom where Granny stood. Hold V to look through Spider Mom\'s eyes first, then let go to swap.', 'Bat Rush, upgraded: steer the charge with the mouse, crash straight through windows, and each dropped pallet you smash carries you 2m further. Wind it up all the way and it ends in a Ground Slam that strikes everyone around her and damages a nearby generator.', 'Slendrina is gone from the Granny chapter: no more apparitions, and the trailer and banner now feature Spider Mom.'],
+  },
+  {
+    id: 'v2.26.0', version: '2.26.0', date: 'Nov 2026', title: 'Granny Rework, Online Fixes', tag: 'Update',
+    body: ['Granny, reworked to be more fun and more dangerous. New power, Bat Rush (hold RMB, release): wind up the bat and charge 3 to 8m, smashing through dropped pallets; the first survivor in her way is struck. Rush into a wall and she is stunned. Frenzy is gone.', 'I Hear You (R) now marks everyone it reveals as Heard for 15s: her next hit on a Heard survivor, bat or Bat Rush, puts them straight down.', 'Creep (G) can now take her to Spider Mom, and she arrives with a burst of speed. Spider Mom webs the survivors she finds (slowed for 3s).', 'Online: players who end up on the slower relay keep trying for a direct connection in the background and switch over mid-match when it works. More relay servers help direct connections succeed in the first place.', 'Online: key presses can no longer get lost on the relay, held keys (E, aim, flashlight) can no longer get stuck, and a laggy killer\'s hits now count (lag compensation up to 0.8s).', "Online: on Granny's House, a player who joined now really is on the floor they climbed to, so hits upstairs work.", 'Removed the Scarred Chucky and Chucky DBD outfits (they glitched). Anyone who bought one got their embers back.'],
+  },
+  {
+    id: 'v2.25.0', version: '2.25.0', date: 'Nov 2026', title: 'Two New Chucky Outfits', tag: 'Store',
+    body: ['Scarred Chucky (5,500 embers): stitched back together after Bride of Chucky, scars, staples and a bloody butcher knife.', 'Chucky DBD (6,000 embers): the Good Guy as he looks in Dead by Daylight.', "Both are fitted to Chucky's own skeleton, so they play all of his animations, knife included."],
+  },
+  {
+    id: 'v2.24.1', version: '2.24.1', date: 'Nov 2026', title: 'Fix: taking over a bot', tag: 'Fix',
+    body: ['Taking over a bot after you die (T) works again: swapping items at a chest was being mistaken for it.'],
+  },
+  {
+    id: 'v2.24.0', version: '2.24.0', date: 'Nov 2026', title: "Granny's House: Every Floor", tag: 'Map',
+    body: ["The whole of Granny's House is open. Take the stairs in the hall up to the first and second floors, then the spiral staircase up to the tower room.", 'Hits, pick-ups and line of sight respect floors: nobody can be hit through a ceiling, and you can hide upstairs, but the killer will follow you up (bots too) and carry you back down to a hook.', 'Bots no longer get stuck carrying a survivor between two hooks that are the same distance away.'],
+  },
+  {
+    id: 'v2.23.0', version: '2.23.0', date: 'Nov 2026', title: 'Chests, the Taser & Your Own Hands', tag: 'Update',
+    body: ['Chests now sit on every map. Hold E to search one: inside is a fresh flashlight, ghost traps or, one time in five, the new Taser. Hold E at an open chest to swap your item for what it holds, even a used-up one.', 'New item, the Taser (chests only): click RMB to fire. A killer you hit is electrocuted and frozen for 3s, and drops whoever he is carrying. 3 shots.', 'Killers now see their own hands in first person: Granny\'s real arm and bloody bat, Grandpa\'s shotgun, the Dark Knight\'s gauntlets, the Slimer\'s slimy arms, and your outfit\'s colours on every other killer.', 'Spider Mom: survivors she finds are outlined in purple for Granny.', "Granny's Bedtime Trap uses a new bear trap model, in the execution and the trailer.", "Granny's House can now be picked from the map lists (bots and online lobbies)."],
+  },
+  {
+    id: 'v2.22.0', version: '2.22.0', date: 'Nov 2026', title: 'Granny Rework, Spider Mom & Grandpa', tag: 'Update',
+    body: ['Granny has been reworked. Her bear traps are gone. New power, Frenzy (RMB): for 5s she moves 35% faster, senses every survivor within 16m through the walls, and her first hit downs.', 'New: Creep (hold G). Every generator, hook, window and pallet on the map is marked; release to vanish and reappear at the one in your sights.', 'New helper: Spider Mom crawls from generator to generator. Anyone she finds repairing one is revealed to Granny.', 'New execution: Bedtime Trap. Granny forces the survivor to their knees, sets a bear trap in front of them and shoves their face into it.', 'New outfit in the Store: Grandpa (5,000 embers), with his own animations.', "Granny's House: generators and hooks no longer block the way from one side of the map to the other."],
+  },
+  {
+    id: 'v2.21.1', version: '2.21.1', date: 'Nov 2026', title: 'Limited Edition: The Dark Knight', tag: 'Store',
+    body: ['A limited edition outfit for the Foreman: The Dark Knight. The cowl, the cape and the armoured suit, moving with all of the Foreman\'s own animations.', 'His hook becomes a black grappling hook, and his Chain Hook fires a thin black grapnel line. (Fan-made; not affiliated with DC.)', 'Find it in the Store under the Foreman, while it lasts.'],
+  },
+  {
+    id: 'v2.21.0', version: '2.21.0', date: 'Nov 2026', title: 'Chapter VIII: Granny', tag: 'New Chapter', banner: 'granny',
+    body: [
+      'Granny comes to Nightbound. You wake up in her house, and you have five days. (Fan-made crossover.)',
+      'New killer, Granny: Bear Trap (hold RMB to kneel and set a trap: whoever steps in it is injured and held in place), I Hear You (R: everyone running, repairing, healing or unhooking is revealed), and Sharp Ears (runners near her, and every failed skill check, give you away). She moves with her own animations: the shuffle, the bat swing, the stagger, the pepper-spray flinch.',
+      'Her helper, Slendrina, haunts the trial: now and then early on, and constantly once the exit gates are powered. Look at her for half a second and you are injured. Don\'t look at her.',
+      'New map, free for everyone: Granny\'s House, the whole house and walled yard. Generators and hooks in the yard and inside the ground floor.',
+      'New execution: Sweet Dreams. Two outfits in the Store: Spring Cleaning and Pale Visitor.',
+      'Watch the trailer from the home screen.',
+    ],
+  },
+  {
+    id: 'v2.20.3', version: '2.20.3', date: 'Nov 2026', title: 'Killer Damage Report', tag: 'Update',
+    body: ['The end screen now shows how much damage each killer did: health states taken, hits, downs, hooks and kills (executions noted), and crowns the killer who did the most.', 'Online: players who joined a room now see their connection and ping in the top-right corner. "Relay (slower)" means a direct link to the host couldn\'t be made. Direct connections also get more time to succeed before falling back to the relay, which should mean less lag for more players.'],
+  },
+  {
+    id: 'v2.20.2', version: '2.20.2', date: 'Nov 2026', title: 'Ted: Once Is Enough', tag: 'Update',
+    body: ['Ted\'s "Fuck me." now only comes up once a match (his "Arfh!" still plays every time you go down).', 'Ted\'s longer clips can now show timed, line-by-line subtitles.'],
+  },
+  {
+    id: 'v2.20.1', version: '2.20.1', date: 'Nov 2026', title: 'Custom Keybinds', tag: 'Update',
+    body: ['Every key can now be rebound: Settings > Keybinds, click an action and press a key (Esc cancels). Pick a key another action already uses and the two swap. Reset keybinds puts everything back.', 'The on-screen hints and prompts show your keys.'],
+  },
+  {
+    id: 'v2.20.0', version: '2.20.0', date: 'Nov 2026', title: 'Hooks', tag: 'Major Update',
+    body: [
+      'Cages are gone. Killers now hang downed survivors on sacrificial meat hooks, by the shoulder, on every map.',
+      'First hook: hang for 60s. Press Space to try to unhook yourself: 3 tries, 4% chance each, and every failed try costs time.',
+      'Hang too long, or get hooked a second time, and the Entity arrives: its spider legs rise around the hook and you must hit struggle skill checks. Every miss brings it closer. A third hook is fatal.',
+      'When the Entity claims someone its legs plunge in and the hook is taken with them.',
+      'Executions now work on survivors who have reached the struggle phase. Perks renamed: Quick Release (unhook faster) and Rusted Hooks (hook timers run faster).',
+    ],
+  },
+  {
+    id: 'v2.19.9', version: '2.19.9', date: 'Nov 2026', title: 'Ted: More To Say', tag: 'Update',
+    body: ['Two Teds in one match no longer talk over each other: they take turns, and a line one Ted has already said won\'t be said again by the other.', 'New lines: "Fuck me." right after the "Arfh!" when you go down; "Look, I know you\'re pissed..." and the Thunder Buddies song while you\'re being chased; and if you\'re the killer, your Ted heckles survivors you chase ("You\'re just making yourself look like a pussy"), which survivors can hear too.', 'The teddy bear line, like most of Ted\'s lines, only comes up once a match.'],
+  },
+  {
+    id: 'v2.19.8', version: '2.19.8', date: 'Nov 2026', title: 'Realism Arms Fix', tag: 'Fix',
+    body: ['Raghuvir\'s Realism outfit no longer sinks his hands into his body while standing or idle: his arms now hang naturally at his sides.'],
+  },
+  {
+    id: 'v2.19.7', version: '2.19.7', date: 'Nov 2026', title: 'Ted: Fewer Reruns', tag: 'Update',
+    body: ['Ted no longer repeats himself: most of his lines are said once a match. Only "Bring it in, you bastard!", "Shit.", the "acting like a..." line and "Arfh!" can come up again.', 'New line when you\'re put on a hook: "You got a lot of problems."'],
+  },
+  {
+    id: 'v2.19.6', version: '2.19.6', date: 'Nov 2026', title: 'Ted: Arfh!', tag: 'Fix',
+    body: ['Ted\'s "Arfh!" now plays when he sees you get downed (it used to wait until you died).'],
+  },
+  {
+    id: 'v2.19.5', version: '2.19.5', date: 'Nov 2026', title: 'Ted: New Line', tag: 'Update',
+    body: ['Ted has a new line for when the killer is chasing you: "I\'m a f***ing teddy bear!"'],
+  },
+  {
+    id: 'v2.19.4', version: '2.19.4', date: 'Nov 2026', title: 'Ted Speaks', tag: 'Update',
+    body: ['Ted now talks, with subtitles. He has something to say when you run from the killer, when he kicks back with his bong, when someone blows a skill check, gets downed twice in a minute or (if you\'re the killer) whiffs a swing, and every now and then for no reason at all.', 'He also lets out an "Arfh!" when he sees you die.', 'Subtitles can be turned off in Settings.'],
+  },
+  {
+    id: 'v2.19.3', version: '2.19.3', date: 'Nov 2026', title: 'Black Squares Fix', tag: 'Fix',
+    body: ['Fixed big black boxes spreading across the screen while walking with the Realistic look. Ambient occlusion is off for now, and a safety pass stops any bad pixel from being smeared by the glow effect.'],
+  },
+  {
+    id: 'v2.19.2', version: '2.19.2', date: 'Nov 2026', title: 'Scratch Marks', tag: 'Update',
+    body: ['Running survivors now leave glowing orange scratch marks behind them, scattered along their trail. Only the killer can see them, and they fade after about ten seconds.', 'Survivors: walk or crouch to stop leaving a trail.'],
+  },
+  {
+    id: 'v2.19.1', version: '2.19.1', date: 'Nov 2026', title: 'Emotes', tag: 'Update',
+    body: ['Survivors can now emote: press B, then 1 to 4 (or click) for Dance, Wave, Cheer or Bow. Moving or doing anything stops it, and everyone in the match sees it.', 'Got a sidekick? Ted and Rosy join in: they dance with you, wave, cheer and even take a bow.'],
+  },
+  {
+    id: 'v2.19.0', version: '2.19.0', date: 'Nov 2026', title: 'Realistic Look', tag: 'Graphics',
+    body: ['New Realistic look, on by default: textures painted at twice the resolution with deeper surface relief and full anisotropic filtering, a soft sheen on skin and fabric, rounder and smoother characters, faint night-sky reflections on metal, glass and blood, proper anti-aliasing, crisper moon shadows, and ambient occlusion on High.', 'Running on an older laptop? Settings > Visual style > Classic brings back the original look, and it combines with any graphics quality.'],
+  },
+  {
+    id: 'v2.18.7', version: '2.18.7', date: 'Nov 2026', title: 'The Real Ghost Trap', tag: 'Update',
+    body: ['Ghost traps set by Raghuvir and Abeer now use a detailed trap model, with the hazard stripes, side panel and foot pedal handle, still glowing so you can spot them.'],
+  },
+  {
+    id: 'v2.18.6', version: '2.18.6', date: 'Nov 2026', title: 'Axe Grip Fix', tag: 'Fix',
+    body: ['Patrick Bateman\'s fire axe no longer floats in front of the camera: the handle now sits in his fist, in first person and third person, with the blade leading every swing.'],
+  },
+  {
+    id: 'v2.18.5', version: '2.18.5', date: 'Nov 2026', title: 'Your Camera, Your Way', tag: 'Update',
+    body: ['New camera options in Settings (and in the pause menu): left shoulder, centered or right shoulder, plus camera distance, height and orbit angle.', 'Press H during a match to swap shoulders instantly. Works for survivors and over-the-shoulder killers like Chucky.'],
+  },
+  {
+    id: 'v2.18.4', version: '2.18.4', date: 'Nov 2026', title: 'Ted Gets Comfy', tag: 'Update',
+    body: ['Ted now walks over, pulls out his folding chair, sets it down and snaps it open, then hops up into it. When it\'s time to go he climbs down, folds it back up and tucks it away.', 'He raises his beer all the way to his mouth and tips his head back for a proper swig.', 'His bong sits on his lap; for a hit he tips it up to his mouth, then breathes out a small puff of smoke.'],
+  },
+  {
+    id: 'v2.18.3', version: '2.18.3', date: 'Nov 2026', title: 'Sharper Steel, Wetter Gore', tag: 'Update',
+    body: ['Patrick Bateman now swings a real fire axe, in first and third person.', 'Blood is no longer flat dots: droplets are glossy, stretch as they fly and bead up where they land (Low and Potato graphics keep the cheap version).'],
+  },
+  {
+    id: 'v2.18.2', version: '2.18.2', date: 'Nov 2026', title: 'Turntable Preview', tag: 'Update',
+    body: ['In the Store and on the Loadout screen, drag the character to spin them all the way around and scroll to zoom in on their outfit.'],
+  },
+  {
+    id: 'v2.18.1', version: '2.18.1', date: 'Nov 2026', title: 'The New Slimer', tag: 'Crossover', gb: true,
+    body: ['The Slimer has a brand-new realistic model: slick green ectoplasm, red eyes, a huge lipped mouth full of teeth. He floats, bobs, squashes and stretches, lunges into his attacks and wobbles when stunned. Ecto Blue and Golden Glutton recolour the new model.'],
+  },
+  {
+    id: 'v2.18', version: '2.18.0', date: 'Nov 2026', title: 'Brutal Executions', tag: 'Update',
+    body: [
+      'Executions are smoother and far gorier. The victim glides into place instead of snapping, poses blend between beats, the wound pumps blood in time with a heartbeat, a pool spreads under the body, and the killing blow lands with a burst, flying chunks, blood across the screen and a beat of slow motion.',
+      'Hit reactions: survivors now snap forward, twist away from the blow, whip their head back and stumble.',
+    ],
+  },
+  {
+    id: 'v2.17.3', version: '2.17.3', date: 'Nov 2026', title: 'Ted Takes a Break', tag: 'Update',
+    body: ['Ted now pulls out his camping chair, beer and bong while you repair a generator or hang on a hook, not just when you die. He packs up when you get moving again. Rosy lies down beside you.'],
+  },
+  {
+    id: 'v2.17.2', version: '2.17.2', date: 'Nov 2026', title: 'Last Updated', tag: 'Update',
+    body: ['The home screen now shows the game version and how long ago it was last updated (hover it for the exact date and time).'],
+  },
+  {
+    id: 'v2.17.1', version: '2.17.1', date: 'Nov 2026', title: 'Raghuvir: Realism', tag: 'Crossover', gb: true,
+    body: [
+      'New outfit for Raghuvir: Realism (6,000 Embers), a fully realistic Ghostbuster in a worn khaki flight suit with straps, patch and a heavy proton pack.',
+      'It moves with every survivor animation in the game: walking, running, crouching, repairing, healing, going down, being carried, hooked and vaulting.',
+    ],
+  },
+  {
+    id: 'v2.17', version: '2.17.0', date: 'Nov 2026', title: 'Sidekicks', tag: 'Update',
+    body: [
+      'New in the Store: Sidekicks, companions that follow you through the match, for survivors and killers. Equip one for each in the Store or on the Loadout screen.',
+      'Ted (4,000 Embers): cheers when things go well, panics when you get hurt, and whenever you repair a generator, get hooked or die, he pulls up a camping chair next to you with a beer and his bong.',
+      'Rosy (2,500 Embers): a loyal little dog who trots at your heels, wags, runs circles when you are in trouble and lies down beside you if you fall.',
+      'Sidekicks can\'t be hurt and can\'t hurt anyone. Everyone in the match sees them.',
+    ],
+  },
+  {
+    id: 'v2.16.1', version: '2.16.1', date: 'Nov 2026', title: 'Chucky Coils on the Run', tag: 'Balance',
+    body: ['Chucky is no longer slowed while coiling a Pounce: keep running at full speed and leap when you are ready.'],
+  },
+  {
+    id: 'v2.16', version: '2.16.0', date: 'Nov 2026', title: 'Perk Shop & New Loadout', tag: 'Update',
+    gift: { embers: 3000, label: 'Gift: 3,000 Embers' },
+    body: [
+      'A new Loadout screen: pick your character from the portrait row, your four equipped perks sit in diamond slots, and every perk is in the inventory grid below. Your character stands on the right.',
+      'Four perk slots instead of three.',
+      'Perks are now bought with Embers (1,500 to 2,500). The default perks are free, and anything you already had equipped stays yours.',
+      'Six new survivor-exclusive perks: Triage (Mara), Overclock (Eli), Exposure (June), Pathfinder (Tomas), Containment (Raghuvir) and Exorcist (Abeer, who cannot be possessed).',
+    ],
+  },
+  {
+    id: 'v2.15.3', version: '2.15.3', date: 'Nov 2026', title: 'Store Showroom', tag: 'Update',
+    body: [
+      'Previewing outfits in the Store now stands the character up on their own in a lit clearing, facing you, full body, between the character list and the outfit card. No more survivors sitting with their backs to you at the campfire.',
+    ],
+  },
+  {
+    id: 'v2.15.2', version: '2.15.2', date: 'Nov 2026', title: 'Character Lore', tag: 'Update',
+    body: [
+      'Every survivor and killer now has a backstory. Read it on the Loadout screen (tap Read more) or on each character\'s page in the Store.',
+      'Raghuvir and Abeer: how the Ghostbusters fell apart, and how the Entity pulled them both into Nightbound.',
+    ],
+  },
+  {
+    id: 'v2.15.1', version: '2.15.1', date: 'Nov 2026', title: 'Patrick Bateman Buff', tag: 'Balance',
+    body: [
+      'Chainsaw Toss: half the wind-up (0.35s), a faster throw (26 m/s), a bigger hitbox, 24m range and a 2.5s cooldown. If you don\'t pick it up, it flies back to your hand after 8s (was 20s).',
+      'Business Card: 18s cooldown (was 25s), 16m range, slows by 20% for 5s, and intimidated survivors stay revealed while they run.',
+      'Morning Routine lasts 4s. Base speed 4.7 m/s, terror radius 28m.',
+      'His first-person chainsaw is smaller and sits in the lower corner instead of covering the screen.',
+    ],
+  },
+  {
+    id: 'v2.15', version: '2.15.0', date: 'Nov 2026', title: 'Chucky: Soul Split', tag: 'Balance',
+    body: [
+      'New for Chucky, Soul Split (V, once per match): spare Good Guy dolls now lie around the map. When only one generator is left, his soul jumps into one of them at random.',
+      'His old body keeps hunting on its own as a bot. It can put survivors down, but it can never pick them up or hook them.',
+    ],
+  },
+  {
+    id: 'v2.14', version: '2.14.0', date: 'Nov 2026', title: 'Chucky: Possession', tag: 'Balance',
+    body: [
+      'New for Chucky, Possession (G, once every 10 minutes): stand over a downed survivor and take over their body. Nobody is told.',
+      'The body gets back up looking exactly like that survivor, but you are in control: strike, pick up and hook like a killer.',
+      'Your doll is left behind as a bot decoy that chases survivors but cannot hurt them.',
+      'The possessed player becomes a ghost nobody else can see. Ghosts can only repair generators, 10% slower.',
+      'Once you have downed and hooked a survivor in that body, press G to let go: you return to your doll and the survivor gets their body back, injured.',
+    ],
+  },
+  {
+    id: 'v2.13.3', version: '2.13.3', date: 'Nov 2026', title: 'Chucky Fix', tag: 'Update',
+    body: [
+      'Fixed: Chucky could show up as a simple stand-in doll instead of his real model. A match with Chucky in it now waits on the loading screen until his model has downloaded, and the menu, store and character previews redraw as soon as it arrives.',
+      'If the model ever fails to load you now get a message instead of a silent stand-in.',
+    ],
+  },
+  {
+    id: 'v2.13.2', version: '2.13.2', date: 'Nov 2026', title: 'Chucky Pounces Higher', tag: 'Balance',
+    body: [
+      'Chucky\'s Pounce now sails over fences, dropped pallets, crates, log piles and rocks (anything under 1.6m). Walls still stop him, and Ghost Traps still catch him mid-leap.',
+    ],
+  },
+  {
+    id: 'v2.13.1', version: '2.13.1', date: 'Nov 2026', title: 'Chucky Can Jump', tag: 'Balance',
+    body: [
+      'Chucky can jump (Space). He hops straight over window frames, dropped pallets and low rocks instead of vaulting, and crossing a window or pallet takes him half a second.',
+    ],
+  },
+  {
+    id: 'v2.13', version: '2.13.0', date: 'Nov 2026', title: 'Chucky', tag: 'Crossover',
+    gift: { embers: 1500, label: 'Gift: 1,500 Embers' },
+    body: [
+      'New killer, free for everyone: Chucky (Child\'s Play, fan-made). A fully animated Good Guy doll, two and a half feet tall, played in third person.',
+      'Pounce (RMB): hold to coil, release to leap up to 10m. The longer the coil, the farther the leap. Landing on a survivor strikes them; leaping into a wall stuns you.',
+      'Chucky\'s Laugh (R): every survivor within 28m hears it and is revealed to you for 5s.',
+      'Tiny Terror: a 20m terror radius and silent footsteps. Execution: Friends Till the End.',
+      'Outfits in the Store: Burnt Out and Voodoo.',
+    ],
+  },
+  {
+    id: 'v2.12', version: '2.12.0', date: 'Nov 2026', title: 'Infection Grows', tag: 'New Maps',
+    body: [
+      'Infection is now 2 killers vs 10 survivors (12 players online).',
+      'Two new maps built for Infection, twice the size of the others: Quarantine Woods and Outbreak Fairground. Eleven generators (eight needed), survivors start spread around the edges.',
+      'Every 60 seconds the infected sense every survivor for a moment, so nobody can hide forever.',
+      'Big teams get a compact two-column team list.',
+      'Bot pathfinding is much faster, which smooths out hosting on big maps.',
+    ],
+  },
+  {
+    id: 'v2.11.1', version: '2.11.1', date: 'Nov 2026', title: 'The Killer Knows', tag: 'Update',
+    body: [
+      'Killers now always see which generators are being repaired (they glow yellow), and a marker shows where each generator was finished.',
+      'A hooked survivor stays visible to the killer, through walls, until someone unhooks them.',
+      'The Foreman\'s Chain Hook now flies where you aim, up and down. Aim at a treetop or a high wall and he is flung up to the hook, then drops down at its foot.',
+      'Static Sense (killer perk) now reveals the survivors who are repairing a generator.',
+    ],
+  },
+  {
+    id: 'v2.11', version: '2.11.0', date: 'Nov 2026', title: 'Patrick Bateman', tag: 'Crossover',
+    body: [
+      'New killer, free for everyone: Patrick Bateman (American Psycho, fan-made). Vice president at Pierce & Pierce, in a charcoal pinstripe double-breasted suit with a red silk tie, a cigar and an axe.',
+      'Chainsaw Toss (RMB): hold to rev up (slowed), release to hurl the chainsaw. A hit puts a survivor straight down. Then walk over and pick it back up (it returns by itself after 20s).',
+      'Business Card (R): survivors within 14m in front of him are intimidated: revealed and 15% slower for 4s.',
+      'Morning Routine: a 3s burst of +12% speed after every hit. Execution: Hip to Be Square.',
+      'Outfits in the Store: Hip to Be Square (clear raincoat), Morning Routine (robe, face mask and Walkman), Bloodbath (soaked shirt and chainsaw).',
+    ],
+  },
+  {
+    id: 'v2.10', version: '2.10.0', date: 'Nov 2026', title: 'Game Modes', tag: 'Update',
+    gift: { embers: 1000, label: 'Gift: 1,000 Embers' },
+    body: [
+      'Pick a game mode in the bot match setup or the online lobby.',
+      'Two Killers (2 vs 8): two killers hunt eight survivors. Six generators power the gates.',
+      'Lights Out: the lights never come on. Thick fog, no auras for survivors and half-charged flashlights.',
+      'Survivor Rush: five-minute matches. Generators and gates go twice as fast and the killer gets a burst of speed after every hit. When the clock runs out, the gates power up and the night collapses in 40 seconds.',
+      'Infection: no hooks. A downed survivor rises as a random killer 3 seconds later. Escape through the gates, or be the last survivor standing and survive a 45-second last stand.',
+      'Online lobbies grow to 10 players for Two Killers.',
+    ],
+  },
+  {
+    id: 'v2.9.2', version: '2.9.2', date: 'Nov 2026', title: 'Smoother Online Matches', tag: 'Update',
+    body: [
+      'Online matches should feel much smoother. Game state now travels over a fast WebRTC channel that never waits for lost packets, so a single dropped packet no longer freezes everyone for a moment and then makes them jump.',
+      'Snapshots are about a third smaller and sent 30 times a second (was 20). Your own position is sent 30 times a second too.',
+      'The host now draws other players smoothly instead of in steps, and the host\'s hits are lag-compensated like everyone else\'s.',
+      'If the host switches to another tab or window, the match keeps running at full speed for everyone.',
+      'Slow connections drop stale updates instead of letting a queue of old ones build up.',
+      'Everyone in a lobby needs this version. Players on an older copy are told to refresh.',
+    ],
+  },
   {
     id: 'v2.9.1', version: '2.9.1', date: 'Nov 2026', title: 'Slimer Gets Hungrier', tag: 'Balance',
     body: [
@@ -340,10 +813,10 @@ export const INBOX = [
     body: [
       'Character models rebuilt: sculpted bodies, hands with fingers, faces with eyes, lips and expression.',
       'Survivor bots loop walls and trees, vault, drop barricades on you and rescue each other.',
-      'Killer bots predict where you run, listen for footsteps, search where they lost you and stop camping cages.',
+      'Killer bots predict where you run, listen for footsteps, search where they lost you and stop camping hooks.',
       'Online play: direct WebRTC connection with an automatic relay fallback. Works without a server.',
       'Fixed: killer mouse look was inverted.',
-      'Executions now need two prior cagings (or the last survivor alive).',
+      'Executions now need a survivor in the struggle phase (or the last survivor alive).',
     ],
   },
   {

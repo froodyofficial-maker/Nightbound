@@ -63,7 +63,7 @@ const marsh = {
   },
   extra(M, R, cells, near) {
     // more black water in the open ground
-    for (let n = 0, k = 0; n < 200 && k < 10; n++) { const x = R.range(-HALF + 6, HALF - 6), z = R.range(-HALF + 6, HALF - 6), r = R.range(2, 4.5); if (near(x, z, r * 0.6)) continue; M.pools.push({ x, z, r }); k++; }
+    for (let n = 0, k = 0; n < 200 && k < 10; n++) { const x = R.range(-M.half + 6, M.half - 6), z = R.range(-M.half + 6, M.half - 6), r = R.range(2, 4.5); if (near(x, z, r * 0.6)) continue; M.pools.push({ x, z, r }); k++; }
   },
 };
 
@@ -132,7 +132,7 @@ const carnival = {
     const poles = [];
     for (const c of cells) for (let t = 0; t < 8; t++) {
       const x = c.cx + R.range(-8.5, 8.5), z = c.cz + R.range(-8.5, 8.5);
-      if (near(x, z, 1.0) || Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2) continue;
+      if (near(x, z, 1.0) || Math.abs(x) > M.half - 2 || Math.abs(z) > M.half - 2) continue;
       const p = { x, z, r: 0.14, h: 6, kind: 'prop', prop: 'pole', s: 1, rot: 0 }; M.circles.push(p); M.props.push(p); poles.push(p); break;
     }
     for (const a of poles) {
@@ -190,4 +190,11 @@ const snow = {
 };
 
 export const THEMES = { marsh, carnival, snow };
-export const MAP_NAMES = { woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name };
+export const MAP_NAMES = { woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name, quarantine: 'Quarantine Woods', outbreak: 'Outbreak Fairground', granny: "Granny's House" };
+// Infection maps: twice the area of a regular map (7x7 cells instead of 5x5), built for a dozen
+// players: more generators, long sight lines broken up by loops, and spawns spread around the edges.
+export const BIG_MAPS = {
+  quarantine: { base: 'woods', N: 7, gens: 11, cages: 4 },
+  outbreak: { base: 'carnival', N: 7, gens: 11, cages: 4 },
+};
+export const REGULAR_MAPS = Object.keys(MAP_NAMES).filter(k => !BIG_MAPS[k]);

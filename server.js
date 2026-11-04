@@ -20,6 +20,11 @@ const server = createServer(async (req, res) => {
   try {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/health') { res.writeHead(200); res.end('ok'); return; }
+    if (p === '/__built') { // newest source file's time, for the home screen's "Last updated"
+      const { readdir } = await import('node:fs/promises');
+      let t = 0; for (const f of await readdir(join(root, 'js'))) t = Math.max(t, (await stat(join(root, 'js', f))).mtimeMs);
+      res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-cache' }); res.end(String(Math.round(t))); return;
+    }
     if (p.endsWith('/')) p += 'index.html';
     const f = normalize(join(root, p));
     if (!f.startsWith(root)) throw 0;
@@ -73,6 +78,8 @@ class Sock {
     head[0] = 0x80 | op;
     try { this.s.write(Buffer.concat([head, payload])); } catch { this.closed(); }
   }
+  // high-frequency state (f:1) is dropped while this socket is backed up, so it never queues latency
+  backed() { return this.s.writableLength > 64 * 1024; }
   send(obj) { this.frame(1, Buffer.from(typeof obj === 'string' ? obj : JSON.stringify(obj), 'utf8')); }
   close() { if (this.open) { this.frame(8, Buffer.alloc(0)); try { this.s.end(); } catch {} } this.closed(); }
   closed() { if (!this.open) return; this.open = false; try { this.s.destroy(); } catch {} this.onclose && this.onclose(); }
@@ -101,16 +108,17 @@ server.on('upgrade', (req, socket) => {
     } else if (m.op === 'join' && !room) {
       const r = rooms.get(String(m.code || '').toUpperCase().trim());
       if (!r) { ws.send({ op: 'error', msg: 'Room not found' }); return; }
-      if (r.peers.size >= 8) { ws.send({ op: 'error', msg: 'Room is full' }); return; }
+      if (r.peers.size >= 12) { ws.send({ op: 'error', msg: 'Room is full' }); return; }
       room = r; r.peers.set(ws.id, ws);
       ws.send({ op: 'joined', id: ws.id, code: r.code });
       r.host.send({ op: 'peer-join', id: ws.id });
     } else if (m.op === 'data' && room) {
       if (isHost) {
         const payload = JSON.stringify({ op: 'data', d: m.d });
-        if (m.to === '*') for (const p of room.peers.values()) p.send(payload);
-        else { const p = room.peers.get(m.to); p && p.send(payload); }
-      } else room.host.send({ op: 'data', from: ws.id, d: m.d });
+        const out = p => { if (p && !(m.f && p.backed())) p.send(payload); };
+        if (m.to === '*') for (const p of room.peers.values()) out(p);
+        else out(room.peers.get(m.to));
+      } else if (!(m.f && room.host.backed())) room.host.send({ op: 'data', from: ws.id, d: m.d });
     } else if (m.op === 'ping') ws.send({ op: 'pong', t: m.t });
   };
   ws.onclose = () => {

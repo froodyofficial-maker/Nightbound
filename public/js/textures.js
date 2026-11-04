@@ -1,6 +1,11 @@
 // Procedural textures (no image assets needed). Each returns { map, normalMap }.
 import * as THREE from 'three';
 import { rng } from './map.js';
+import { GFX, realistic } from './gfx.js';
+
+// textures painted at twice the resolution in the realistic look
+const SHARP = new Set(['skin', 'cloth', 'pinstripe', 'leather', 'metal', 'wood', 'bark', 'rock', 'brick', 'boards', 'logs', 'canvas', 'hay']);
+let SCALE = 1;
 
 function noiseGrid(R, n) { const g = new Float32Array((n + 1) * (n + 1)); for (let i = 0; i < g.length; i++) g[i] = R(); return g; }
 // tileable fractal value noise sampler, returns fn(x,y) in [0,1] for x,y in [0,1)
@@ -27,7 +32,7 @@ function canvas(size) { const c = document.createElement('canvas'); c.width = c.
 function finish(c, height, strength, repeat, srgb = true) {
   const map = new THREE.CanvasTexture(c);
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
-  map.anisotropy = 4;
+  map.anisotropy = GFX.aniso;
   if (srgb) map.colorSpace = THREE.SRGBColorSpace;
   if (repeat) map.repeat.set(repeat[0], repeat[1]);
   let normalMap = null;
@@ -41,6 +46,7 @@ function finish(c, height, strength, repeat, srgb = true) {
     }
     ctx.putImageData(img, 0, 0);
     normalMap = new THREE.CanvasTexture(nc);
+    normalMap.anisotropy = GFX.aniso;
     normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
     if (repeat) normalMap.repeat.set(repeat[0], repeat[1]);
   }
@@ -48,6 +54,7 @@ function finish(c, height, strength, repeat, srgb = true) {
 }
 
 function paint(size, fn) {
+  size *= SCALE;
   const c = canvas(size), ctx = c.getContext('2d'), img = ctx.createImageData(size, size), H = new Float32Array(size * size);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const [r, g, b, h] = fn(x / size, y / size, x, y);
@@ -63,7 +70,9 @@ const clamp = v => Math.max(0, Math.min(255, v));
 
 const cache = {};
 export function tex(name) {
-  if (cache[name]) return cache[name];
+  const key = name + (realistic() ? ':r' : ':c');
+  if (cache[key]) return cache[key];
+  SCALE = realistic() && SHARP.has(name) ? 2 : 1;
   let out;
   switch (name) {
     case 'ground': {
@@ -343,6 +352,17 @@ export function tex(name) {
       out = finish(c, H, 1.5, null);
       break;
     }
+    case 'pinstripe': {
+      // suiting: a fine twill with thin chalk stripes (Patrick Bateman's double-breasted suit)
+      const n = fbm(37, 32, 3);
+      const { c, H } = paint(256, (u, v, x, y) => {
+        const stripe = x % 6 === 0 ? 1 : 0, twill = (x + y) % 3 === 0 ? 0.9 : 1;
+        const w = stripe ? 0.95 : 0.5 * twill * (0.85 + n(u, v) * 0.3);
+        return [clamp(255 * w), clamp(255 * w), clamp(255 * w), stripe ? 1 : twill * 0.6];
+      });
+      out = finish(c, H, 0.8, null);
+      break;
+    }
     case 'grass': {
       // alpha blade texture for instanced grass
       const c = canvas(64), ctx = c.getContext('2d');
@@ -379,6 +399,6 @@ export function tex(name) {
       break;
     }
   }
-  cache[name] = out;
+  cache[key] = out; SCALE = 1;
   return out;
 }

@@ -1,4 +1,4 @@
-// Fully synthesized audio (WebAudio). No sound files needed.
+// Synthesized audio (WebAudio), plus a few recorded voice clips for sidekicks.
 export class Sound {
   constructor() { this.ctx = null; this.vol = 0.8; this.music = 0.7; this.lx = 0; this.lz = 0; this.lyaw = 0; }
   init() {
@@ -44,12 +44,14 @@ export class Sound {
     return gain;
   }
   noise(dest, t0, dur, type, f0, f1, q = 1, vol = 1, attack = 0.005) {
+    if (!dest) return;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
     const f = c.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t0); if (f1) f.frequency.exponentialRampToValueAtTime(f1, t0 + dur); f.Q.value = q;
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(f); f.connect(g); g.connect(dest); src.start(t0, Math.random()); src.stop(t0 + dur + 0.05);
   }
   tone(dest, t0, dur, type, f0, f1, vol = 1, attack = 0.005) {
+    if (!dest) return null;
     const c = this.ctx, o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t0); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.05);
@@ -62,7 +64,7 @@ export class Sound {
     const o = (ref = 4, max = 45) => this.out(x, z, ref, max);
     let d;
     switch (name) {
-      case 'click': d = o(); this.tone(d, t, 0.06, 'square', 900, 600, 0.05); break;
+      case 'click': if (!(d = o())) return; this.tone(d, t, 0.06, 'square', 900, 600, 0.05); break;
       case 'hover': d = o(); this.tone(d, t, 0.04, 'sine', 1400, null, 0.03); break;
       case 'swing': if (!(d = o(4, 30))) return; this.noise(d, t, 0.28, 'bandpass', 500, 2600, 2, 0.5, 0.05); break;
       case 'hit': {
@@ -100,6 +102,9 @@ export class Sound {
       case 'break': if (!(d = o(5, 60))) return; for (let i = 0; i < 7; i++) this.noise(d, t + i * 0.07, 0.12, 'bandpass', 600 + Math.random() * 1200, null, 3, 0.8); this.tone(d, t, 0.3, 'sine', 80, 40, 0.6); break;
       case 'vault': if (!(d = o(4, opt.fast ? 50 : 18))) return; this.noise(d, t, 0.3, 'bandpass', 300, 1200, 1.5, opt.fast ? 0.7 : 0.25, 0.04); this.tone(d, t + 0.25, 0.12, 'sine', 110, 60, opt.fast ? 0.5 : 0.2); break;
       case 'stun': if (!(d = o(5, 50))) return; this.tone(d, t, 0.25, 'sine', 70, 35, 1); this.tone(d, t + 0.05, 1.0, 'sawtooth', 140, 70, 0.25, 0.05); break;
+      // taser: a crackling electric buzz (o.len: how long it crackles)
+      case 'zap': { if (!(d = o(5, 45))) return; const L = opt.len || 0.5; this.noise(d, t, L, 'highpass', 3000, 5000, 3, 0.45, 0.01); for (const f of [118, 237, 355]) this.tone(d, t, L, 'square', f, f * 1.02, 0.07); this.tone(d, t, 0.08, 'square', 2200, 900, 0.12); break; }
+      case 'chest': { if (!(d = o(4, 30))) return; this.tone(d, t, 0.5, 'sawtooth', 95, 70, 0.12, 0.05); this.noise(d, t, 0.45, 'bandpass', 600, 300, 4, 0.25, 0.05); this.tone(d, t + 0.45, 0.12, 'square', 300, 200, 0.12); break; }
       case 'kick': if (!(d = o(5, 50))) return; for (const f of [180, 271, 413]) this.tone(d, t, 0.6, 'square', f, f * 0.97, 0.12); this.noise(d, t, 0.2, 'highpass', 1500, null, 1, 0.4); break;
       case 'caged': {
         if (!(d = o(8, 120))) return;
@@ -141,6 +146,13 @@ export class Sound {
       case 'thud': if (!(d = o(5, 40))) return; this.tone(d, t, 0.18, 'sine', 95, 40, 1, 0.003); this.noise(d, t, 0.09, 'lowpass', 900, 200, 1, 0.8); break;
       case 'lightsout': d = o(); this.tone(d, t, 1.2, 'sawtooth', 120, 30, 0.35, 0.01); this.noise(d, t, 0.25, 'highpass', 3000, null, 1, 0.5); this.tone(d, t + 0.05, 2.5, 'sine', 45, 38, 0.5, 0.3); break;
       case 'lightson': d = o(); this.noise(d, t, 0.6, 'bandpass', 120, 240, 3, 0.4, 0.05); this.tone(d, t, 0.8, 'sawtooth', 50, 60, 0.12, 0.2); break;
+      case 'laugh': { // a doll's high, nasty cackle
+        if (!(d = o(8, 60))) return;
+        for (let i = 0; i < 7; i++) { const tt = t + i * 0.16, f = 520 + (i % 2) * 90 - i * 18; this.tone(d, tt, 0.12, 'sawtooth', f, f * 0.82, 0.13, 0.01); this.tone(d, tt, 0.12, 'triangle', f * 1.5, f * 1.2, 0.08, 0.01); this.noise(d, tt, 0.1, 'bandpass', 1800, 900, 3, 0.18, 0.005); }
+        break;
+      }
+      case 'chainsaw': if (!(d = o(8, 70))) return; this.tone(d, t, 1.1, 'sawtooth', 70, 150, 0.32, 0.02); this.tone(d, t, 1.1, 'square', 141, 300, 0.1, 0.02); this.noise(d, t, 1.0, 'bandpass', 900, 2400, 2, 0.45, 0.02); break;
+      case 'card': if (!(d = o(3, 30))) return; this.noise(d, t, 0.14, 'highpass', 4500, 2500, 1, 0.5, 0.005); this.tone(d, t + 0.05, 0.6, 'sine', 523, 659, 0.1, 0.05); break;
       case 'grunt': if (!(d = o(3, 25))) return; this.scream(d, t, opt.pitch || 1, 0.35, 0.25); break;
     }
   }
@@ -230,4 +242,33 @@ export class Sound {
     for (const k in this.loops) { const L = this.loops[k]; if (L.g) L.g.gain.setTargetAtTime(0, t, 0.3); if (L.dg) L.dg.gain.setTargetAtTime(0, t, 0.3); if (L.rep) { L.rep.g.gain.setTargetAtTime(0, t, 0.2); L.done.g.gain.setTargetAtTime(0, t, 0.2); } }
   }
 }
+// ---------- recorded voice clips (sidekick lines) ----------
+// Clips are decoded with an offline context so they're ready before the first user gesture;
+// AudioBuffers work in any context.
+const clips = {}, clipLoading = {};
+async function clipBytes(name) {
+  const el = document.getElementById('nb-voice-' + name);
+  if (el && el.textContent.trim()) { const s = atob(el.textContent.trim()), b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b.buffer; }
+  const dev = !!document.querySelector('script[type=importmap]');
+  for (const url of dev ? [`audio/${name}.mp3`, `public/audio/${name}.mp3`] : [`public/audio/${name}.mp3`, `audio/${name}.mp3`]) {
+    try { const r = await fetch(url); if (r.ok) return await r.arrayBuffer(); } catch (_) {}
+  }
+  throw new Error('voice clip ' + name + ' unavailable');
+}
+export function loadClip(name) {
+  if (clipLoading[name]) return clipLoading[name];
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  clipLoading[name] = clipBytes(name).then(buf => new Promise((res, rej) => new OAC(1, 1, 44100).decodeAudioData(buf, res, rej))).then(b => (clips[name] = b)).catch(e => { console.warn(e.message || e); return null; });
+  return clipLoading[name];
+}
+// play a clip from a spot in the world; returns its length in seconds (0: not heard / not loaded)
+Sound.prototype.clip = function (name, x, z, opt = {}) {
+  const b = clips[name];
+  if (!b || !this.ok) return 0;
+  const out = this.out(x, z, opt.ref ?? 7, opt.maxD ?? 40);
+  if (!out) return 0;
+  out.gain.value = opt.vol ?? 1;
+  const src = this.ctx.createBufferSource(); src.buffer = b; src.connect(out); src.start();
+  return b.duration;
+};
 export const sound = new Sound();

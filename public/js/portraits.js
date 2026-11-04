@@ -14,7 +14,7 @@ function renderer() {
   R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.35;
   return R;
 }
-export const ACCENT = { butcher: 0xff2a14, wisp: 0x3aa8ff, harrower: 0xd8a040, lamplighter: 0x3aff6a, foreman: 0xff1e10, slimer: 0x7aff4a, raghuvir: 0xd8b56a, abeer: 0xd8b56a, mara: 0xd8b56a, eli: 0xd8b56a, june: 0xd8b56a, tomas: 0xd8b56a };
+export const ACCENT = { butcher: 0xff2a14, wisp: 0x3aa8ff, harrower: 0xd8a040, lamplighter: 0x3aff6a, foreman: 0xff1e10, slimer: 0x7aff4a, bateman: 0xd8202a, chucky: 0xff3a1a, granny: 0xc8d8e8, raghuvir: 0xd8b56a, abeer: 0xd8b56a, mara: 0xd8b56a, eli: 0xd8b56a, june: 0xd8b56a, tomas: 0xd8b56a };
 export function forget(char) { for (const k of [...cache.keys()]) if (k.includes(':' + char + ':')) cache.delete(k); }
 
 function stage(char, skin, banner) {

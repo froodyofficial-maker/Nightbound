@@ -43,14 +43,18 @@
     </nav>
 
     <div class="showcase" id="showcase"></div>
-    <button class="news-card" id="news-card"><div class="gb-mini">Ghostbusters</div><div class="nc-txt"><span>Fan-made crossover</span><b>Ghostbusters <i>×</i> Nightbound</b></div></button>
+    <button class="news-card" id="news-card"><div class="granny-art"></div><div class="nc-txt"><span>New chapter · Watch the trailer</span><b>Granny <i>×</i> Nightbound</b></div></button>
     <div class="topright"><button class="inbox-btn" id="inbox-btn" title="Inbox"><span class="ib-ico"></span><span class="badge hidden" id="inbox-badge"></span></button><div class="profile" id="profile"></div></div>
+    <div class="last-updated" id="last-updated" title=""></div>
+    <div id="show-drag" class="hidden"><span>Drag to rotate · Scroll to zoom</span></div>
 
     <aside id="panel" class="panel hidden">
       <div class="panel-head"><h2 id="panel-title"></h2><button class="x" id="panel-close" aria-label="Close">✕</button></div>
       <div class="panel-body">
         <!-- bot match -->
         <section id="p-play" class="hidden">
+          <div class="field"><label>Game mode</label><select id="bots-gm"></select></div>
+          <p class="hint gm-desc" id="bots-gm-desc"></p>
           <div class="field"><label>Role</label>
             <div class="seg" id="bots-role"><button data-v="survivor" class="on">Survivor</button><button data-v="killer">Killer</button></div></div>
           <div class="field" id="bots-teammates-row"><label>Bot teammates</label>
@@ -58,11 +62,11 @@
           <div class="field hidden" id="bots-survivors-row"><label>Survivors to hunt</label>
             <div class="seg" id="bots-surv"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4" class="on">4</button></div></div>
           <div class="field" id="bots-killer-row"><label>Bot killer</label>
-            <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option><option value="slimer">The Slimer (fan-made)</option><option value="foreman">The Foreman (OFFAL)</option></select></div>
+            <select id="bots-killer"><option value="random">Random</option><option value="butcher">The Butcher</option><option value="wisp">The Wisp</option><option value="harrower">The Harrower</option><option value="lamplighter">The Lamplighter</option><option value="slimer">The Slimer (fan-made)</option><option value="foreman">The Foreman (OFFAL)</option><option value="bateman">Patrick Bateman (fan-made)</option><option value="chucky">Chucky (fan-made)</option></select></div>
           <div class="field"><label>Bot difficulty</label>
             <div class="seg" id="bots-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
           <div class="field"><label>Map</label>
-            <select id="bots-map"><option value="random">Random</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh (new)</option><option value="carnival">Hollowmere Carnival (new)</option><option value="snow">Coldwater Pass (new)</option></select></div>
+            <select id="bots-map"><option value="random">Random</option><option value="granny">Granny's House (new)</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh (new)</option><option value="carnival">Hollowmere Carnival (new)</option><option value="snow">Coldwater Pass (new)</option><option value="quarantine">Quarantine Woods (Infection)</option><option value="outbreak">Outbreak Fairground (Infection)</option></select></div>
           <div class="loadout-mini" id="bots-loadout"></div>
           <div class="actions"><button class="btn primary big" id="btn-bots-start">Ready</button></div>
         </section>
@@ -88,12 +92,14 @@
         <section id="p-lobby" class="hidden">
           <div class="lobby-top"><div>Room code <span class="code" id="lobby-code"></span></div><button class="btn small" id="btn-copy">Copy invite link</button></div>
           <p class="hint" id="lobby-mode"></p>
+          <p class="hint gm-desc" id="lobby-gm-desc"></p>
           <div class="lobby-grid">
             <div>
               <div class="slots" id="lobby-slots"></div>
               <div class="host-opts" id="lobby-host-opts">
+                <div class="field"><label>Game mode</label><select id="lobby-gm"></select></div>
                 <label class="check"><input type="checkbox" id="lobby-fill" checked> Fill empty slots with bots</label>
-                <div class="field"><label>Map</label><select id="lobby-map"><option value="random">Random</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh</option><option value="carnival">Hollowmere Carnival</option><option value="snow">Coldwater Pass</option></select></div>
+                <div class="field"><label>Map</label><select id="lobby-map"><option value="random">Random</option><option value="granny">Granny's House (new)</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh</option><option value="carnival">Hollowmere Carnival</option><option value="snow">Coldwater Pass</option><option value="quarantine">Quarantine Woods (Infection)</option><option value="outbreak">Outbreak Fairground (Infection)</option></select></div>
                 <div class="field"><label>Bot difficulty</label><div class="seg" id="lobby-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
               </div>
               <div class="chat"><div id="chat-log"></div><input id="chat-in" maxlength="120" placeholder="Say something… (Enter)"></div>
@@ -122,14 +128,27 @@
           <div class="field"><label>Graphics quality</label>
             <div class="seg" id="set-quality"><button data-v="potato">Very Low</button><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
             <p class="hint" id="set-quality-hint"></p></div>
+          <div class="field"><label>Visual style</label>
+            <div class="seg" id="set-style"><button data-v="realistic">Realistic</button><button data-v="classic">Classic</button></div>
+            <p class="hint" id="set-style-hint"></p></div>
           <label class="check"><input type="checkbox" id="set-dynres"> Dynamic resolution (keeps the frame rate smooth on slower laptops)</label>
           <label class="check"><input type="checkbox" id="set-fps"> Show FPS counter</label>
           <div class="field"><label>Brightness <span id="set-bright-v">100%</span></label><input type="range" id="set-bright" min="0.6" max="1.8" step="0.05" value="1"></div>
           <div class="field"><label>Mouse sensitivity <b id="set-sens-v"></b></label><input type="range" id="set-sens" min="0.2" max="3" step="0.05"></div>
           <div class="field"><label>Field of view <b id="set-fov-v"></b></label><input type="range" id="set-fov" min="60" max="100" step="1"></div>
+          <div class="field cam-block"><label>Camera position <span class="hint-inline">(third person: the Swap camera shoulder key flips sides in a match)</span></label>
+            <div class="seg" data-cam="side"><button data-v="-1">Left shoulder</button><button data-v="0">Centered</button><button data-v="1">Right shoulder</button></div></div>
+          <div class="field"><label>Camera distance <b data-camv="dist"></b></label><input type="range" data-cam="dist" min="0.6" max="1.6" step="0.05"></div>
+          <div class="field"><label>Camera height <b data-camv="height"></b></label><input type="range" data-cam="height" min="-0.5" max="0.8" step="0.05"></div>
+          <div class="field"><label>Camera angle <b data-camv="angle"></b></label><input type="range" data-cam="angle" min="-60" max="60" step="5"></div>
+          <button class="btn small" data-cam="reset">Reset camera</button>
           <div class="field"><label>Master volume</label><input type="range" id="set-vol" min="0" max="1" step="0.01"></div>
           <div class="field"><label>Music &amp; ambience</label><input type="range" id="set-music" min="0" max="1" step="0.01"></div>
           <label class="check"><input type="checkbox" id="set-invert"> Invert mouse Y</label>
+          <label class="check"><input type="checkbox" id="set-subs"> Subtitles (sidekick voice lines)</label>
+          <div class="field"><label>Keybinds <span class="hint-inline">(click an action, then press a key · Esc cancels)</span></label>
+            <div id="keybinds" class="keybinds"></div>
+            <button class="btn small" id="keys-reset">Reset keybinds</button></div>
           <div class="field"><label>Online connection</label><select id="set-net"><option value="auto">Auto (game server if available, otherwise online)</option><option value="relay">Game server only (node server.js)</option><option value="p2p">Online (direct WebRTC + relay fallback)</option></select></div>
         </section>
 
@@ -141,18 +160,18 @@
               <p>Repair <b>generators</b> to power the exit gates, open a gate and escape before the night closes in.</p>
               <ul>
                 <li><kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>Ctrl</kbd>/<kbd>C</kbd> crouch</li>
-                <li>Hold <kbd>E</kbd>: repair, heal, free caged survivors, open gates, snuff lanterns</li>
+                <li>Hold <kbd>E</kbd>: repair, heal, unhook survivors, open gates, snuff lanterns</li>
                 <li><kbd>Space</kbd>: vault, drop barricades on the killer, hit calibration checks</li>
                 <li>When carried, alternate <kbd>A</kbd> / <kbd>D</kbd> to struggle free</li>
-                <li>Two hits put you down. Caged a third time and you're gone.</li>
+                <li>Two hits put you down. Hang on a hook too long, or get hooked a second time, and the Entity comes for you: hit its skill checks. A third hook is fatal. <kbd>Space</kbd> on your first hook to try to unhook yourself (3 tries, 4% each).</li>
               </ul>
             </div>
             <div>
               <h3>Killer</h3>
               <ul>
                 <li><kbd>LMB</kbd> lunge strike · <kbd>RMB</kbd> power</li>
-                <li>Hold <kbd>E</kbd>: pick up, cage, damage generators, break barricades</li>
-                <li><kbd>F</kbd> execute a downed survivor who's been caged twice (or the last one standing)</li>
+                <li>Hold <kbd>E</kbd>: pick up, hook, damage generators, break barricades</li>
+                <li><kbd>F</kbd> execute a downed survivor who's reached the struggle phase on a hook (or the last one standing)</li>
                 <li><kbd>Space</kbd> vault · <kbd>Q</kbd> drop survivor · <kbd>R</kbd> Lamplighter's Shadow Step</li>
               </ul>
               <h3>The Killers</h3>
@@ -179,7 +198,7 @@
   <div id="store" class="hidden">
     <div class="st-top">
       <div class="st-title">Store</div>
-      <nav class="st-tabs" id="st-tabs"><button data-t="chapters" class="on">Chapters</button><button data-t="characters">Characters</button><button data-t="collections">Collections</button></nav>
+      <nav class="st-tabs" id="st-tabs"><button data-t="chapters" class="on">Chapters</button><button data-t="characters">Characters</button><button data-t="collections">Collections</button><button data-t="sidekicks">Sidekicks</button></nav>
       <div class="st-wallet" id="st-wallet"></div>
       <button class="st-close" id="st-close" title="Back (Esc)">Back</button>
     </div>
@@ -187,6 +206,7 @@
   </div>
 
   <!-- ================= ANNOUNCEMENT ================= -->
+  <div id="trailer" class="hidden"></div>
   <div id="announce" class="hidden">
     <div class="an-bg"></div>
     <div class="an-inner">
@@ -214,6 +234,7 @@
     </div>
     <div id="bottom-right"><div id="power"></div><div id="item" class="hidden"></div><div id="perks"></div></div>
     <div id="controls-hint"></div>
+    <div id="netstat" class="netstat hidden"></div>
     <div id="fps" class="hidden"></div>
   </div>
   <canvas id="skill" width="200" height="200" class="hidden"></canvas>
@@ -225,6 +246,12 @@
       <p class="hint">Online matches keep running while you're paused.</p>
       <div class="field"><label>Mouse sensitivity</label><input type="range" id="pause-sens" min="0.2" max="3" step="0.05"></div>
       <div class="field"><label>Master volume</label><input type="range" id="pause-vol" min="0" max="1" step="0.01"></div>
+      <div class="field cam-block"><label>Camera position <span class="hint-inline">(third person: the Swap camera shoulder key flips sides in a match)</span></label>
+            <div class="seg" data-cam="side"><button data-v="-1">Left shoulder</button><button data-v="0">Centered</button><button data-v="1">Right shoulder</button></div></div>
+          <div class="field"><label>Camera distance <b data-camv="dist"></b></label><input type="range" data-cam="dist" min="0.6" max="1.6" step="0.05"></div>
+          <div class="field"><label>Camera height <b data-camv="height"></b></label><input type="range" data-cam="height" min="-0.5" max="0.8" step="0.05"></div>
+          <div class="field"><label>Camera angle <b data-camv="angle"></b></label><input type="range" data-cam="angle" min="-60" max="60" step="5"></div>
+          <button class="btn small" data-cam="reset">Reset camera</button>
       <div class="actions"><button class="btn" id="btn-quit">Leave Match</button><button class="btn primary" id="btn-resume">Resume</button></div>
     </div>
   </div>

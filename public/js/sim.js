@@ -1,9 +1,11 @@
 // Authoritative game simulation. Runs only on the host (or in single-player).
-import { RULES, KILLERS, SPEED, DIFFICULTY, HALF } from './config.js';
-import { barBox, losBlocked } from './map.js';
+import { RULES, KILLERS, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
+import { barBox, losBlocked, moveCircle, findPath, cellOf, cellPos, levelOf, levelsMeet, losL, heightAt, levelStep } from './map.js';
 import {
-  has, fwd, dist, killerOf, playerById, findInteraction, actionTime, terrorRadius, inExit, findSpace, vaultDuration, findExecute,
+  has, fwd, dist, killerOf, killersOf, nearestKiller, anyKillerHas, playerById, findInteraction, actionTime, terrorRadius, inExit, findSpace, vaultDuration, findExecute, angDiff,
 } from './rules.js';
+
+const POSSESSION = true;
 
 export class Sim {
   constructor(M, roster, opts = {}) {
@@ -11,37 +13,69 @@ export class Sim {
     this.opts = opts;
     this.diff = DIFFICULTY[opts.difficulty || 'normal'];
     const nSurv = roster.filter(r => r.role === 'survivor').length;
+    const mode = MODES[opts.mode] ? opts.mode : 'classic';
+    this.mode = mode;
     this.S = {
-      t: 0, phase: 'play', endT: 0,
-      gensNeeded: Math.max(2, Math.min(5, nSurv + 1)), gensDone: 0, gatesPowered: false, collapse: -1,
+      t: 0, phase: 'play', endT: 0, mode, timer: MODES[mode].time || 0, infStart: nSurv, lastStand: false,
+      gensNeeded: Math.max(2, Math.min(mode === 'duo' ? Math.min(6, M.gens.length - 1) : (M.half || HALF) > 60 ? Math.min(8, M.gens.length - 2) : 5, nSurv + 1)), gensDone: 0, gatesPowered: false, collapse: -1,
       players: [],
       gens: M.gens.map(() => ({ p: 0, done: false, reg: false, n: 0 })),
       bars: M.bars.map(() => 0),
       cages: M.cages.map(() => null), cageBroken: M.cages.map(() => false),
       gates: M.gates.map(() => ({ p: 0, open: false })),
-      spears: [], lanterns: [], lid: 0, dark: 0, chains: [], traps: [], tid: 0, slime: [],
+      spears: [], lanterns: [], lid: 0, dark: 0, chains: [], traps: [], tid: 0, slime: [], saws: [], bears: [], slend: null, spider: null,
+      chests: (M.chests || []).map(() => ({ open: false, it: null })), zaps: [],
     };
-    let si = 0;
+    let si = 0, ki = 0;
     for (const r of roster) {
-      const sp = r.role === 'killer' ? M.spawns.killer : M.spawns.survivors[si++ % 4];
-      this.S.players.push({
-        id: r.id, name: r.name, role: r.role, char: r.char, skin: typeof r.skin === 'string' ? r.skin.slice(0, 24) : 'default', perks: (r.perks || []).slice(0, 3), bot: !!r.bot,
+      // extra killers / survivors (Two Killers) spawn beside the regular spawn points
+      const nsp = M.spawns.survivors.length;
+      let sp = r.role === 'killer' ? M.spawns.killer : M.spawns.survivors[si % nsp];
+      const extra = r.role === 'killer' ? ki++ : Math.floor(si++ / nsp);
+      if (extra > 0) { const a = extra * 2.1 + (r.role === 'killer' ? 0 : si), d = 1.6 + extra * 0.4; sp = this.safeSpot(sp.x + Math.cos(a) * d, sp.z + Math.sin(a) * d, sp.x, sp.z); }
+      this.S.players.push(this.makePlayer(r, sp, mode));
+    }
+    this.inputs = new Map();
+    for (const p of this.S.players) this.inputs.set(p.id, { e: false, latch: false });
+    this.events = [];
+    this.botSc = new Map();
+    this.possession = null; // Chucky's Possession (host only, never sent to clients)
+    // Chucky's Soul Split: spare Good Guy dolls lying around the map
+    this.S.dolls = [];
+    if (this.S.players.some(p => p.char === 'chucky')) {
+      const spots = [...M.gens, ...M.cages].sort(() => Math.random() - 0.5);
+      for (const g of spots) {
+        if (this.S.dolls.length >= 4) break;
+        const a = Math.random() * 6.28, sp = this.safeSpot(g.x + Math.cos(a) * 2.6, g.z + Math.sin(a) * 2.6, g.x, g.z);
+        if (this.S.dolls.some(d => Math.hypot(d.x - sp.x, d.z - sp.z) < 18)) continue;
+        // only where Chucky can actually walk out from (no dolls sealed in a corner)
+        const walk = (t, r) => t === 1 || t === 4 ? Infinity : 1;
+        if (!findPath(M, sp.x, sp.z, M.spawns.killer.x, M.spawns.killer.z, walk, 60000)) continue;
+        this.S.dolls.push({ id: this.S.dolls.length, x: +sp.x.toFixed(2), z: +sp.z.toFixed(2), yaw: +(Math.random() * 6.28).toFixed(2) });
+      }
+    }
+    this.possessionOn = POSSESSION;
+  }
+
+  makePlayer(r, sp, mode = this.mode) {
+    const M = this.M;
+    {
+      return ({
+        id: r.id, name: r.name, role: r.role, char: r.char, skin: typeof r.skin === 'string' ? r.skin.slice(0, 24) : 'default', perks: (r.perks || []).filter(k => !SURV_PERKS[k] || !SURV_PERKS[k].only || SURV_PERKS[k].only === r.char).slice(0, PERK_SLOTS), bot: !!r.bot,
         x: sp.x, z: sp.z, yaw: r.role === 'killer' ? M.spawns.killerYaw : M.spawns.survivorYaw, pitch: 0, mv: 0, cr: 0, tp: 0,
         st: 'ok', hp: 2, act: null, prog: 0, healP: 0, bleed: 0, cage: -1, stage: 0, cageT: 0, cageMax: 1, esc: 0,
         wig: 0, boost: 0, boostMul: SPEED.hitBoost, vault: null,
         carry: null, atk: 0, atkT: 0, atkHit: false, stun: 0, ab: 0, abT: 0, abCd: 0, aim: false,
         reveal: 0, sixT: 0, chase: 0, mark: 0,
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
-        ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : 0, ammoT: 0,
+        ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : r.char === 'bateman' ? 1 : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
-        item: r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' ? RULES.flashBattery : 0, traps: r.role === 'survivor' && r.item === 'trap' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0,
+        item: r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, dash: null, swapCd: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
+        possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false,
+        pet: typeof r.pet === 'string' && ['ted', 'rosy'].includes(r.pet) ? r.pet : '',
       });
     }
-    this.inputs = new Map();
-    for (const p of this.S.players) this.inputs.set(p.id, { e: false, latch: false });
-    this.events = [];
-    this.botSc = new Map();
   }
 
   ev(e) { this.events.push(e); }
@@ -55,16 +89,22 @@ export class Sim {
     switch (m.t) {
       case 'pos': {
         if (m.tp !== p.tp) return;
-        if (p.role === 'survivor' && p.st !== 'ok' && p.st !== 'down') return;
-        if (p.act || p.stun > 0) { p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); return; }
+        if (p.role === 'survivor' && p.st !== 'ok' && p.st !== 'down' && p.st !== 'ghost') return;
+        if (p.act || p.stun > 0 || p.leap || p.dash || p.pull || p.snare > 0) { p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); return; }
         const nx = num(m.x, p.x), nz = num(m.z, p.z);
         // accept anything the player could have covered since their last update (lag spikes
         // included); otherwise pull them back to where the host has them instead of desyncing
         const since = Math.min(2, S.t - (p.posT ?? S.t)) + 0.25;
-        if (Math.hypot(nx - p.x, nz - p.z) <= 2 + since * 9) { p.x = nx; p.z = nz; }
+        if (Math.hypot(nx - p.x, nz - p.z) <= 2 + since * 9) {
+          p.x = nx; p.z = nz;
+          // floors (Granny's House): the player's own idea of which floor they are on, if it's one
+          // they could have stepped to from the floor the host has them on
+          if (M.stairs && typeof m.fl === 'number') { const nf = m.fl | 0; if (nf === (p.fl || 0) || levelsMeet(p, { fl: nf })) { p.fl = nf; if (typeof m.sp === 'number') p.sp = m.sp; } }
+        }
         else p.tp++;
         p.posT = S.t;
         p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); p.mv = m.mv | 0; p.cr = m.cr ? 1 : 0;
+        p.hopF = Math.max(0, Math.min(1, num(m.h, 0))); // remote Chucky mid-jump (drawn by everyone)
         p.vault = m.v ? { remote: true } : null;
         break;
       }
@@ -75,9 +115,17 @@ export class Sim {
         if ('flash' in m && p.role === 'survivor') p.flashOn = !!m.flash && p.flash > 0 && p.st === 'ok' && !p.act && !p.vault;
         if (p.role === 'killer' && p.char === 'foreman') p.aim = !!m.aim && p.abCd <= 0 && !p.pull && p.carry == null && !p.act && p.stun <= 0;
         if (p.role === 'killer' && p.char === 'harrower') p.aim = !!m.aim && p.abCd <= 0 && p.ammo > 0 && p.carry == null && !p.act && p.stun <= 0;
+        if (p.role === 'killer' && p.char === 'bateman') { const was = p.aim; p.aim = !!m.aim && p.abCd <= 0 && p.ammo > 0 && p.carry == null && !p.act && p.stun <= 0 && !p.atk; if (p.aim && !was) p.abT = 0; }
+        if (p.role === 'killer' && p.char === 'granny') { const was = p.aim; p.aim = !!m.aim && p.abCd <= 0 && !p.dash && p.carry == null && !p.act && p.stun <= 0 && !p.atk && !p.tele && p.ab !== 1; if (p.aim && !was) p.abT = 0; }
+        if (p.role === 'killer' && p.char === 'chucky') { const was = p.aim; p.aim = !!m.aim && p.abCd <= 0 && !p.leap && p.carry == null && !p.act && p.stun <= 0 && !p.atk; if (p.aim && !was) p.abT = 0; }
         break;
       }
-      case 'act': this.onAct(p, m); break;
+      case 'act': {
+        // a key press may arrive more than once (resent over the public relay, which can drop
+        // messages): act on each one once
+        if (typeof m.aid === 'number') { const seen = (this.aids ||= new Map()); let q = seen.get(id); if (!q) seen.set(id, q = []); if (q.includes(m.aid)) return; q.push(m.aid); if (q.length > 40) q.shift(); }
+        this.onAct(p, m); break;
+      }
     }
   }
 
@@ -90,7 +138,7 @@ export class Sim {
         if (!o) return;
         const fast = !!m.fast && p.role === 'survivor';
         this.ev({ k: 'vault', id: p.id, x: o.x, z: o.z, fast });
-        if (fast) { this.noise(o.x, o.z); const k = killerOf(S); if (k && dist(k, p) < 12) p.score.d += 50; }
+        if (fast) { this.noise(o.x, o.z); const k = nearestKiller(S, p); if (k && dist(k, p) < 12) p.score.d += 50; }
         break;
       }
       case 'drop': {
@@ -101,8 +149,7 @@ export class Sim {
         this.ev({ k: 'drop', id: b.id, by: p.id });
         this.noise(b.x, b.z);
         // stun a killer standing in the barricade's path
-        const k = killerOf(S);
-        if (k && !k.vault) {
+        for (const k of killersOf(S)) if (!k.vault) {
           const along = b.axis === 'x' ? k.z - b.z : k.x - b.x, cross = b.axis === 'x' ? k.x - b.x : k.z - b.z;
           if (Math.abs(along) < b.half + 0.4 && Math.abs(cross) < 1.3) {
             this.stunKiller(k, RULES.stunBarricade, true);
@@ -111,6 +158,7 @@ export class Sim {
             const ps = Math.sign(b.axis === 'x' ? p.x - b.x : p.z - b.z) || 1;
             if (b.axis === 'x') k.x = b.x - ps * 0.85; else k.z = b.z - ps * 0.85;
             k.tp++;
+            break;
           }
         }
         break;
@@ -128,6 +176,40 @@ export class Sim {
         this.ev({ k: 'takeover', from: p.id, to: b.id, name: p.name, was });
         break;
       }
+      case 'emote': {
+        // survivors only: 1 dance, 2 wave, 3 cheer, 4 bow (0 stops). Moving or doing anything ends it.
+        const n = Math.max(0, Math.min(4, m.n | 0));
+        if (n && (p.role !== 'survivor' || p.st !== 'ok' || p.act || p.vault || p.disguise)) return;
+        p.emote = n;
+        (this.emoteAt ||= new Map()).set(p.id, { x: p.x, z: p.z, t: S.t });
+        if (n) this.ev({ k: 'emote', id: p.id, n });
+        break;
+      }
+      case 'taser': {
+        // Taser: a short-range shot along the aim; the first killer it reaches is electrocuted
+        if (p.role !== 'survivor' || p.st !== 'ok' || p.act || p.vault || p.item !== 'taser' || !(p.tasers > 0) || ((this.taserCd ||= new Map()).get(p.id) || 0) > S.t) return;
+        p.tasers--; this.taserCd.set(p.id, S.t + 0.8);
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), T = ITEMS.taser;
+        let hit = null, hd = T.range;
+        for (const K of S.players) {
+          if (K.role !== 'killer' || K.st === 'dead' || K.disguise) continue;
+          const dx = K.x - p.x, dz = K.z - p.z, along = dx * f.x + dz * f.z, side = Math.abs(dx * f.z - dz * f.x);
+          if (along < 0.2 || along > hd || side > 0.75 || losBlocked(M, p.x, p.z, K.x, K.z, 1.2)) continue;
+          hit = K; hd = along;
+        }
+        // the darts stop at the first wall
+        let reach = hit ? hd : T.range;
+        if (!hit) for (let d = 0.5; d < T.range; d += 0.25) if (losBlocked(M, p.x, p.z, p.x + f.x * d, p.z + f.z * d, 1.2)) { reach = d; break; }
+        const ex = p.x + f.x * reach, ez = p.z + f.z * reach;
+        this.ev({ k: 'taser', id: p.id, x: p.x, z: p.z, tx: hit ? hit.x : ex, tz: hit ? hit.z : ez, hit: hit ? hit.id : null });
+        if (hit) {
+          this.stunKiller(hit, T.stun, false); hit.zap = T.stun;
+          p.score.d += 600;
+          this.ev({ k: 'tazed', id: hit.id, by: p.id });
+        }
+        if (p.tasers <= 0) this.ev({ k: 'taserdead', id: p.id });
+        break;
+      }
       case 'trap': {
         // Ghost Trap: set it down; the killer stepping on it is stunned
         if (p.role !== 'survivor' || p.st !== 'ok' || p.act || p.vault || !(p.traps > 0)) return;
@@ -138,14 +220,14 @@ export class Sim {
         break;
       }
       case 'attack': {
-        if (p.role !== 'killer' || p.atk || p.stun > 0 || p.carry != null || p.act || p.vault) return;
+        if (p.role !== 'killer' || p.atk || p.stun > 0 || p.carry != null || p.act || p.vault || p.leap) return;
         if (p.char === 'wisp' && p.ab !== 0) return;
         if (p.char === 'butcher' && p.ab === 1) return;
         if (p.tele) return;
         p.atkAmbush = p.char === 'wisp' && p.ambush > 0;
         p.atk = 1; p.atkT = RULES.lungeTime * (has(p, 'stalker') ? 1.2 : 1) * (p.atkAmbush ? 1.4 : 1); p.atkHit = false;
         // lag compensation: an online killer swung at survivors as they appeared on their screen
-        this.rewind = typeof m.rt === 'number' && isFinite(m.rt) ? Math.max(0, Math.min(0.4, this.S.t - m.rt)) : 0;
+        (this.rw ||= new Map()).set(p.id, typeof m.rt === 'number' && isFinite(m.rt) ? Math.max(0, Math.min(0.8, this.S.t - m.rt)) : 0);
         this.ev({ k: 'swing', id: p.id });
         break;
       }
@@ -159,8 +241,8 @@ export class Sim {
         // the victim is dragged in front of the killer
         const ang = Math.atan2(s.x - p.x, s.z - p.z);
         p.yaw = ang;
-        const spot = this.safeSpot(p.x + Math.sin(ang) * 1.05, p.z + Math.cos(ang) * 1.05, p.x, p.z);
-        s.x = spot.x; s.z = spot.z; s.yaw = ang + Math.PI; s.tp++;
+        const spot = this.safeSpot(p.x + Math.sin(ang) * 1.05, p.z + Math.cos(ang) * 1.05, p.x, p.z, p.fl || 0);
+        s.x = spot.x; s.z = spot.z; s.fl = p.fl || 0; s.sp = p.sp; s.yaw = ang + Math.PI; s.tp++;
         p.act = { k: 'execute', id: s.id, t: 0 }; p.prog = 0;
         this.ev({ k: 'exec', id: s.id, by: p.id, char: p.char });
         this.ev({ k: 'msg', text: p.name + ' is executing ' + s.name + '!' });
@@ -173,6 +255,44 @@ export class Sim {
         S.spears.push({ x: p.x + f.x * 0.6, z: p.z + f.z * 0.6, y: 1.75, vx: f.x * sp * Math.cos(pitch), vz: f.z * sp * Math.cos(pitch), vy: sp * Math.sin(pitch), t: 0, by: p.id });
         p.abCd = KILLERS.harrower.ability.cooldown; p.aim = false; p.ammo--;
         this.ev({ k: 'throw', id: p.id, x: p.x, z: p.z });
+        break;
+      }
+      case 'sawthrow': {
+        // Patrick Bateman hurls his chainsaw: it flies flat and fast, then lies where it lands
+        if (p.role !== 'killer' || p.char !== 'bateman' || !p.aim || p.ammo <= 0 || p.stun > 0 || p.carry != null || p.act) return;
+        if (p.abT < KILLERS.bateman.ability.aim) return; // he has to wind up
+        const yaw = num(m.yaw, p.yaw), pitch = Math.max(-0.4, Math.min(0.4, num(m.pitch, 0))), sp = 26, f = fwd(yaw);
+        S.saws.push({ id: ++S.lid, st: 'fly', x: p.x + f.x * 0.7, z: p.z + f.z * 0.7, y: 1.3, vx: f.x * sp * Math.cos(pitch), vz: f.z * sp * Math.cos(pitch), vy: 2.2 + sp * Math.sin(pitch), t: 0, by: p.id });
+        p.ammo = 0; p.ammoT = 0; p.aim = false; p.abT = 0;
+        this.ev({ k: 'sawthrow', id: p.id, x: p.x, z: p.z });
+        break;
+      }
+      case 'possess': {
+        // Chucky's Possession: take over a downed survivor (or let them go once the job is done)
+        if (!POSSESSION) return;
+        if (p.disguise) { if (this.possession && this.possession.X === p.id && p.pdowns >= 1 && p.pcages >= 1 && p.carry == null && !p.act) this.release(); return; }
+        if (p.role !== 'killer' || p.char !== 'chucky' || p.harmless || p.possCd > 0 || this.possession || this.mode === 'infection') return;
+        if (p.stun > 0 || p.act || p.carry != null || p.leap || p.atk) return;
+        let X = null, bd = 2.2;
+        for (const s of S.players) if (s.role === 'survivor' && s.st === 'down' && !(s.turn > 0) && !has(s, 'exorcist')) { const d = dist(p, s); if (d < bd) { bd = d; X = s; } }
+        if (X) this.possess(p, X);
+        break;
+      }
+      case 'split': {
+        // Chucky's Soul Split: with one generator to go, jump into a spare doll; the old body fights on
+        if (p.role !== 'killer' || p.char !== 'chucky' || p.split || p.disguise || p.harmless || this.possession) return;
+        if (S.gatesPowered || S.gensNeeded - S.gensDone !== 1 || !S.dolls.length || p.carry != null || p.act) return;
+        this.soulSplit(p);
+        break;
+      }
+      case 'pounce': {
+        // Chucky: leap as far as he coiled for, knife first
+        if (p.role !== 'killer' || p.char !== 'chucky' || !p.aim || p.leap || p.stun > 0 || p.carry != null || p.act) return;
+        const D = KILLERS.chucky.ability, yaw = num(m.yaw, p.yaw), f = fwd(yaw);
+        const dist = D.min + (D.max - D.min) * Math.min(1, Math.max(0, p.abT - 0.1) / D.coil);
+        p.yaw = yaw; p.aim = false; p.abT = 0;
+        p.leap = { t: 0, d: +(0.35 + dist * 0.035).toFixed(3), x0: p.x, z0: p.z, x1: p.x + f.x * dist, z1: p.z + f.z * dist, h: +(0.7 + dist * 0.06).toFixed(2) };
+        this.ev({ k: 'pounce', id: p.id, x: p.x, z: p.z });
         break;
       }
       case 'teleport': {
@@ -191,15 +311,77 @@ export class Sim {
         this.ev({ k: 'tele', id: p.id, x: p.x, z: p.z, to: best.id });
         break;
       }
+      case 'rush': {
+        // Bat Rush: released after winding up; the longer the wind-up, the further she goes
+        if (p.role !== 'killer' || p.char !== 'granny' || !p.aim || p.dash || p.stun > 0 || p.act || p.carry != null) { if (p.char === 'granny') p.aim = false; return; }
+        const D = KILLERS.granny.ability, k = Math.max(0, Math.min(1, (p.abT - D.minCharge) / (D.maxCharge - D.minCharge)));
+        p.aim = false;
+        if (p.abT < D.minCharge) return;
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = D.minDist + k * (D.maxDist - D.minDist);
+        p.yaw = yaw; p.dash = { t: 0, d: len / D.speed, dx: f.x, dz: f.z, full: p.abT >= D.maxCharge - 0.02 };
+        p.abCd = D.cooldown; p.abT = 0;
+        this.ev({ k: 'rush', id: p.id, x: p.x, z: p.z, charge: +k.toFixed(2) });
+        break;
+      }
+      case 'bodyswap': {
+        // Body Swap: Granny and Spider Mom trade places, any time
+        const sp = S.spider;
+        if (p.role !== 'killer' || p.char !== 'granny' || !sp || (p.swapCd || 0) > 0 || p.stun > 0 || p.act || p.dash || p.tele || p.carry != null || p.vault) return;
+        const ox = p.x, oz = p.z, ofl = p.fl || 0;
+        const to = this.safeSpot(sp.x, sp.z, sp.x, sp.z, 0);
+        p.x = to.x; p.z = to.z; p.fl = 0; p.sp = undefined; p.tp++; p.aim = false; p.ab = 0;
+        const back = this.safeSpot(ox, oz, ox, oz, 0);
+        sp.x = back.x; sp.z = back.z; sp.st = 0; sp.jump = (sp.jump || 0) + 1;
+        if (this.spiderState) { this.spiderState.path = null; this.spiderState.wait = 1.2; }
+        p.swapCd = KILLERS.granny.swap.cooldown;
+        this.ev({ k: 'bodyswap', id: p.id, x0: ox, z0: oz, x1: p.x, z1: p.z, fl0: ofl });
+        break;
+      }
+      case 'creep': {
+        if (p.role !== 'killer' || p.char !== 'granny' || p.teleCd > 0 || p.tele || p.stun > 0 || p.act || p.carry != null || p.atk || p.vault) return;
+        const L = { gen: M.gens, hook: M.cages, win: M.windows, bar: M.bars }[m.kind], o = m.kind === 'spider' ? S.spider : L && L[m.id | 0];
+        if (!o || (m.kind === 'hook' && S.cageBroken[o.id]) || (m.kind === 'bar' && S.bars[o.id] === 2)) return;
+        p.tele = { t: 0, x: o.x, z: o.z, g: 1 }; p.ab = 0; p.aim = false;
+        this.ev({ k: 'creep', id: p.id, x: p.x, z: p.z, tx: o.x, tz: o.z });
+        break;
+      }
       case 'chain': {
         if (p.role !== 'killer' || p.char !== 'foreman' || p.abCd > 0 || p.stun > 0 || p.carry != null || p.act || p.pull || p.atk) return;
         const yaw = num(m.yaw, p.yaw), f = fwd(yaw);
-        S.chains.push({ by: p.id, x: p.x + f.x * 0.5, z: p.z + f.z * 0.5, dx: f.x, dz: f.z, d: 0, st: 'fly', t: 0, tgt: null });
+        // the hook flies where he aims, up and down too: aim high to grab a treetop or a roof
+        const pitch = Math.max(-0.35, Math.min(1.0, num(m.pitch, 0)));
+        S.chains.push({ by: p.id, x: p.x + f.x * 0.5, z: p.z + f.z * 0.5, y: 1.55, dx: f.x, dz: f.z, cp: Math.cos(pitch), sp: Math.sin(pitch), d: 0, st: 'fly', t: 0, tgt: null });
         p.abCd = KILLERS.foreman.ability.cooldown; p.aim = false;
         this.ev({ k: 'chainthrow', id: p.id, x: p.x, z: p.z });
         break;
       }
       case 'ability2': {
+        if (p.role === 'killer' && p.char === 'granny' && p.ab2Cd <= 0 && !p.ab && !p.tele && !p.act && p.stun <= 0 && !p.atk && p.carry == null) {
+          // I Hear You: she stops and listens; anyone making noise anywhere is revealed
+          const D = KILLERS.granny.ability2, ids = [];
+          for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && (s.mv === 2 || s.act || s.vault)) { s.reveal = Math.max(s.reveal, D.reveal); s.heard = D.heard; ids.push(s.id); }
+          p.ab2Cd = D.cooldown; p.ab = 1; p.abT = 0.8; p.aim = false; p.score.b += ids.length * 100;
+          this.ev({ k: 'hearyou', id: p.id, x: p.x, z: p.z, ids });
+        }
+        if (p.role === 'killer' && p.char === 'chucky' && p.ab2Cd <= 0 && !p.act && p.stun <= 0) {
+          // Chucky's Laugh: every survivor in earshot gives themselves away
+          const D = KILLERS.chucky.ability2, ids = [];
+          for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && dist(s, p) < D.radius) { s.reveal = Math.max(s.reveal, D.reveal); ids.push(s.id); }
+          p.ab2Cd = D.cooldown; p.score.b += ids.length * 100;
+          this.ev({ k: 'laugh', id: p.id, x: p.x, z: p.z, ids });
+        }
+        if (p.role === 'killer' && p.char === 'bateman' && p.ab2Cd <= 0 && !p.act && p.stun <= 0 && !p.atk) {
+          // Business Card: everyone in front of him who can see it is intimidated
+          const D = KILLERS.bateman.ability2, f = fwd(p.yaw), ids = [];
+          for (const s of S.players) {
+            if (s.role !== 'survivor' || s.st !== 'ok') continue;
+            const dx = s.x - p.x, dz = s.z - p.z, d = Math.hypot(dx, dz);
+            if (d > D.range || (d > 1 && (dx * f.x + dz * f.z) / d < 0.5) || losBlocked(M, p.x, p.z, s.x, s.z, 1.2)) continue;
+            s.card = 5; s.reveal = Math.max(s.reveal, 5); ids.push(s.id);
+          }
+          p.ab2Cd = D.cooldown; p.score.b += ids.length * 150;
+          this.ev({ k: 'card', id: p.id, x: p.x, z: p.z, ids });
+        }
         if (p.role === 'killer' && p.char === 'slimer' && p.ab2Cd <= 0 && !p.act && p.stun <= 0 && p.carry == null && !(p.phase > 0)) {
           p.phase = KILLERS.slimer.ability2.duration; p.ab2Cd = KILLERS.slimer.ability2.cooldown;
           this.ev({ k: 'phase', id: p.id, x: p.x, z: p.z });
@@ -228,10 +410,11 @@ export class Sim {
         break;
       }
       case 'esc': {
+        // trying to unhook yourself: a 4% chance, and every failed attempt costs hook time
         if (p.st !== 'caged' || p.stage !== 1 || p.esc >= 3) return;
         p.esc++;
-        if (Math.random() < 0.07) { this.freeFromCage(p, null); this.ev({ k: 'msg', text: p.name + ' broke free of the cage!' }); }
-        else this.ev({ k: 'escfail', id: p.id, left: 3 - p.esc });
+        if (Math.random() < RULES.selfUnhook) { this.freeFromCage(p, null); this.ev({ k: 'msg', text: p.name + ' unhooked themselves!' }); }
+        else { p.cageT = Math.max(0.01, p.cageT - RULES.selfUnhookCost); this.ev({ k: 'escfail', id: p.id, left: 3 - p.esc }); }
         break;
       }
       case 'sc': this.skillResult(p, m.r); break;
@@ -246,7 +429,7 @@ export class Sim {
 
   stunKiller(k, t, byBar) {
     if (k.act && k.act.k === 'execute') return;
-    k.tele = null;
+    k.tele = null; if (k.leap) { k.leap = null; k.tp++; }
     k.stun = Math.max(k.stun, t); k.atk = 0; k.act = null; k.aim = false;
     if (k.carry != null) this.releaseCarry(k, true);
     if (k.char === 'butcher' && k.ab === 1) this.endRampage(k);
@@ -256,7 +439,9 @@ export class Sim {
   ability(p) {
     if (p.role !== 'killer' || p.stun > 0 || p.act || p.carry != null || p.vault) return;
     if (p.tele) return;
-    if (p.char === 'butcher') {
+    if (p.char === 'granny') {
+      // (Bat Rush is held and released: see 'in' aim and the 'rush' action)
+    } else if (p.char === 'butcher') {
       if (p.ab === 0 && p.abCd <= 0 && p.charges > 0 && !p.atk) { p.charges--; p.ab = 1; p.abT = 2.6; this.ev({ k: 'rampage', id: p.id }); }
     } else if (p.char === 'wisp') {
       if (p.ab === 0 && p.abCd <= 0 && !p.atk) { p.ab = 2; p.abT = 0.7; this.ev({ k: 'fade', id: p.id, on: true }); }
@@ -293,8 +478,8 @@ export class Sim {
     if (!s) return;
     s.carriedBy = null; s.wig = 0;
     const f = fwd(k.yaw);
-    const spot = this.safeSpot(k.x - f.x * 0.9, k.z - f.z * 0.9, k.x, k.z);
-    s.x = spot.x; s.z = spot.z; s.tp++;
+    const spot = this.safeSpot(k.x - f.x * 0.9, k.z - f.z * 0.9, k.x, k.z, k.fl || 0);
+    s.x = spot.x; s.z = spot.z; s.fl = k.fl || 0; s.sp = k.sp; s.tp++;
     if (escaped) {
       s.st = 'ok'; s.hp = 1; s.boost = 1.5; s.boostMul = SPEED.hitBoost;
       k.stun = Math.max(k.stun, 2.6);
@@ -303,9 +488,9 @@ export class Sim {
     } else { s.st = 'down'; s.healP = 0; }
   }
 
-  safeSpot(x, z, fx, fz) {
-    // pick a reachable point near (x,z), falling back to (fx,fz)
-    const M = this.M;
+  safeSpot(x, z, fx, fz, fl = 0) {
+    // pick a reachable point near (x,z), falling back to (fx,fz) (on the given floor)
+    const M = levelOf(this.M, fl);
     for (const [ox, oz] of [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6], [0.9, 0.9], [-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9]]) {
       const px = x + ox, pz = z + oz;
       let ok = !losBlocked(M, fx, fz, px, pz, 0.5);
@@ -318,6 +503,9 @@ export class Sim {
 
   skillResult(p, r) {
     const S = this.S;
+    if (r === 'miss' && S.players.some(k => k.role === 'killer' && k.char === 'granny')) p.reveal = Math.max(p.reveal || 0, 4);
+    // struggling against the Entity on the hook: a miss lets its legs get closer
+    if (p.st === 'caged' && p.stage >= 2) { if (r === 'miss') { p.cageT -= RULES.struggleMiss; this.ev({ k: 'sc', id: p.id, r }); } return; }
     if (!p.act) return;
     if (p.act.k === 'repair') {
       const g = S.gens[p.act.id];
@@ -343,24 +531,40 @@ export class Sim {
     const S = this.S, M = this.M;
     if (S.phase !== 'play') return;
     S.t += dt;
-    const K = killerOf(S);
+    const Ks = killersOf(S);
+    this.updateMode(dt);
+    if (S.phase !== 'play') return;
     // short position history of every survivor, for lag-compensated hits
     this.hist ||= new Map();
     for (const p of S.players) if (p.role === 'survivor') {
       let h = this.hist.get(p.id); if (!h) this.hist.set(p.id, h = []);
       h.push({ t: S.t, x: p.x, z: p.z });
-      while (h.length && h[0].t < S.t - 0.6) h.shift();
+      while (h.length && h[0].t < S.t - 1.0) h.shift();
     }
 
+    // emotes end when the survivor moves, acts, gets hurt, or after a while (one-shot ones sooner)
+    for (const p of S.players) if (p.emote) {
+      const at = this.emoteAt && this.emoteAt.get(p.id);
+      if (p.role !== 'survivor' || p.st !== 'ok' || p.act || p.vault || p.flashOn || !at || Math.hypot(p.x - at.x, p.z - at.z) > 0.3 || S.t - at.t > (p.emote === 1 ? 30 : 4)) p.emote = 0;
+    }
     for (const p of S.players) {
       p.boost = Math.max(0, p.boost - dt);
       p.reveal = Math.max(0, p.reveal - dt);
       if (p.stun > 0) p.stun = Math.max(0, p.stun - dt);
+      if (p.zap > 0) p.zap = Math.max(0, p.zap - dt);
+      if (p.spied > 0) p.spied = Math.max(0, p.spied - dt);
+      if (p.heard > 0) { p.heard = Math.max(0, p.heard - dt); if (p.st !== 'ok') p.heard = 0; }
+      if (p.webbed > 0) p.webbed = Math.max(0, p.webbed - dt);
+      if (p.swapCd > 0) p.swapCd = Math.max(0, p.swapCd - dt);
       if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt);
       if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
       if (p.teleCd > 0) p.teleCd = Math.max(0, p.teleCd - dt);
       if (p.phase > 0) { p.phase = Math.max(0, p.phase - dt); if (p.phase === 0) this.endPhase(p); }
       if (p.ambush > 0) p.ambush = Math.max(0, p.ambush - dt);
+      if (p.haste > 0) p.haste = Math.max(0, p.haste - dt);
+      if (p.card > 0) { p.card = Math.max(0, p.card - dt); if (p.mv === 2) p.reveal = Math.max(p.reveal, 0.4); }
+      if (p.possCd > 0) p.possCd = Math.max(0, p.possCd - dt);
+      if (p.exposed > 0) p.exposed = Math.max(0, p.exposed - dt);
       if (p.mark > 0) p.mark = Math.max(0, p.mark - dt);
       if (p.char === 'butcher' && p.role === 'killer' && p.charges < KILLERS.butcher.ability.charges) { p.chargeT += dt; if (p.chargeT >= KILLERS.butcher.ability.cooldown) { p.chargeT = 0; p.charges++; } }
       if (p.char === 'harrower' && p.role === 'killer' && p.ammo < KILLERS.harrower.ability.ammo) { p.ammoT += dt; if (p.ammoT >= KILLERS.harrower.ability.reload) { p.ammoT = 0; p.ammo++; } }
@@ -372,37 +576,50 @@ export class Sim {
       if (p.st === 'ok' && S.slime.length && S.slime.some(sl => Math.hypot(sl.x - p.x, sl.z - p.z) < 2.1)) { if (!(p.slimed > 0)) this.ev({ k: 'slimed', id: p.id, x: p.x, z: p.z }); p.slimed = 3; }
     }
     // ---- flashlights & ghost traps ----
-    if (K) this.updateFlashlights(K, dt);
-    if (K && S.traps.length && !K.vault && !(K.act && K.act.k === 'execute')) {
+    this.updateFlashlights(Ks, dt);
+    for (const K of Ks) if (S.traps.length && !K.vault && !K.disguise && !(K.act && K.act.k === 'execute')) {
       const hit = S.traps.find(t => Math.hypot(t.x - K.x, t.z - K.z) < 0.85);
-      if (hit) { S.traps = S.traps.filter(t => t !== hit); this.stunKiller(K, 2.6, false); const by = this.P(hit.by); if (by) by.score.d += 500; this.ev({ k: 'trapped', id: K.id, by: hit.by, x: hit.x, z: hit.z }); }
+      if (hit) { S.traps = S.traps.filter(t => t !== hit); const by = this.P(hit.by); this.stunKiller(K, by && has(by, 'containment') ? 4 : 2.6, false); if (by) by.score.d += 500; this.ev({ k: 'trapped', id: K.id, by: hit.by, x: hit.x, z: hit.z }); }
     }
 
     // ---- killer attack / abilities ----
-    if (K) this.updateKiller(K, dt);
+    for (const K of Ks) this.updateKiller(K, dt);
+    this.updateReels(dt);
 
     // ---- interactions (hold E) ----
     for (const p of S.players) this.updateAction(p, dt);
 
-    // ---- spears ----
+    // ---- spears, chainsaws ----
     this.updateSpears(dt);
+    this.updateSaws(dt);
+    this.updateGranny(dt);
 
     // ---- survivor states ----
     for (const p of S.players) {
       if (p.role !== 'survivor') continue;
       if (p.st === 'carried') {
         const k = this.P(p.carriedBy);
-        if (k) { const f = fwd(k.yaw); p.x = k.x + f.x * 0.25; p.z = k.z + f.z * 0.25; p.yaw = k.yaw; }
+        if (k) { const f = fwd(k.yaw); p.x = k.x + f.x * 0.25; p.z = k.z + f.z * 0.25; p.yaw = k.yaw; p.fl = k.fl || 0; p.sp = k.sp; }
       } else if (p.st === 'caged') {
         const c = M.cages[p.cage];
         p.x = c.x; p.z = c.z;
         const rescuing = S.players.some(o => o.act && o.act.k === 'rescue' && o.act.id === p.cage);
-        if (!rescuing) p.cageT -= dt * (K && has(K, 'rust') ? 1.2 : 1);
-        if (p.cageT <= 0) this.kill(p, 'sacrificed');
+        if (!rescuing) p.cageT -= dt * (anyKillerHas(S, 'rust') ? 1.2 : 1);
+        // bots fight the Entity too, and now and then slip up
+        if (p.bot && p.stage >= 2 && !rescuing && Math.random() < dt * 0.025) { p.cageT -= RULES.struggleMiss; this.ev({ k: 'sc', id: p.id, r: 'miss' }); }
+        if (p.cageT <= 0) {
+          if (p.stage === 1) { // the Entity arrives: struggle phase
+            p.stage = 2; p.cageMax = p.cageT = RULES.cageStage[1];
+            this.ev({ k: 'struggle', id: p.id, cage: p.cage });
+            this.ev({ k: 'msg', text: 'The Entity is trying to claim ' + p.name + '!' });
+          } else this.kill(p, 'sacrificed');
+        }
       } else if (p.st === 'down') {
         const beingHelped = S.players.some(o => o.act && o.act.k === 'heal' && o.act.id === p.id);
         if (!beingHelped) p.bleed -= dt * (has(p, 'resolve') ? 0.66 : 1);
         if (p.bleed <= 0) this.kill(p, 'bled out');
+        // Infection: a few seconds after going down, they rise as a killer
+        else if (p.turn > 0) { p.turn = Math.max(0, p.turn - dt); if (p.turn === 0) this.infect(p); }
       }
       if ((p.st === 'ok' || p.st === 'down') && inExit(M, p) >= 0 && S.gates[inExit(M, p)].open) {
         p.st = 'out'; p.outcome = 'escaped'; p.act = null; p.score.c += 2000;
@@ -424,16 +641,16 @@ export class Sim {
         g.reg = false;
         let rate = 0;
         for (const p of S.players) if (p.act && p.act.k === 'repair' && p.act.id === i) {
-          let r = 1 / RULES.genCharges * (M.indoor ? 1.12 : 1); // tighter indoor maps favour the killer
+          let r = 1 / RULES.genCharges * (M.indoor ? 1.12 : 1) * (this.mode === 'rush' ? 2 : 1) * (p.st === 'ghost' ? 0.9 : 1); // tighter indoor maps favour the killer
           if (has(p, 'shared')) r *= 1 + 0.15 * (g.n - 1);
-          if (K && has(K, 'dread') && dist(K, p) < terrorRadius(K)) r *= 0.9;
+          if (Ks.some(K => has(K, 'dread') && dist(K, p) < terrorRadius(K))) r *= 0.9;
           rate += r;
           p.score.a += dt * 12;
         }
         g.p += rate * eff[Math.min(4, g.n)] * dt;
         if (g.p >= 1) this.completeGen(i);
       } else if (g.reg) {
-        g.p -= dt * (0.25 / RULES.genCharges) * (K && has(K, 'overload') ? 1.5 : 1);
+        g.p -= dt * (0.25 / RULES.genCharges) * (anyKillerHas(S, 'overload') ? 1.5 : 1);
         if (g.p <= 0) { g.p = 0; g.reg = false; }
       }
     }
@@ -449,18 +666,88 @@ export class Sim {
 
     // ---- end condition ----
     const alive = S.players.filter(p => p.role === 'survivor' && ['ok', 'down', 'carried', 'caged', 'exec'].includes(p.st));
+    // Infection: the last survivor standing makes a last stand: survive 45 seconds to win
+    if (this.mode === 'infection' && S.infStart >= 2 && !S.lastStand && alive.length === 1 && alive[0].st === 'ok' && !S.players.some(p => p.role === 'survivor' && p.st === 'out')) {
+      S.lastStand = true; S.timer = 45;
+      const w = alive[0]; w.hp = 2; w.healP = 0; w.boost = 5; w.boostMul = 1.3;
+      this.ev({ k: 'laststand', id: alive[0].id });
+      this.ev({ k: 'msg', text: alive[0].name + ' is the last survivor standing! Survive 45 seconds to win.' });
+    }
     if (alive.length === 0) this.endMatch();
   }
 
+  // ---- mode rules that tick: the Survivor Rush clock ----
+  updateMode(dt) {
+    const S = this.S;
+    // Infection: every 60s the infected sense every survivor for a moment (no endless hide-and-seek)
+    if (this.mode === 'infection') {
+      this.pulseT = (this.pulseT || 0) + dt;
+      if (this.pulseT >= 60) {
+        this.pulseT = 0;
+        for (const p of S.players) if (p.role === 'survivor' && p.st === 'ok') p.reveal = Math.max(p.reveal, 4);
+        this.ev({ k: 'pulse' });
+      }
+    }
+    if (this.mode === 'infection' && S.lastStand && S.timer > 0) {
+      S.timer = Math.max(0, S.timer - dt);
+      if (S.timer === 0) {
+        for (const w of S.players) if (w.role === 'survivor' && ['ok', 'down', 'carried', 'caged'].includes(w.st)) {
+          w.st = 'out'; w.outcome = 'escaped'; w.act = null; w.turn = 0; w.score.c += 3000;
+          this.ev({ k: 'escaped', id: w.id }); this.ev({ k: 'msg', text: w.name + ' survived the last stand!' });
+        }
+        this.endMatch();
+      }
+    }
+    if (this.mode === 'rush' && S.timer > 0) {
+      S.timer = Math.max(0, S.timer - dt);
+      if (S.timer === 0) {
+        // time is up: the gates power themselves and the night closes in fast
+        if (!S.gatesPowered) {
+          S.gatesPowered = true;
+          for (const p of S.players) if (p.act && p.act.k === 'repair') { p.act = null; p.prog = 0; }
+          this.ev({ k: 'powered' });
+        }
+        S.collapse = S.collapse > 0 ? Math.min(S.collapse, 40) : 40;
+        this.ev({ k: 'msg', text: 'Time is up! The gates are powered. 40 seconds until the night takes everyone.' });
+      }
+    }
+  }
+
+  // ---- Infection: a downed survivor rises as a killer ----
+  infect(p) {
+    const S = this.S;
+    if (p.st !== 'down' || p.role !== 'survivor') return;
+    for (const o of S.players) if (o.act && (o.act.k === 'heal' || o.act.k === 'pickup') && o.act.id === p.id) this.cancelAct(o);
+    const char = INFECT_POOL[Math.floor(Math.random() * INFECT_POOL.length)];
+    Object.assign(p, {
+      role: 'killer', char, skin: 'default', perks: [], st: 'ok', hp: 2, act: null, prog: 0, healP: 0, bleed: 0, turn: 0, boost: 0, slimed: 0, mark: 0, reveal: 0,
+      carry: null, atk: 0, atkT: 0, atkHit: false, stun: 1.5, ab: 0, abT: 0, abCd: 0, ab2Cd: 0, aim: false, flash: 0, flashOn: false, traps: 0, glare: 0, blind: 0, blindImm: 6,
+      charges: char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0, ammo: char === 'harrower' ? KILLERS.harrower.ability.ammo : char === 'bateman' ? 1 : 0, ammoT: 0, card: 0,
+      outcome: 'infected', diffMul: p.bot ? this.diff.killerSpeed : 1,
+    });
+    p.tp++;
+    if (this.inputs.get(p.id)) Object.assign(this.inputs.get(p.id), { e: false, latch: false });
+    this.ev({ k: 'infected', id: p.id, char, x: p.x, z: p.z });
+    this.ev({ k: 'msg', text: p.name + ' has turned into ' + KILLERS[char].name + '!' });
+  }
+
   // survivors shine their torch in the killer's eyes: hold the beam on his face to blind and stun him
-  updateFlashlights(K, dt) {
-    const S = this.S, M = this.M;
-    let lit = null;
+  updateFlashlights(Ks, dt) {
+    const S = this.S;
+    const on = [];
     for (const s of S.players) {
       if (s.role !== 'survivor' || !s.flashOn) continue;
       if (s.st !== 'ok' || s.act || s.vault) { s.flashOn = false; continue; }
       s.flash = Math.max(0, s.flash - dt);
       if (s.flash <= 0) { s.flashOn = false; this.ev({ k: 'flashdead', id: s.id }); continue; }
+      on.push(s);
+    }
+    for (const K of Ks) this.flashKiller(K, on, dt);
+  }
+  flashKiller(K, on, dt) {
+    const S = this.S, M = this.M;
+    let lit = null;
+    for (const s of on) {
       const dx = K.x - s.x, dz = K.z - s.z, d = Math.hypot(dx, dz);
       if (d > RULES.flashRange || d < 0.3) continue;
       const f = fwd(s.yaw), kf = fwd(K.yaw);
@@ -479,6 +766,7 @@ export class Sim {
         K.glare = 0; K.blind = RULES.blindTime; K.blindImm = RULES.blindImmune;
         this.stunKiller(K, RULES.flashStun, false);
         lit.score.d += save ? 700 : 350;
+        if (has(lit, 'exposure')) { K.exposed = 6; this.ev({ k: 'exposed', id: K.id, by: lit.id }); }
         this.ev({ k: 'blind', id: K.id, by: lit.id, save });
       }
     } else K.glare = Math.max(0, K.glare - dt * 1.5);
@@ -516,18 +804,24 @@ export class Sim {
         if (d > range) return false;
         const dot = d > 0.01 ? (dx * f.x + dz * f.z) / d : 1;
         if (dot < 0.62 && d > 0.9) return false;
-        return !losBlocked(M, K.x, K.z, sx, sz, 1.0);
+        return !losL(M, K, { x: sx, z: sz, fl: cur.fl }, 1.0);
       };
+      let cur = null;
       for (const s of S.players) {
         if (s.role !== 'survivor' || s.st !== 'ok') continue;
+        if (!levelsMeet(K, s) || (M.stairs && Math.abs(heightAt(M, K) - heightAt(M, s)) > 1.7)) continue;
+        cur = s;
         let ok = inReach(s.x, s.z);
-        if (!ok && this.rewind > 0) { const h = this.posAt(s.id, S.t - this.rewind); ok = !!h && inReach(h.x, h.z); }
+        const rewind = (this.rw && this.rw.get(K.id)) || 0;
+        if (!ok && rewind > 0) { const h = this.posAt(s.id, S.t - rewind); ok = !!h && inReach(h.x, h.z); }
         if (!ok) continue;
         this.damage(s, K, false);
         K.atk = 2; K.atkHit = true; K.atkT = RULES.hitCooldown * (has(K, 'relentless') ? 0.65 : 1);
         break;
       }
-      if (K.atk === 1 && K.atkT <= 0) { K.atk = 2; K.atkHit = false; K.atkT = RULES.missCooldown; }
+      if (K.atk === 1 && K.atkT <= 0) {
+        K.atk = 2; K.atkHit = false; K.atkT = RULES.missCooldown; this.ev({ k: 'whiff', id: K.id });
+      }
     } else if (K.atk === 2) {
       K.atkT -= dt;
       if (K.atkT <= 0) { K.atk = 0; K.atkHit = false; }
@@ -568,7 +862,7 @@ export class Sim {
         if (!L) K.tele = null;
         else if (K.tele.t >= RULES.teleTime) {
           const spot = this.safeSpot(L.x + 0.9, L.z, L.x, L.z);
-          K.x = spot.x; K.z = spot.z; K.tp++;
+          K.x = spot.x; K.z = spot.z; K.fl = 0; K.tp++;
           K.tele = null; K.teleCd = RULES.teleCd;
           this.ev({ k: 'tele-end', id: K.id, x: K.x, z: K.z });
         }
@@ -577,6 +871,7 @@ export class Sim {
       for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok')
         for (const L of S.lanterns) if (Math.hypot(s.x - L.x, s.z - L.z) < RULES.lanternRadius) { s.reveal = Math.max(s.reveal, 0.3); break; }
     }
+    if (K.char === 'chucky' && K.leap) this.updateLeap(K, dt);
     // chase tracking for score
     let chasing = false;
     for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && dist(s, K) < 12 && !losBlocked(M, K.x, K.z, s.x, s.z)) { chasing = true; s.score.d += dt * 6; }
@@ -584,14 +879,27 @@ export class Sim {
   }
 
   damage(s, K, instantDown) {
+    if (K && K.harmless) return;
+    if (K && (!levelsMeet(K, s) || (this.M.stairs && Math.abs(heightAt(this.M, K) - heightAt(this.M, s)) > 1.7))) return; // a floor apart // Chucky's empty doll can chase, but not hurt
+    if (s.st === 'ghost') return;
     if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true;
     // (slimed survivors are slowed and revealed, not one-shot: that made him unbeatable) // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
+    if (K && K.char === 'granny' && s.heard > 0) { instantDown = true; s.heard = 0; } // I Hear You: she knew exactly where you were
+    const wasHp = s.hp;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;
+    // damage tally for the end screen: health states taken, hits, downs
+    K.score.hits = (K.score.hits || 0) + 1; K.score.dmg = (K.score.dmg || 0) + Math.max(1, wasHp - s.hp);
+    s.lastHitBy = K.id;
+    if (this.mode === 'rush') K.haste = Math.max(K.haste || 0, 2.5);
+    if (K.char === 'bateman') K.haste = Math.max(K.haste || 0, 4); // Morning Routine
     if (s.hp <= 0) {
       s.hp = 0; s.st = 'down'; s.bleed = RULES.bleedout; s.healP = 0; s.boost = 0;
+      if (this.mode === 'infection') s.turn = 3;
       K.score.c += 500;
+      K.score.downs = (K.score.downs || 0) + 1;
+      if (K.disguise) K.pdowns++;
       this.ev({ k: 'hit', id: s.id, by: K.id, x: s.x, z: s.z, down: true });
       this.ev({ k: 'msg', text: s.name + ' is down!' });
     } else {
@@ -601,9 +909,15 @@ export class Sim {
   }
 
   kill(p, how) {
-    const S = this.S, K = killerOf(S);
+    const S = this.S;
+    const K = (p.st === 'carried' && this.P(p.carriedBy)) || (p.st === 'exec' && this.P(p.execBy)) || nearestKiller(S, p);
     if (p.st === 'caged') { S.cageBroken[p.cage] = true; S.cages[p.cage] = null; }
-    if (p.st === 'carried' && K) K.carry = null;
+    if (p.st === 'carried' && K && K.carry === p.id) K.carry = null;
+    // who gets the kill on the end screen: the executioner, whoever hooked them, or whoever downed them
+    if (p.role === 'survivor') {
+      const by = this.P(how === 'executed' ? (p.killedBy || p.execBy) : how === 'sacrificed' ? p.hookedBy : how === 'bled out' ? p.lastHitBy : null);
+      if (by && by.role === 'killer') { by.score.kills = (by.score.kills || 0) + 1; if (how === 'executed') by.score.execs = (by.score.execs || 0) + 1; }
+    }
     p.st = 'dead'; p.outcome = how; p.act = null;
     if (K && how !== 'executed') { K.score.d += how === 'sacrificed' ? 1000 : 400; }
     this.ev({ k: 'died', id: p.id, how, x: p.x, z: p.z, cage: p.cage });
@@ -615,13 +929,13 @@ export class Sim {
     const S = this.S, M = this.M, c = M.cages[p.cage];
     S.cages[p.cage] = null;
     p.st = 'ok'; p.hp = 1; p.cage = -1; p.healP = 0; p.esc = 0;
-    const k = killerOf(S);
+    const k = nearestKiller(S, c);
     // step out on the rescuer's side (or away from the killer)
     let ox = 1, oz = 0;
     if (by) { ox = by.x - c.x; oz = by.z - c.z; } else if (k) { ox = c.x - k.x; oz = c.z - k.z; }
     const d = Math.hypot(ox, oz) || 1;
     const spot = this.safeSpot(c.x + ox / d * 1.25, c.z + oz / d * 1.25, by ? by.x : c.x + 1.3, by ? by.z : c.z);
-    p.x = spot.x; p.z = spot.z; p.tp++;
+    p.x = spot.x; p.z = spot.z; p.fl = 0; p.tp++;
     if (has(p, 'lastwind')) { p.boost = 5; p.boostMul = 1.4; }
     this.ev({ k: 'rescued', id: p.id, by: by ? by.id : -1 });
   }
@@ -631,16 +945,19 @@ export class Sim {
     const g = S.gens[i];
     g.p = 1; g.done = true; g.reg = false;
     S.gensDone++;
-    const K = killerOf(S);
+    const sentry = anyKillerHas(S, 'sentry');
+    const boost = S.players.some(p => p.act && p.act.k === 'repair' && p.act.id === i && has(p, 'overclock'));
     for (const p of S.players) if (p.act && p.act.k === 'repair' && p.act.id === i) {
       p.act = null; p.prog = 0; p.score.a += 300;
-      if (K && has(K, 'sentry')) p.reveal = 6;
+      if (sentry) p.reveal = 6;
       this.inputs.get(p.id).latch = true;
     }
+    // Overclock: the nearest unfinished generator jumps ahead
+    if (boost) { let best = null, bd = 1e9; for (const g of M.gens) if (!S.gens[g.id].done && g.id !== i) { const d = Math.hypot(g.x - M.gens[i].x, g.z - M.gens[i].z); if (d < bd) { bd = d; best = g; } } if (best) { S.gens[best.id].p = Math.min(0.99, S.gens[best.id].p + 0.1); this.ev({ k: 'overclock', id: best.id, x: best.x, z: best.z }); } }
     this.ev({ k: 'gen', id: i, x: M.gens[i].x, z: M.gens[i].z, left: Math.max(0, S.gensNeeded - S.gensDone) });
     if (S.gensDone >= S.gensNeeded && !S.gatesPowered) {
       S.gatesPowered = true;
-      S.collapse = RULES.collapse;
+      S.collapse = RULES.collapse * (this.mode === 'rush' ? 0.5 : 1);
       // remaining generators are no longer needed
       S.gens.forEach(gg => { if (!gg.done) gg.reg = false; });
       for (const p of S.players) if (p.act && p.act.k === 'repair') { p.act = null; p.prog = 0; }
@@ -658,7 +975,7 @@ export class Sim {
       if (v) { v.x = p.x + Math.sin(p.yaw) * 1.05; v.z = p.z + Math.cos(p.yaw) * 1.05; }
       if (p.act.t >= RULES.execTime) {
         this.cancelAct(p);
-        if (v && v.st === 'exec') { p.score.d += 1500; this.kill(v, 'executed'); }
+        if (v && v.st === 'exec') { p.score.d += 1500; v.killedBy = p.id; this.kill(v, 'executed'); }
       }
       return;
     }
@@ -694,7 +1011,6 @@ export class Sim {
   progressAct(p, dt) {
     const S = this.S, M = this.M, a = p.act;
     a.t += dt;
-    const K = killerOf(S);
     switch (a.k) {
       case 'repair': p.prog = S.gens[a.id].p; break;
       case 'heal': case 'self': {
@@ -702,6 +1018,7 @@ export class Sim {
         if (!t) { this.cancelAct(p); return; }
         let rate = 1 / RULES.healTime;
         if (has(p, 'medic')) rate *= a.k === 'self' ? 0.5 : 1.3;
+        if (has(p, 'triage') && t.st === 'down') rate *= 2;
         else if (a.k === 'self') rate *= 0.5;
         t.healP += rate * dt;
         p.prog = t.healP;
@@ -763,14 +1080,17 @@ export class Sim {
         p.carry = null;
         s.carriedBy = null; s.wig = 0;
         s.stage++;
-        s.cage = a.id; S.cages[a.id] = s.id;
+        s.cage = a.id; S.cages[a.id] = s.id; s.fl = 0;
+        p.score.hooks = (p.score.hooks || 0) + 1; s.hookedBy = p.id;
         s.st = 'caged'; s.esc = 0; s.tp++;
         p.score.d += 500;
+        if (p.disguise) p.pcages++;
         if (s.stage >= 3) { this.ev({ k: 'caged', id: s.id, cage: a.id, stage: s.stage }); this.kill(s, 'sacrificed'); }
         else {
           s.cageMax = s.cageT = RULES.cageStage[s.stage - 1];
           this.ev({ k: 'caged', id: s.id, cage: a.id, stage: s.stage });
-          this.ev({ k: 'msg', text: s.name + ' has been caged' + (s.stage === 2 ? ' for the second time!' : '.') });
+          this.ev({ k: 'msg', text: s.name + ' has been hooked' + (s.stage === 2 ? ' again! The Entity is already here.' : '.') });
+          if (s.stage === 2) this.ev({ k: 'struggle', id: s.id, cage: a.id });
         }
         break;
       }
@@ -780,6 +1100,27 @@ export class Sim {
         if (has(p, 'overload')) g.p = Math.max(0, g.p - 0.08);
         p.score.a += 100;
         this.ev({ k: 'kick', id: a.id });
+        break;
+      }
+      case 'chest': {
+        // what's inside is rolled now: a Taser one time in five, otherwise a fresh flashlight or ghost traps
+        const cs = S.chests[a.id]; if (!cs || cs.open) break;
+        const r = Math.random();
+        cs.open = true;
+        cs.it = r < ITEMS.taser.chance ? { k: 'taser', n: ITEMS.taser.shots } : r < 0.6 ? { k: 'flashlight', n: RULES.flashBattery } : { k: 'trap', n: 2 };
+        p.score.c += 150;
+        this.ev({ k: 'chest', id: a.id, by: p.id, item: cs.it.k });
+        break;
+      }
+      case 'swap': {
+        // trade what you're holding (used up or not) for what's in the chest
+        const cs = S.chests[a.id]; if (!cs || !cs.it) break;
+        const mine = { k: p.item, n: p.item === 'trap' ? p.traps : p.item === 'taser' ? p.tasers : p.flash };
+        const got = cs.it;
+        p.item = got.k; p.flash = got.k === 'flashlight' ? got.n : 0; p.traps = got.k === 'trap' ? got.n : 0; p.tasers = got.k === 'taser' ? got.n : 0;
+        p.flashOn = false;
+        cs.it = mine;
+        this.ev({ k: 'chestswap', id: a.id, by: p.id, item: got.k, left: mine.k });
         break;
       }
       case 'snuff': {
@@ -798,31 +1139,25 @@ export class Sim {
   // ---- the Foreman's chain hook: fly, then either reel a survivor in or yank him to a wall ----
   updateChains(K, dt) {
     const S = this.S, M = this.M, range = KILLERS.foreman.ability.range;
-    // survivor being reeled in
-    for (const s of S.players) if (s.reel) {
-      s.reel.t += dt;
-      const f = Math.min(1, s.reel.t / 0.45), e = 1 - (1 - f) * (1 - f);
-      s.x = s.reel.x0 + (s.reel.x1 - s.reel.x0) * e; s.z = s.reel.z0 + (s.reel.z1 - s.reel.z0) * e;
-      if (f >= 1) { s.reel = null; s.tp++; }
-    }
     // killer yanked to a wall
     if (K.pull) {
       K.pull.t += dt;
       const f = Math.min(1, K.pull.t / K.pull.d), e = f * f * (3 - 2 * f);
       K.x = K.pull.x0 + (K.pull.x1 - K.pull.x0) * e; K.z = K.pull.z0 + (K.pull.z1 - K.pull.z0) * e;
-      if (f >= 1) { K.pull = null; K.tp++; }
+      if (f >= 1) { if (K.pull.h) this.ev({ k: 'chainland', id: K.id, x: K.x, z: K.z }); K.pull = null; K.tp++; }
     }
     for (let i = S.chains.length - 1; i >= 0; i--) {
       const c = S.chains[i];
+      if (c.by !== K.id) continue;
       c.t += dt;
       if (c.st === 'fly') {
         const step = 34 * dt, n = 4;
         for (let k = 0; k < n && c.st === 'fly'; k++) {
-          const px = c.x, pz = c.z;
-          c.x += c.dx * step / n; c.z += c.dz * step / n; c.d += step / n;
+          const px = c.x, pz = c.z, cp = c.cp ?? 1, sp = c.sp ?? 0;
+          c.x += c.dx * cp * step / n; c.z += c.dz * cp * step / n; c.y = (c.y ?? 1.55) + sp * step / n; c.d += step / n;
           for (const s of S.players) {
-            if (s.role !== 'survivor' || s.st !== 'ok' || s.reel) continue;
-            if (Math.hypot(s.x - c.x, s.z - c.z) < 0.45) {
+            if (s.role !== 'survivor' || s.st !== 'ok' || s.reel || !levelsMeet(K, s)) continue;
+            if (Math.hypot(s.x - c.x, s.z - c.z) < 0.45 && c.y > 0.1 && c.y < (s.cr ? 1.2 : 1.95)) {
               this.chainDmg = true; this.damage(s, K, false); this.chainDmg = false;
               if (s.st === 'ok') { const dd = Math.hypot(s.x - K.x, s.z - K.z) || 1, keep = Math.max(2.6, dd * 0.55); const tx = K.x + (s.x - K.x) / dd * keep, tz = K.z + (s.z - K.z) / dd * keep; const spot = this.safeSpot(tx, tz, s.x, s.z); s.reel = { t: 0, x0: s.x, z0: s.z, x1: spot.x, z1: spot.z }; s.act = null; s.tp++; }
               K.score.b += 300;
@@ -832,14 +1167,21 @@ export class Sim {
             }
           }
           if (c.st !== 'fly') break;
-          if (losBlocked(M, px, pz, c.x, c.z, 1.0)) {
-            // caught a wall: yank the Foreman across to it
-            const back = 0.9, gx = c.x - c.dx * back, gz = c.z - c.dz * back;
-            const dd = Math.hypot(gx - K.x, gz - K.z);
-            if (dd > 2.5 && K.carry == null) { K.pull = { t: 0, d: Math.max(0.25, dd / 16), x0: K.x, z0: K.z, x1: gx, z1: gz }; K.atk = 0; this.ev({ k: 'chaingrab', id: K.id, x: c.x, z: c.z }); }
-            c.st = 'back'; c.t = 0; c.x = gx; c.z = gz;
+          const ground = c.y <= 0.05;
+          if (ground || losBlocked(M, px, pz, c.x, c.z, Math.max(0.6, c.y))) {
+            // caught a wall, a treetop or the ground: yank the Foreman across to it. Caught high
+            // up, he is flung up to the hook and then drops down at the foot of what it bit into
+            const back = ground ? 0 : 0.9, gx = c.x - c.dx * back, gz = c.z - c.dz * back, gy = Math.max(0, c.y);
+            const dd = Math.hypot(gx - K.x, gz - K.z), h = gy > 2.2 ? gy : 0;
+            if ((dd > 2.5 || h) && K.carry == null) {
+              const spot = this.safeSpot(gx, gz, K.x, K.z);
+              K.pull = { t: 0, d: Math.max(0.25, dd / 16) + (h ? 0.3 + Math.sqrt(h) * 0.12 : 0), x0: K.x, z0: K.z, x1: spot.x, z1: spot.z, h: h ? +h.toFixed(2) : 0 };
+              K.atk = 0; this.ev({ k: 'chaingrab', id: K.id, x: c.x, z: c.z, y: gy });
+            }
+            c.st = 'back'; c.t = 0; c.x = gx; c.z = gz; c.y = gy;
             break;
           }
+          if (c.y > 14) { c.st = 'back'; c.t = 0; }
           if (c.d > range) { c.st = 'back'; c.t = 0; }
         }
       } else if (c.st === 'reel') {
@@ -850,7 +1192,282 @@ export class Sim {
         // retract
         const dd = Math.hypot(c.x - K.x, c.z - K.z) || 1, step = 40 * dt;
         if (dd < step + 0.5 || c.t > 1.2) { S.chains.splice(i, 1); continue; }
-        c.x += (K.x - c.x) / dd * step; c.z += (K.z - c.z) / dd * step;
+        c.x += (K.x - c.x) / dd * step; c.z += (K.z - c.z) / dd * step; c.y = (c.y ?? 1.55) + (1.55 - (c.y ?? 1.55)) * Math.min(1, dt * 8);
+      }
+    }
+  }
+
+  soulSplit(C) {
+    const S = this.S;
+    const D = S.dolls.splice(Math.floor(Math.random() * S.dolls.length), 1)[0];
+    const nid = C.id + '~soul';
+    const N = this.makePlayer({ id: nid, name: C.name, role: 'killer', char: 'chucky', skin: C.skin, perks: C.perks, bot: C.bot }, { x: D.x, z: D.z });
+    Object.assign(N, { yaw: D.yaw, split: true, possCd: C.possCd, stun: 0.8, score: { a: 0, b: 0, c: 0, d: 0 } });
+    S.players.push(N); this.inputs.set(nid, { e: false, latch: false });
+    // the body he leaves keeps hunting on its own: it can put survivors down, but never cage them
+    Object.assign(C, { split: true, bot: true, noCage: true, aim: false, act: null, name: 'Chucky (bot)' });
+    if (this.inputs.get(C.id)) Object.assign(this.inputs.get(C.id), { e: false, latch: false });
+    this.ev({ k: 'swap', from: C.id, to: nid });
+    this.ev({ k: 'split', id: C.id, to: nid, x: D.x, z: D.z, doll: D.id });
+    this.ev({ k: 'msg', text: "Chucky's soul has split into another doll!" });
+  }
+
+  // ---- Chucky's Possession ----
+  // The downed survivor gets up with Chucky inside; nobody is told. Chucky's player now controls that
+  // body (it can strike, pick up and cage), his doll is left behind as a harmless bot that only chases,
+  // and the survivor's player wanders the map as a ghost nobody else can see.
+  possess(C, X) {
+    const S = this.S;
+    for (const o of S.players) if (o.act && (o.act.k === 'heal' || o.act.k === 'pickup') && o.act.id === X.id) this.cancelAct(o);
+    const orig = { char: X.char, skin: X.skin, perks: X.perks, item: X.item, flash: X.flash, traps: X.traps, tasers: X.tasers, bot: X.bot };
+    const gid = X.id + '~ghost';
+    const G = this.makePlayer({ id: gid, name: X.name, role: 'survivor', char: X.char, skin: X.skin, perks: X.perks, item: X.item, bot: X.bot }, { x: X.x, z: X.z });
+    Object.assign(G, { st: 'ghost', yaw: X.yaw, stage: X.stage, flash: 0, traps: 0, tasers: 0, score: X.score });
+    X.score = { a: 0, b: 0, c: 0, d: 0 };
+    S.players.push(G); this.inputs.set(gid, { e: false, latch: false });
+    Object.assign(X, {
+      role: 'killer', disguise: true, perks: [], st: 'ok', hp: 2, act: null, prog: 0, healP: 0, bleed: 0, turn: 0, boost: 0, flashOn: false,
+      atk: 0, atkT: 0, atkHit: false, stun: 0, carry: null, aim: false, pdowns: 0, pcages: 0, bot: C.bot, reveal: 0, mark: 0, slimed: 0, card: 0,
+    });
+    X.tp++;
+    const cBot = C.bot;
+    Object.assign(C, { bot: true, harmless: true, act: null, aim: false, leap: null, possCd: 600 });
+    if (this.inputs.get(C.id)) Object.assign(this.inputs.get(C.id), { e: false, latch: false });
+    if (this.inputs.get(X.id)) Object.assign(this.inputs.get(X.id), { e: false, latch: false });
+    this.possession = { C: C.id, X: X.id, G: gid, orig, cBot };
+    // control moves silently: the survivor's player to the ghost, Chucky's player into the body
+    this.ev({ k: 'swap', from: X.id, to: gid });
+    this.ev({ k: 'swap', from: C.id, to: X.id });
+    this.ev({ k: 'possessed', id: X.id, by: C.id, ghost: gid });
+  }
+  release() {
+    const S = this.S, P = this.possession;
+    if (!P) return;
+    this.possession = null;
+    const X = this.P(P.X), C = this.P(P.C), G = this.P(P.G);
+    if (X) {
+      if (X.carry != null) this.releaseCarry(X, false);
+      Object.assign(X, { role: 'survivor', disguise: false, ...P.orig, bot: G ? G.bot : P.orig.bot, st: 'ok', hp: 1, act: null, prog: 0, atk: 0, atkT: 0, stun: 0, aim: false, pdowns: 0, pcages: 0 });
+      if (G) for (const k in G.score) X.score[k] = (X.score[k] || 0) + G.score[k];
+      X.tp++;
+    }
+    if (C) Object.assign(C, { bot: P.cBot, harmless: false, act: null });
+    if (G) { S.players.splice(S.players.indexOf(G), 1); this.inputs.delete(G.id); }
+    if (C) this.ev({ k: 'swap', from: P.X, to: P.C });
+    this.ev({ k: 'swap', from: P.G, to: P.X });
+    this.ev({ k: 'depossessed', id: P.X, by: P.C });
+  }
+
+  // Chucky's pounce: fly along the leap, strike the first survivor in reach, bounce off walls
+  updateLeap(K, dt) {
+    const L = K.leap, S = this.S, M = this.M, D = KILLERS.chucky.ability;
+    L.t += dt;
+    const f = Math.min(1, L.t / L.d);
+    const tx = L.x0 + (L.x1 - L.x0) * f, tz = L.z0 + (L.z1 - L.z0) * f;
+    const want = Math.hypot(tx - K.x, tz - K.z);
+    // airborne: sails over fences, pallets, crates and rocks (anything under 1.6m); walls still stop him,
+    // and Ghost Traps still catch him (they are checked against his position every tick)
+    const r = moveCircle(levelOf(M, K.fl), K.fl ? null : S, K.x, K.z, tx - K.x, tz - K.z, 0.3, 1.6);
+    const blocked = want > 0.05 && Math.hypot(r.x - K.x, r.z - K.z) < want * 0.4;
+    K.x = r.x; K.z = r.z;
+    for (const s of S.players) {
+      if (s.role !== 'survivor' || s.st !== 'ok') continue;
+      if (Math.hypot(s.x - K.x, s.z - K.z) < 1.2 && !K.harmless) {
+        this.damage(s, K, false); K.score.b += 300;
+        K.leap = null; K.tp++; K.abCd = D.cooldown; K.atk = 2; K.atkHit = true; K.atkT = RULES.hitCooldown * 0.8;
+        this.ev({ k: 'pounce-hit', id: s.id, by: K.id, x: s.x, z: s.z });
+        return;
+      }
+    }
+    if (blocked && f > 0.15) {
+      K.leap = null; K.tp++; K.abCd = D.cooldown;
+      this.stunKiller(K, 1.4, false);
+      this.ev({ k: 'pounce-wall', id: K.id, x: K.x, z: K.z });
+      return;
+    }
+    if (f >= 1) { K.leap = null; K.tp++; K.abCd = D.cooldown; K.atk = 2; K.atkHit = false; K.atkT = 0.6; this.ev({ k: 'pounce-land', id: K.id, x: K.x, z: K.z }); }
+  }
+
+  // survivors being reeled in by a chain hook
+  updateReels(dt) {
+    for (const s of this.S.players) if (s.reel) {
+      s.reel.t += dt;
+      const f = Math.min(1, s.reel.t / 0.45), e = 1 - (1 - f) * (1 - f);
+      s.x = s.reel.x0 + (s.reel.x1 - s.reel.x0) * e; s.z = s.reel.z0 + (s.reel.z1 - s.reel.z0) * e;
+      if (f >= 1) { s.reel = null; s.tp++; }
+    }
+  }
+
+  // Patrick Bateman's thrown chainsaw
+  // ---------------- Granny: Bat Rush, listening, sharp ears, Spider Mom ----------------
+  updateGranny(dt) {
+    const S = this.S, M = this.M;
+    const Gs = S.players.filter(p => p.role === 'killer' && p.char === 'granny');
+    for (const p of S.players) if (p.snare > 0) { p.snare = Math.max(0, p.snare - dt); if (p.st !== 'ok') p.snare = 0; }
+    if (!Gs.length && !S.spider) return;
+    const D = KILLERS.granny.ability, T = KILLERS.granny.teleport;
+    for (const K of Gs) {
+      // listening (I Hear You): stands still for a moment
+      if (K.ab === 1) { K.abT -= dt; if (K.abT <= 0) { K.ab = 0; K.abT = 0; } }
+      // winding up the bat
+      if (K.aim) { K.abT = Math.min(D.maxCharge + 0.5, K.abT + dt); if (K.stun > 0 || K.carry != null || K.act) K.aim = false; }
+      if (K.dash) this.updateRush(K, dt);
+      // Creep: fade out, reappear by the chosen window, pallet, generator or hook
+      if (K.tele && K.tele.g) {
+        K.tele.t += dt;
+        if (K.tele.t >= T.time) {
+          const spot = this.safeSpot(K.tele.x + 1.1, K.tele.z, K.tele.x, K.tele.z);
+          K.x = spot.x; K.z = spot.z; K.fl = 0; K.tp++; K.tele = null; K.teleCd = T.cooldown; K.haste = Math.max(K.haste || 0, T.haste);
+          this.ev({ k: 'tele-end', id: K.id, x: K.x, z: K.z });
+        }
+      }
+      // sharp ears: running near her gives you away
+      for (const s of S.players) if (s.role === 'survivor' && s.st === 'ok' && s.mv === 2 && dist(s, K) < 22) s.reveal = Math.max(s.reveal || 0, 0.6);
+    }
+    this.updateSpiderMom(dt, Gs);
+  }
+  // Bat Rush in motion: steered by her aim, through windows and dropped pallets, into the first
+  // survivor, or into a wall; fully wound up, it ends in a Ground Slam
+  updateRush(K, dt) {
+    const S = this.S, M = this.M, D = KILLERS.granny.ability, R = K.dash;
+    if (K.stun > 0 || K.carry != null) { K.dash = null; return; }
+    R.t += dt;
+    // steering: turn toward where she is looking, at a limited rate
+    const want = Math.atan2(R.dx, R.dz) + Math.max(-D.turn * dt, Math.min(D.turn * dt, angDiff(Math.atan2(R.dx, R.dz), K.yaw)));
+    R.dx = Math.sin(want); R.dz = Math.cos(want);
+    const step = D.speed * dt;
+    if (!K.fl) {
+      // a dropped pallet in the way splinters, and carries her further
+      for (const b of M.bars) if (S.bars[b.id] === 1 && Math.hypot(K.x + R.dx * 0.9 - b.x, K.z + R.dz * 0.9 - b.z) < b.half + 0.5) { S.bars[b.id] = 2; R.d += D.palletBonus / D.speed; this.ev({ k: 'break', id: b.id }); this.ev({ k: 'rushsmash', id: K.id, x: b.x, z: b.z }); }
+      // a window in the way: straight through it
+      for (const w of M.windows) {
+        const cross = w.axis === 'x' ? K.x - w.x : K.z - w.z, lat = w.axis === 'x' ? K.z - w.z : K.x - w.x;
+        const toward = (w.axis === 'x' ? R.dx : R.dz) * -Math.sign(cross);
+        if (Math.abs(cross) < 0.95 && Math.abs(lat) < w.half - 0.15 && toward > 0.45) {
+          const side = Math.sign(cross) || 1;
+          if (w.axis === 'x') K.x = w.x - side * 0.85; else K.z = w.z - side * 0.85;
+          K.tp++; this.ev({ k: 'rushvault', id: K.id, x: w.x, z: w.z });
+          break;
+        }
+      }
+    }
+    const L = levelOf(M, K.fl), r = moveCircle(L, K.fl ? null : S, K.x, K.z, R.dx * step, R.dz * step, 0.45);
+    const moved = Math.hypot(r.x - K.x, r.z - K.z);
+    K.x = r.x; K.z = r.z;
+    if (M.stairs) levelStep(M, K);
+    // the first survivor in her way
+    for (const s of S.players) {
+      if (s.role !== 'survivor' || s.st !== 'ok' || !levelsMeet(K, s)) continue;
+      if (M.stairs && Math.abs(heightAt(M, K) - heightAt(M, s)) > 1.7) continue;
+      const dx = s.x - K.x, dz = s.z - K.z, d = Math.hypot(dx, dz);
+      if (d < 1.25 && (d < 0.5 || (dx * R.dx + dz * R.dz) / d > 0.2) && !losL(M, K, s, 1.0)) {
+        this.damage(s, K, false);
+        if (R.full) this.groundSlam(K, s.id);
+        K.dash = null; K.atk = 2; K.atkHit = true; K.atkT = RULES.hitCooldown; K.tp++;
+        this.ev({ k: 'rushhit', id: K.id, to: s.id, x: s.x, z: s.z });
+        return;
+      }
+    }
+    // a wall stops her dead
+    if (moved < step * 0.35 && R.t > 0.05) {
+      K.dash = null; K.tp++; this.stunKiller(K, D.wallStun, false);
+      this.ev({ k: 'rushwall', id: K.id, x: K.x, z: K.z });
+      return;
+    }
+    if (R.t >= R.d) {
+      K.dash = null; K.tp++;
+      if (R.full) { this.groundSlam(K, null); K.atk = 2; K.atkHit = true; K.atkT = 0.9; }
+      else { K.atk = 2; K.atkHit = false; K.atkT = 0.7; }
+    }
+  }
+  // the end of a fully wound-up Bat Rush: the bat comes down on the floor; everyone close is struck,
+  // and a generator next to her loses some of its progress
+  groundSlam(K, skip) {
+    const S = this.S, M = this.M, D = KILLERS.granny.ability, hit = [];
+    for (const s of S.players) {
+      if (s.id === skip || s.role !== 'survivor' || s.st !== 'ok' || !levelsMeet(K, s)) continue;
+      if (M.stairs && Math.abs(heightAt(M, K) - heightAt(M, s)) > 1.7) continue;
+      if (Math.hypot(s.x - K.x, s.z - K.z) < D.slamRadius && !losL(M, K, s, 1.0)) { this.damage(s, K, false); hit.push(s.id); }
+    }
+    if (!K.fl) for (const g of M.gens) { const gs = S.gens[g.id]; if (!gs.done && gs.p > 0 && Math.hypot(g.x - K.x, g.z - K.z) < D.slamRadius + 0.8) { gs.p = Math.max(0, gs.p - D.slamGen); gs.reg = true; this.ev({ k: 'kick', id: g.id }); } }
+    this.ev({ k: 'slam', id: K.id, x: K.x, z: K.z, hit });
+  }
+  // Spider Mom: crawls from generator to generator; anyone she finds repairing one is shown to Granny
+  updateSpiderMom(dt, Gs) {
+    const S = this.S, M = this.M;
+    if (!Gs.length || !M.gens.length) { S.spider = null; return; }
+    let sp = S.spider;
+    if (!sp) { const g = M.gens[Math.floor(Math.random() * M.gens.length)]; const p0 = this.safeSpot(g.x + 2, g.z, g.x, g.z); sp = S.spider = { x: p0.x, z: p0.z, yaw: 0, st: 0 }; this.spiderPath = null; }
+    const P = this.spiderState ||= { path: null, i: 0, goal: -1, wait: 0, seen: {} };
+    if (sp.st === 2) { P.wait -= dt; if (P.wait <= 0) sp.st = 0; return; } // screeching
+    if (P.wait > 0) { P.wait -= dt; sp.st = 1; return; }                    // sniffing around a generator
+    // pick the next generator: one being repaired if she can smell it, otherwise any unfinished one
+    if (!P.path || P.i >= P.path.length) {
+      const busy = M.gens.filter((g, i) => !S.gens[i].done && S.gens[i].n > 0 && i !== P.goal);
+      const open = M.gens.filter((g, i) => !S.gens[i].done && i !== P.goal);
+      const pool = busy.length && Math.random() < 0.6 ? busy : open.length ? open : M.gens;
+      const g = pool[Math.floor(Math.random() * pool.length)];
+      P.goal = g.id; P.path = findPath(M, sp.x, sp.z, g.x + 1.6, g.z, t => t === 1 ? Infinity : 1, 30000) || []; P.i = 0;
+      if (!P.path.length) { P.wait = 2; return; }
+    }
+    // crawl along the path
+    let step = 3.4 * dt;
+    while (step > 0 && P.i < P.path.length) {
+      const c = cellPos(M, P.path[P.i]), dx = c.x - sp.x, dz = c.z - sp.z, d = Math.hypot(dx, dz);
+      if (d <= step) { sp.x = c.x; sp.z = c.z; step -= d; P.i++; }
+      else { sp.x += dx / d * step; sp.z += dz / d * step; sp.yaw = Math.atan2(dx, dz); step = 0; }
+    }
+    sp.st = 0;
+    if (P.i >= P.path.length) P.wait = 2.5 + Math.random() * 2;
+    // anyone repairing a generator within sight is reported
+    for (const s of S.players) {
+      if (s.role !== 'survivor' || s.st !== 'ok' || !s.act || s.act.k !== 'repair') continue;
+      if (Math.hypot(s.x - sp.x, s.z - sp.z) > 14 || losBlocked(M, sp.x, sp.z, s.x, s.z) || S.t - (P.seen[s.id] ?? -99) < 12) continue;
+      P.seen[s.id] = S.t; s.reveal = Math.max(s.reveal || 0, 7); s.spied = 7; s.webbed = 3;
+      sp.st = 2; P.wait = 1.6; sp.yaw = Math.atan2(s.x - sp.x, s.z - sp.z);
+      this.ev({ k: 'spidermom', id: s.id, x: sp.x, z: sp.z });
+      break;
+    }
+  }
+
+
+  updateSaws(dt) {
+    const S = this.S, M = this.M;
+    for (const p of S.players) if (p.role === 'killer' && (p.char === 'bateman' || p.char === 'chucky') && p.aim) p.abT += dt;
+    for (let i = S.saws.length - 1; i >= 0; i--) {
+      const sw = S.saws[i], K = this.P(sw.by);
+      sw.t += dt;
+      if (!K || K.role !== 'killer' || K.char !== 'bateman') { S.saws.splice(i, 1); continue; }
+      if (sw.st === 'ground') {
+        // he walks over to pick it back up (or it finds its own way back)
+        if (Math.hypot(K.x - sw.x, K.z - sw.z) < 1.6 || sw.t > KILLERS.bateman.ability.back) {
+          S.saws.splice(i, 1); K.ammo = 1; K.abCd = KILLERS.bateman.ability.cooldown;
+          this.ev({ k: 'sawpickup', id: K.id, x: sw.x, z: sw.z, back: sw.t > KILLERS.bateman.ability.back });
+        }
+        continue;
+      }
+      let land = false;
+      const steps = 4, h = dt / steps;
+      for (let k = 0; k < steps && !land; k++) {
+        const px = sw.x, pz = sw.z;
+        sw.vy -= 9 * h;
+        sw.x += sw.vx * h; sw.z += sw.vz * h; sw.y += sw.vy * h;
+        for (const s of S.players) {
+          if (s.role !== 'survivor' || s.st !== 'ok') continue;
+          if (sw.y < (s.cr ? 1.15 : 1.85) && Math.hypot(sw.x - s.x, sw.z - s.z) < 0.65) {
+            this.damage(s, K, true); K.score.b += 400;
+            this.ev({ k: 'sawhit', id: s.id, by: K.id, x: s.x, z: s.z });
+            land = true; break;
+          }
+        }
+        if (land) break;
+        if (sw.y <= 0.15 || Math.hypot(sw.x - K.x, sw.z - K.z) > KILLERS.bateman.ability.range) land = true;
+        else if (losBlocked(M, px, pz, sw.x, sw.z, Math.min(1.2, sw.y))) { sw.x = px; sw.z = pz; land = true; }
+      }
+      if (land) {
+        const spot = this.safeSpot(sw.x, sw.z, K.x, K.z);
+        Object.assign(sw, { st: 'ground', x: spot.x, z: spot.z, y: 0.12, vx: 0, vy: 0, vz: 0, t: 0 });
+        this.ev({ k: 'sawland', id: K.id, x: sw.x, z: sw.z });
       }
     }
   }
@@ -879,7 +1496,7 @@ export class Sim {
           }
         }
         if (dead) break;
-        const bucket = M.hash.get(Math.floor((sp.x + HALF + 12) / 8) * 1000 + Math.floor((sp.z + HALF + 12) / 8)) || [];
+        const bucket = M.hash.get(Math.floor((sp.x + (M.half || HALF) + 12) / 8) * 1000 + Math.floor((sp.z + (M.half || HALF) + 12) / 8)) || [];
         for (const o of bucket) {
           if (o.r !== undefined) { if (sp.y < o.h && Math.hypot(sp.x - o.x, sp.z - o.z) < o.r) { dead = true; break; } }
           else if (sp.y < o.h && Math.abs(sp.x - o.x) < o.hx && Math.abs(sp.z - o.z) < o.hz) { dead = true; break; }
@@ -893,11 +1510,13 @@ export class Sim {
   endMatch() {
     const S = this.S;
     if (S.phase === 'end') return;
+    if (this.possession) this.release();
     S.phase = 'end';
-    const K = killerOf(S);
     for (const p of S.players) if (p.role === 'survivor' && !p.outcome) p.outcome = p.st === 'out' ? 'escaped' : 'sacrificed';
-    const kills = S.players.filter(p => p.role === 'survivor' && p.outcome !== 'escaped').length;
-    if (K) K.outcome = ['Brutal defeat', 'Entity displeased', 'Close call', 'Merciless victory', 'Merciless victory'][Math.min(4, Math.round(kills / Math.max(1, S.players.length - 1) * 4))];
+    const victims = S.players.filter(p => p.role === 'survivor' || p.outcome === 'infected');
+    const kills = victims.filter(p => p.outcome !== 'escaped').length;
+    const grade = ['Brutal defeat', 'Entity displeased', 'Close call', 'Merciless victory', 'Merciless victory'][Math.min(4, Math.round(kills / Math.max(1, victims.length) * 4))];
+    for (const K of S.players) if (K.role === 'killer' && K.outcome !== 'infected') K.outcome = grade;
     this.ev({ k: 'end' });
   }
 
