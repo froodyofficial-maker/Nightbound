@@ -400,8 +400,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.27.0';
+export const VERSION = '2.28.0';
 export const INBOX = [
+  {
+    id: 'v2.28.0', version: '2.28.0', date: 'Nov 2026', title: 'Ranks, Levels & Season 1', tag: 'Update', gift: { embers: 1000, label: 'Season 1 launch gift: 1,000 Embers' },
+    body: [
+      'Player level: every match earns XP; your level shows next to your name.',
+      'Ranks: a survivor rank and a killer rank, Ash IV up to Iridescent I. Good matches earn pips, bad ones lose them. The results screen shows your XP and rank change.',
+      'Season 1: The Long Night. A free 30-tier season pass (Progress in the main menu) with Embers on every tier and two season badges. 60 days.',
+    ],
+  },
   {
     id: 'v2.27.0', version: '2.27.0', date: 'Nov 2026', title: 'Granny: Body Swap & a Wilder Bat Rush', tag: 'Update',
     body: ['New for Granny: Body Swap (V). Switch bodies with Spider Mom at any moment: Granny appears where Spider Mom was, and Spider Mom where Granny stood. Hold V to look through Spider Mom\'s eyes first, then let go to swap.', 'Bat Rush, upgraded: steer the charge with the mouse, crash straight through windows, and each dropped pallet you smash carries you 2m further. Wind it up all the way and it ends in a Ground Slam that strikes everyone around her and damages a nearby generator.', 'Slendrina is gone from the Granny chapter: no more apparitions, and the trailer and banner now feature Spider Mom.'],

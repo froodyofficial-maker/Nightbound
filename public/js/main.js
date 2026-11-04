@@ -24,6 +24,7 @@ import { ACTIONS, bound, keyName, RESERVED } from './keybinds.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
+import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
 
 window.__nbBooted = true;
 for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
@@ -182,11 +183,12 @@ function renderShowcase() {
     $('showcase').innerHTML = `<div class="role">Survivor</div><div class="nm">${esc(c.name)}</div><div class="lore">${esc(BIOS[c.id] || '')}</div>`;
   }
   const st = profile.stats;
-  $('profile').innerHTML = `<div class="pn">${esc(settings.name)}</div><div class="pe">${icon('ember')}${Math.round(st.embers).toLocaleString()}</div><div class="ps">${st.matches} matches · ${st.escapes} escapes · ${st.kills} kills</div>`;
+  const lv = levelOf((profile.prog || {}).xp || 0), rk = rankOf(((profile.prog || {}).ranks || {})[menuMode === 'killer' ? 'killer' : 'survivor'] || 0);
+  $('profile').innerHTML = `<div class="pn"><span class="plv" title="Player level">${lv.lvl}</span>${rankBadge(rk, 26)}${esc(settings.name)}</div><div class="pe">${icon('ember')}${Math.round(st.embers).toLocaleString()}</div><div class="ps">${st.matches} matches · ${st.escapes} escapes · ${st.kills} kills</div>`;
 }
 
 // ---------- side panel ----------
-const SECTIONS = ['p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-inbox'];
+const SECTIONS = ['p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-inbox', 'p-pass', 'p-friends'];
 let openSection = null;
 function openPanel(id, title, wide = false) {
   for (const p of SECTIONS) $(p).classList.toggle('hidden', p !== id);
@@ -203,6 +205,7 @@ function openPanel(id, title, wide = false) {
   if (id === 'p-settings') renderSettings();
   if (id === 'p-online') detectModeHint();
   if (id === 'p-inbox') renderInbox();
+  if (id === 'p-pass') renderPass();
 }
 function closePanel() {
   if (openSection === 'p-lobby' && lobby) { leaveOnline(); return; }
@@ -231,6 +234,7 @@ const navActions = {
   settings: () => openPanel('p-settings', 'Settings'),
   help: () => openPanel('p-help', 'How to Play', true),
   store: () => openStore(),
+  pass: () => openPanel('p-pass', 'Progress', true),
 };
 for (const b of $('mainnav').children) {
   b.addEventListener('mouseenter', () => { sound.init(); sound.play('hover'); if (b.dataset.scene) setScene(b.dataset.scene); });
@@ -872,6 +876,12 @@ function endSession() {
 }
 
 function onMatchEnd(S, me, sess) {
+  if (me && me.score) {
+    // progression: XP, level, rank pips, season pass
+    const r = applyMatch(profile, S, me);
+    const pipTxt = r.pips > 0 ? `+${r.pips} pip${r.pips > 1 ? 's' : ''}` : r.pips < 0 ? `${r.pips} pip` : 'no change';
+    $('results-list').insertAdjacentHTML('beforeend', `<div class="prog-sum"><div class="ps-xp"><b>+${r.xp} XP</b><span>Level ${r.level}${r.levelUp ? ' <i>Level up!</i>' : ''}</span></div><div class="ps-rank">${rankBadge(r.rank, 40)}<div><b>${r.rank.name}</b><span>${r.role === 'killer' ? 'Killer' : 'Survivor'} rank · ${pipTxt}${r.rankChanged ? ' · new grade!' : ''}</span></div></div><div class="ps-pass">Season tier ${seasonTier(profile.prog.season.xp)} / ${SEASON.tiers.length}</div></div>`);
+  }
   if (me) {
     profile.stats.matches++;
     const tot = me.score.a + me.score.b + me.score.c + me.score.d;
@@ -1174,6 +1184,27 @@ function leaveOnline(silent) {
   $('chat-log').innerHTML = '';
   loading(false);
   show('p-main');
+}
+
+// ---------- progress: level, ranks, season pass ----------
+function renderPass() {
+  const P = profile.prog ||= { xp: 0, ranks: { survivor: 0, killer: 0 }, season: { id: SEASON.id, xp: 0, claimed: {} }, badges: {} };
+  if (!P.season || P.season.id !== SEASON.id) P.season = { id: SEASON.id, xp: 0, claimed: {} };
+  const lv = levelOf(P.xp), tier = seasonTier(P.season.xp), left = Math.max(0, Math.ceil((seasonEnds() - Date.now()) / 864e5));
+  const rankCard = role => { const r = rankOf(P.ranks[role] || 0); return `<div class="rk-card">${rankBadge(r, 64)}<div><small>${role === 'killer' ? 'Killer' : 'Survivor'} rank</small><b style="color:${r.tier.color}">${r.name}</b><div class="pips">${Array.from({ length: PIPS_PER_GRADE }, (_, i) => `<i class="${i < r.into || r.top ? 'on' : ''}"></i>`).join('')}</div><span>${r.top ? 'Top rank' : `${PIPS_PER_GRADE - r.into} pip${PIPS_PER_GRADE - r.into === 1 ? '' : 's'} to the next grade`}</span></div></div>`; };
+  const tiers = SEASON.tiers.map(t => { const got = tier >= t.t, claimed = !!P.season.claimed[t.t];
+    return `<div class="sp-tier ${got ? 'got' : ''} ${claimed ? 'claimed' : ''} ${t.kind === 'badge' ? 'big' : ''}"><small>Tier ${t.t}</small><b>${t.kind === 'badge' ? icon('gift') : icon('ember')}</b><span>${esc(t.label)}</span>${claimed ? '<em>Claimed</em>' : got ? `<button class="btn primary" data-claim-tier="${t.t}">Claim</button>` : '<em>Locked</em>'}</div>`; }).join('');
+  $('pass-body').innerHTML = `
+    <div class="pr-top"><div class="lv-ring"><b>${lv.lvl}</b><small>Level</small></div><div class="lv-info"><b>${esc(settings.name)}</b><div class="bar"><div style="width:${(lv.into / lv.need * 100).toFixed(1)}%"></div></div><span>${lv.into.toLocaleString()} / ${lv.need.toLocaleString()} XP to level ${lv.lvl + 1}</span>${Object.keys(P.badges || {}).length ? `<div class="badges">${Object.keys(P.badges).map(b => `<i>${b === 's1-final' ? 'Dawn Survivor' : 'Long Night'}</i>`).join('')}</div>` : ''}</div></div>
+    <div class="rk-row">${rankCard('survivor')}${rankCard('killer')}</div>
+    <p class="hint">Ranks go up with good matches (escaping, a high score, or killing most of the survivors) and down with bad ones. Grades run Ash, Bronze, Silver, Gold and Iridescent, IV to I.</p>
+    <div class="sp-head"><div><b>${esc(SEASON.name)}</b><span>${left} day${left === 1 ? '' : 's'} left · tier ${tier} / ${SEASON.tiers.length}</span></div><div class="bar"><div style="width:${(tier >= SEASON.tiers.length ? 100 : (P.season.xp % SEASON.tierXp) / SEASON.tierXp * 100).toFixed(1)}%"></div></div><span class="hint">Free pass. Every match earns season XP; ${SEASON.tierXp.toLocaleString()} XP per tier.</span></div>
+    <div class="sp-grid">${tiers}</div>`;
+  $('pass-body').querySelectorAll('[data-claim-tier]').forEach(b => b.onclick = () => {
+    const t = SEASON.tiers.find(x => x.t === +b.dataset.claimTier); if (!t || P.season.claimed[t.t]) return;
+    P.season.claimed[t.t] = true; if (t.embers) profile.stats.embers += t.embers; if (t.kind === 'badge') (P.badges ||= {})[t.id] = true;
+    saveProfile(); sound.play('escaped'); toast(`Claimed: ${t.label}`); renderPass(); renderShowcase();
+  });
 }
 
 // ---------- main loop ----------
