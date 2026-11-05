@@ -419,6 +419,8 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
+// email updates: the Buttondown newsletter's username (empty: the option stays hidden)
+export const NEWSLETTER = '';
 export const VERSION = '2.41.0';
 export const INBOX = [
   {

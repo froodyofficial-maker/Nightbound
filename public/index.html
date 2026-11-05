@@ -127,6 +127,11 @@
         <!-- settings -->
         <section id="p-settings" class="hidden">
           <div class="field"><label>Player name</label><input id="set-name" maxlength="16"></div>
+          <div class="field news-opt hidden" id="news-opt"><label class="check"><input type="checkbox" id="news-on"> Get the latest updates and news by email</label>
+            <div class="news-form hidden" id="news-form"><p class="hint">Big updates only: new characters, limited editions, new modes and what changed. Small tweaks are never emailed. Every email has an unsubscribe link.</p>
+              <div class="news-row"><input id="news-email" type="email" maxlength="120" placeholder="you@example.com" autocomplete="email"><button class="btn primary" id="news-send">Subscribe</button></div>
+              <label class="check"><input type="checkbox" id="news-age"> I am 13 or older</label>
+              <p class="hint" id="news-msg"></p></div></div>
           <div class="field"><label>Graphics quality</label>
             <div class="seg" id="set-quality"><button data-v="potato">Very Low</button><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
             <p class="hint" id="set-quality-hint"></p></div>

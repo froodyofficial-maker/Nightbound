@@ -24,7 +24,7 @@ import { sound, loadClip } from './audio.js';
 import { showTrailer, trailerPlaying } from './trailer.js';
 import { ACTIONS, bound, keyName, RESERVED } from './keybinds.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
-import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF } from './config.js';
+import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
 import { Friends, fmtCode, GIFT_MAX } from './friends.js';
@@ -1469,4 +1469,25 @@ startBG();
 requestAnimationFrame(loop);
 const qj = new URLSearchParams(location.search).get('join');
 if (qj) { openPanel('p-online', 'Online Match'); $('join-code').value = qj.toUpperCase(); setTimeout(() => doJoin(qj), 300); }
+// ---------- email updates (Buttondown newsletter) ----------
+// The address goes straight from this page to Buttondown (double opt-in); the game never stores it.
+if (NEWSLETTER) {
+  $('news-opt').classList.remove('hidden');
+  const st = profile.news || {};
+  $('news-on').checked = !!st.on; $('news-form').classList.toggle('hidden', !st.on);
+  if (st.done) $('news-msg').textContent = 'Subscribed. Check your inbox for the confirmation email if you have not yet.';
+  $('news-on').onchange = e => { profile.news = { ...(profile.news || {}), on: e.target.checked }; saveProfile(); $('news-form').classList.toggle('hidden', !e.target.checked); };
+  $('news-email').onkeydown = e => e.stopPropagation();
+  $('news-send').onclick = async () => {
+    const email = $('news-email').value.trim(), msg = $('news-msg');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = 'That does not look like an email address.'; return; }
+    if (!$('news-age').checked) { msg.textContent = 'You need to be 13 or older to sign up.'; return; }
+    msg.textContent = 'Subscribing…';
+    try {
+      await fetch('https://buttondown.com/api/emails/embed-subscribe/' + encodeURIComponent(NEWSLETTER), { method: 'POST', mode: 'no-cors', body: new URLSearchParams({ email, tag: 'game' }) });
+      profile.news = { on: true, done: true }; saveProfile(); $('news-email').value = '';
+      msg.textContent = 'Almost done: check your inbox and click the confirmation link.';
+    } catch { msg.textContent = 'Could not reach the newsletter right now. Try again later.'; }
+  };
+}
 window.__nb = { get session() { return session; }, get lobby() { return lobby; }, settings, profile, friends, get awards() { return awards; } };

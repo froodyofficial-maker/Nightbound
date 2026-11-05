@@ -762,3 +762,8 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .mv span { font-size: 12px; opacity: .75; position: relative; }
 .mv i { position: absolute; left: 0; bottom: 0; height: 3px; background: #c8221a; transition: width .3s; }
 .mv.on { border-color: #e8352b; background: rgba(60,12,10,.7); }
+
+/* email updates */
+.news-form { margin-top: 8px; }
+.news-row { display: flex; gap: 6px; margin: 6px 0; }
+.news-row input { flex: 1; padding: 8px; background: #120d0c; border: 1px solid rgba(233,224,208,.2); color: #eee; }
