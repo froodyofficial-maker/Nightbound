@@ -35,7 +35,7 @@ export const RULES = {
   selfUnhookCost: 8,       // hook seconds lost per failed attempt
   struggleMiss: 9,         // hook seconds lost per missed struggle skill check
   wiggleNeed: 1,           // wiggle progress needed to escape the killer's grip
-  wiggleRate: 0.012,       // progress per alternating keypress (~15s of struggling)
+  wiggleRate: 0.006,       // progress per alternating keypress (~30s of struggling)
   collapse: 140,           // seconds after the gates are powered before the night claims everyone left
   hitCooldown: 2.7,
   missCooldown: 1.5,
@@ -418,8 +418,15 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.38.0';
+export const VERSION = '2.39.0';
 export const INBOX = [
+  {
+    id: 'v2.39.0', version: '2.39.0', date: 'Nov 2026', title: 'Carrying: Longer Struggle, Gentler Drops', tag: 'Update',
+    body: [
+      'Struggling free from the killer\'s shoulder now takes twice as long.',
+      'When the killer drops a survivor (Q), they land on their feet, injured, instead of on the ground. The same goes for a Chucky possession ending mid-carry.',
+    ],
+  },
   {
     id: 'v2.38.0', version: '2.38.0', date: 'Nov 2026', title: 'Chucky Possession Fixes', tag: 'Update',
     body: [

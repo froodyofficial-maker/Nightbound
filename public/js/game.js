@@ -1979,6 +1979,7 @@ export class Game {
         case 'stun': { this.petReact(e.id, 'jump', 1); const p = S && playerById(S, e.id); if (p) { sound.play('stun', p.x, p.z); this.sparks.spawn(p.x, 2.2, p.z, 12, 0xffffff, 1.5, 0.6, 0); } if (e.id === this.myId) this.shake = 0.8; this.feed(name(e.id) + ' was stunned!'); break; }
         case 'kick': { const g = this.M.gens[e.id]; sound.play('kick', g.x, g.z); this.sparks.spawn(g.x, 1.0, g.z, 25, 0xffd080, 3, 0.6, -9); break; }
         case 'vault': if (e.id !== this.myId) sound.play('vault', e.x, e.z, { fast: e.fast }); break;
+        case 'dropped': if (e.id === this.myId) this.feed('Dropped! You are back on your feet: run.', 'big'); break;
         case 'struggle': {
           const c = this.M.cages[e.cage]; if (c) { sound.play('fade', c.x, c.z, { on: true }); this.sparks.spawn(c.x, 0.4, c.z, 40, 0xff3010, 2, 1.6, 1.2); }
           if (e.id === this.myId) { this.feed('The Entity has come for you! Hit the skill checks to hold it off.', 'big'); this.flash = 0.4; }

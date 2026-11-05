@@ -514,7 +514,10 @@ export class Sim {
       k.stun = Math.max(k.stun, 2.6);
       s.score.d += 400;
       this.ev({ k: 'wiggle-free', id: s.id, x: s.x, z: s.z });
-    } else { s.st = 'down'; s.healP = 0; }
+    } else { // dropped on purpose: back on their feet, still injured
+      s.st = 'ok'; s.hp = 1; s.healP = 0; s.bleed = 0; s.boost = 0.6; s.boostMul = SPEED.hitBoost;
+      this.ev({ k: 'dropped', id: s.id, x: s.x, z: s.z });
+    }
   }
 
   safeSpot(x, z, fx, fz, fl = 0) {
