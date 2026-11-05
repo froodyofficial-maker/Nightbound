@@ -420,9 +420,16 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
-export const NEWSLETTER = '';
-export const VERSION = '2.41.0';
+export const NEWSLETTER = 'nightbound';
+export const VERSION = '2.42.0';
 export const INBOX = [
+  {
+    id: 'v2.42.0', version: '2.42.0', date: 'Nov 2026', title: 'Get Updates by Email', tag: 'Update',
+    body: [
+      'New in Settings: "Get the latest updates and news by email". Tick it, enter your email and press Subscribe, then click the link in the confirmation email.',
+      'Only big updates are emailed: new characters, limited editions, new modes and what changed. Small tweaks never are, and every email has an unsubscribe link. You need to be 13 or older to sign up.',
+    ],
+  },
   {
     id: 'v2.41.0', version: '2.41.0', date: 'Nov 2026', title: 'New Chucky Outfit: Slappy', tag: 'Update',
     body: [
