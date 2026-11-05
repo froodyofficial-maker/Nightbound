@@ -154,6 +154,8 @@ export const SURVIVORS = {
   abeer: { id: 'abeer', name: 'Abeer', skin: 0xa87650, hair: 0x120c08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', gb: true },
   // Marvel fan-made crossover (model: "Spiderman_topy" by sabra, sketchfab.com/sabrayf, CC BY 4.0)
   spiderman: { id: 'spiderman', name: 'Spider-Man', skin: 0x8a1418, hair: 0x8a1418, shirt: 0x9a1a1e, pants: 0x1a2040, hairStyle: 'short', fan: true,
+    // limited: 500,000 Embers, in the Store until the end of 7 Nov 2026 (UTC), then gone for good
+    limited: { price: 500000, until: Date.UTC(2026, 10, 8, 0, 0) }, hookEscapes: 5, hookChance: 0.3,
     web: { name: 'Web Shooters', shots: 4, range: 20, slow: 0.45, time: 4, carryTime: 2.5, cd: 0.6, desc: 'Press R to fire a web where you aim (4 shots, 20m). A webbed killer is slowed by 55% for 4s; a killer carrying someone is forced to drop them.' } },
 };
 
@@ -412,8 +414,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.34.0';
+export const VERSION = '2.35.0';
 export const INBOX = [
+  {
+    id: 'v2.35.0', version: '2.35.0', date: 'Nov 2026', title: 'Spider-Man: Limited Edition', tag: 'Update',
+    body: [
+      'Spider-Man is now a LIMITED character: 500,000 Embers, and only in the Store until 7 November (end of day, UTC). After that he leaves the Store forever and can never be bought again.',
+      'Already played a match as Spider-Man? He is yours to keep, free.',
+      'Spider-Man gets 5 attempts to unhook himself, with a 30% chance each (everyone else: 3 attempts at 4%).',
+      'Fixed Spider-Man\'s arms glitching while standing idle: his rig now rests with the arms down, so every pose looks natural.',
+    ],
+  },
   {
     id: 'v2.34.0', version: '2.34.0', date: 'Nov 2026', title: 'Gift Embers to Friends', tag: 'Update',
     body: [

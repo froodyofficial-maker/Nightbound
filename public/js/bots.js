@@ -2,7 +2,7 @@
 import { findPath, cellPos, cellOf, losBlocked, barBox, moveCircle, levelOf, losL, levelsMeet, heightAt } from './map.js';
 import { stepMover, startVault } from './movement.js';
 import { dist, fwd, angDiff, killerOf, killersOf, nearestKiller, modeOf, findSpace, findInteraction, vaultDuration, terrorRadius, playerById, canExecuteTarget, findExecute, itemCharge } from './rules.js';
-import { HALF, KILLERS } from './config.js';
+import { HALF, KILLERS, SURVIVORS } from './config.js';
 
 export class Bots {
   constructor(sim) {
@@ -259,7 +259,7 @@ export class Bots {
     }
     if (p.st === 'caged') {
       this.setE(p, b, false);
-      if (p.stage === 1 && p.esc < 3 && p.cageT < p.cageMax - 8 && Math.random() < dt * 0.05) sim.onMsg(p.id, { t: 'act', a: 'esc' });
+      if (p.stage === 1 && p.esc < ((SURVIVORS[p.char] && SURVIVORS[p.char].hookEscapes) || 3) && p.cageT < p.cageMax - 8 && Math.random() < dt * 0.05) sim.onMsg(p.id, { t: 'act', a: 'esc' });
       return;
     }
     if (p.st === 'down') {

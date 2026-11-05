@@ -731,3 +731,4 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .gift-row { display: flex; gap: 6px; align-items: center; }
 .gift-row input { width: 130px; padding: 7px 8px; background: #120d0c; border: 1px solid rgba(233,224,208,.2); color: #eee; }
 .fr-row .btn svg { width: 14px; height: 14px; vertical-align: -2px; }
+.lim-left { display: block; width: 100%; margin-top: 6px; color: #ff6a50; font-size: 13px; letter-spacing: .04em; }

@@ -292,7 +292,7 @@ function renderLoadout(container, role, compact, onChange) {
     const color = c => '#' + (c.shirt ?? c.color).toString(16).padStart(6, '0');
     const usable = Object.entries(perks).filter(([k]) => ownsPerk(k) && perkFits(k, lo.char));
     container.innerHTML = `<div class="lo-sub"><span>${role === 'killer' ? 'Killer' : 'Survivor'}</span></div>
-      <div class="chars">${Object.values(defs).map(c => `<div class="char ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" style="--c:${color(c)}"><b>${esc(c.name)}${ownsChar(c.id) ? '' : ' <span class="newtag">DLC</span>'}</b>${c.ability ? `<div class="ab">${icon(POWER_ICON[c.id])}${esc(c.ability.name)}</div>` : ''}</div>`).join('')}</div>
+      <div class="chars">${Object.values(defs).filter(c => shownChar(c.id)).map(c => `<div class="char ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" style="--c:${color(c)}"><b>${esc(c.name)}${ownsChar(c.id) ? '' : ` <span class="newtag">${LIMITED(c.id) ? 'LIMITED' : 'DLC'}</span>`}</b>${c.ability ? `<div class="ab">${icon(POWER_ICON[c.id])}${esc(c.ability.name)}</div>` : ''}</div>`).join('')}</div>
       ${role === 'survivor' ? `<div class="lo-sub"><span>Item</span></div><div class="seg lo-item"><button data-item="flashlight" class="${lo.item !== 'trap' ? 'on' : ''}">Flashlight</button><button data-item="trap" class="${lo.item === 'trap' ? 'on' : ''}">Ghost Trap</button></div>` : ''}
       <div class="lo-sub"><span>Perks</span><span>${lo.perks.length} / ${PERK_SLOTS} · buy more in Loadout</span></div>
       <div class="perkgrid">${usable.map(([k, p]) => `<div class="pk ${lo.perks.includes(k) ? 'on' : ''}" data-p="${k}"><div class="diamond ${role === 'killer' ? 'k' : ''} ${p.only ? 'ex' : ''}">${icon(k)}</div><div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small></div></div>`).join('')}</div>`;
@@ -312,7 +312,7 @@ function renderLoadout(container, role, compact, onChange) {
       return `<button class="inv-d ${lo.perks.includes(k) ? 'eq' : ''} ${o ? '' : 'locked'} ${f ? '' : 'other'} ${k === loSel ? 'sel' : ''}" data-perk="${k}" title="${esc(p.name)}"><span class="diamond ${role === 'killer' ? 'k' : ''} ${p.only ? 'ex' : ''}">${icon(k)}</span>${!o ? `<i class="pr">${(perkPrice(k) / 1000).toFixed(1).replace('.0', '')}k</i>` : ''}</button>`;
     }).join('');
     container.innerHTML = `<div class="lo2">
-      <div class="lo2-chars">${Object.values(defs).map(c => `<button class="lo2-por ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" title="${esc(c.name)}"><img alt="" src="${art('portrait', c.id, skinId(c.id), 120, 120)}"><span>${esc(c.name.replace(/^The /, ''))}</span>${ownsChar(c.id) ? '' : '<i class="lock">DLC</i>'}</button>`).join('')}</div>
+      <div class="lo2-chars">${Object.values(defs).filter(c => shownChar(c.id)).map(c => `<button class="lo2-por ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" title="${esc(c.name)}"><img alt="" src="${art('portrait', c.id, skinId(c.id), 120, 120)}"><span>${esc(c.name.replace(/^The /, ''))}</span>${ownsChar(c.id) ? '' : '<i class="lock">DLC</i>'}</button>`).join('')}</div>
       <div class="lo2-head"><b>${esc(charName0(lo.char))}</b>${role === 'killer' && defs[lo.char] ? `<span>${icon(POWER_ICON[lo.char])}${esc(defs[lo.char].ability.name)}</span>` : ''}</div>
       ${role === 'survivor' ? `<div class="lo2-row"><span class="lo2-lbl">Item</span><div class="seg lo-item"><button data-item="flashlight" class="${lo.item !== 'trap' ? 'on' : ''}">Flashlight</button><button data-item="trap" class="${lo.item === 'trap' ? 'on' : ''}">Ghost Trap</button></div></div>` : ''}
       <div class="lo2-row"><span class="lo2-lbl">Sidekick</span><div class="seg lo-pet"><button data-petpick="" class="${!petOf(role) ? 'on' : ''}">None</button>${Object.entries(SIDEKICKS).map(([id, s]) => `<button data-petpick="${id}" class="${petOf(role) === id ? 'on' : ''} ${profile.pets[id] ? '' : 'locked'}">${esc(s.name)}${profile.pets[id] ? '' : ' 🔒'}</button>`).join('')}</div></div>
@@ -343,7 +343,7 @@ function renderLoadout(container, role, compact, onChange) {
     if (menu) { menu.setShowcase(lo.char, skinId(lo.char), 0.42, petOf(role)); menu.setMode('show'); }
   }
   container.querySelectorAll('.char, .lo2-por').forEach(el => el.onclick = () => {
-    if (!ownsChar(el.dataset.c)) { sound.play('click'); openStore('chapters'); return; }
+    if (!ownsChar(el.dataset.c)) { sound.play('click'); if (LIMITED(el.dataset.c)) openStore('characters', el.dataset.c); else openStore('chapters'); return; }
     lo.char = el.dataset.c; saveProfile(); sound.play('click');
     if (menu) { if (role === 'killer') menu.setKiller(lo.char, skinId(lo.char)); else menu.setSurvivor(lo.char, skinId(lo.char)); }
     if (compact) setScene(role);
@@ -445,7 +445,14 @@ const RARITY0 = p => p === 0 ? '' : p < 2000 ? 'common' : p < 3500 ? 'rare' : p 
 const RARITY = (p, sk) => sk && sk.god ? 'god' : sk && sk.limited ? 'limited' : RARITY0(p);
 let storeTab = 'chapters', storeRole = 'survivor', storeChar = null, storePreview = null;
 const ownsChapter = id => !!(profile.dlc && profile.dlc[id]);
-const ownsChar = c => !CHAPTER_OF[c] || ownsChapter(CHAPTER_OF[c]);
+const LIMITED = c => SURVIVORS[c] && SURVIVORS[c].limited;
+const ownsChar = c => (!LIMITED(c) || !!profile.owned['char:' + c]) && (!CHAPTER_OF[c] || ownsChapter(CHAPTER_OF[c]));
+// a limited character leaves the Store for good when the sale ends (owners keep them)
+const onSale = c => LIMITED(c) && Date.now() < LIMITED(c).until;
+const shownChar = c => !LIMITED(c) || ownsChar(c) || onSale(c);
+const leftTxt = c => { const ms = LIMITED(c).until - Date.now(), h = Math.max(0, Math.floor(ms / 36e5)); return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h left` : `${h}h ${Math.max(0, Math.floor(ms / 6e4) % 60)}m left`; };
+// players who already played a match as Spider-Man keep him
+if (!profile.owned['char:spiderman'] && ((profile.played && profile.played.spiderman) || (profile.survivor && profile.survivor.char === 'spiderman' && profile.stats.matches > 0))) { profile.owned['char:spiderman'] = true; }
 const charName = c => (KILLERS[c] || SURVIVORS[c]).name;
 const ownsSkin = (c, sk) => sk.price === 0 || !!profile.owned[c + ':' + sk.id];
 const price = n => `${icon('ember')}${Math.round(n).toLocaleString()}`;
@@ -514,11 +521,11 @@ function chaptersHTML() {
   return hero + `<div class="ch-row-title">Chapters</div><div class="ch-grid">${cards}</div>`;
 }
 function charactersHTML() {
-  const chars = storeRole === 'killer' ? Object.keys(KILLERS) : Object.keys(SURVIVORS);
+  const chars = (storeRole === 'killer' ? Object.keys(KILLERS) : Object.keys(SURVIVORS)).filter(shownChar);
   if (!storeChar || !chars.includes(storeChar)) storeChar = profile[storeRole].char;
   const list = SKINS[storeChar] || [];
   const sel = list.find(x => x.id === (storePreview || skinId(storeChar))) || list[0];
-  const grid = chars.map(c => `<button class="cs-por ${c === storeChar ? 'on' : ''}" data-c="${c}"><img alt="" src="${art('portrait', c, skinId(c), 224, 224)}">${ownsChar(c) ? '' : '<i class="lock">DLC</i>'}<span>${esc(charName(c).replace(/^The /, ''))}</span></button>`).join('');
+  const grid = chars.map(c => `<button class="cs-por ${c === storeChar ? 'on' : ''}" data-c="${c}"><img alt="" src="${art('portrait', c, skinId(c), 224, 224)}">${ownsChar(c) ? '' : `<i class="lock">${LIMITED(c) ? 'LIMITED' : 'DLC'}</i>`}<span>${esc(charName(c).replace(/^The /, ''))}</span></button>`).join('');
   const outfits = list.map(sk => {
     const own = ownsSkin(storeChar, sk), eq = skinId(storeChar) === sk.id, r = RARITY(sk.price, sk) || 'base';
     const tag = eq ? '<span class="of-p eq">Equipped</span>' : own ? '<span class="of-p own">Owned</span>' : `<span class="of-p">${price(sk.price)}</span>`;
@@ -528,7 +535,8 @@ function charactersHTML() {
   if (sel) {
     const own = ownsSkin(storeChar, sel), eq = skinId(storeChar) === sel.id, r = RARITY(sel.price, sel) || 'base';
     const locked = !ownsChar(storeChar);
-    const act = locked ? `<button class="btn primary" data-tab="chapters">Get the ${esc(CHAPTERS.find(c => c.killer === storeChar).name)} chapter</button>`
+    const act = locked && LIMITED(storeChar) ? `<span class="ch-price">${price(LIMITED(storeChar).price)}</span><button class="btn primary" data-buychar="${storeChar}">Unlock ${esc(charName(storeChar))}</button><span class="lim-left">Limited · ${leftTxt(storeChar)}, then gone forever</span>`
+      : locked ? `<button class="btn primary" data-tab="chapters">Get the ${esc(CHAPTERS.find(c => c.killer === storeChar).name)} chapter</button>`
       : eq ? '<span class="of-p eq" style="font-size:16px">Equipped</span>' : own ? `<button class="btn primary" data-eq="${sel.id}">Equip</button>`
       : `<span class="ch-price">${price(sel.price)}</span><button class="btn primary" data-buy="${sel.id}">Buy</button>`;
     detail = `<div class="cs-detail ${r}"><div class="rk">${r === 'base' ? 'Default outfit' : r === 'limited' ? 'Limited edition' : r === 'god' ? 'God tier · changes how you play' : r}</div><h3>${esc(sel.name)}</h3><p>${esc(charName(storeChar))}${sel.desc ? ` · ${esc(sel.desc)}` : ''}</p><div class="row">${act}</div></div>`;
@@ -541,9 +549,9 @@ function charactersHTML() {
 }
 const bundleOf = c => { const items = (SKINS[c] || []).filter(sk => sk.price > 0); const left = items.filter(sk => !ownsSkin(c, sk)); const full = left.reduce((a, sk) => a + sk.price, 0); return { items, left, full, price: Math.round(full * 0.75 / 50) * 50 }; };
 function collectionsHTML() {
-  const cards = [...Object.keys(KILLERS), ...Object.keys(SURVIVORS)].map(c => {
+  const cards = [...Object.keys(KILLERS), ...Object.keys(SURVIVORS)].filter(shownChar).map(c => {
     const b = bundleOf(c), done = !b.left.length, locked = !ownsChar(c);
-    const buy = done ? '<span class="of-p own" style="font-size:15px">Complete</span>' : locked ? '<button class="btn" data-tab="chapters">Requires the chapter</button>'
+    const buy = done ? '<span class="of-p own" style="font-size:15px">Complete</span>' : locked ? (LIMITED(c) ? `<button class="btn" data-goto="${c}">Unlock ${esc(charName(c))} first</button>` : '<button class="btn" data-tab="chapters">Requires the chapter</button>')
       : `<span><span class="st-strike">${Math.round(b.full).toLocaleString()}</span> <span class="ch-price">${price(b.price)}</span></span><span class="co-save">-25%</span><button class="btn primary" data-bundle="${c}">Buy Collection</button>`;
     return `<div class="co-card"><div class="ch-img" style="background-image:url(${art('banner', c, b.items.length ? b.items[b.items.length - 1].id : 'default', 760, 333)})"><div class="co-t"><small>${KILLERS[c] ? 'Killer' : 'Survivor'} collection</small>${esc(charName(c))}</div></div>
       <div class="co-body"><div class="co-items">${b.items.map(sk => `<span class="${ownsSkin(c, sk) ? 'own' : ''}">${esc(sk.name)}</span>`).join('')}</div><div class="co-buy">${buy}</div></div></div>`;
@@ -582,6 +590,12 @@ function bindStore(body) {
     const sk = SKINS[storeChar].find(x => x.id === b.dataset.buy);
     if (!spend(sk.price, sk.name)) return;
     profile.owned[storeChar + ':' + sk.id] = true; profile.skins[storeChar] = sk.id; saveProfile(); renderStore();
+  });
+  body.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => {
+    const c = b.dataset.buychar, L = LIMITED(c); if (!L || ownsChar(c)) return;
+    if (!onSale(c)) { toast(charName(c) + ' has left the Store.'); renderStore(); return; }
+    if (!spend(L.price, charName(c))) return;
+    profile.owned['char:' + c] = true; profile.survivor.char = c; saveProfile(); sound.play('escaped'); toast(charName(c) + ' unlocked!'); renderStore();
   });
   body.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { profile.skins[storeChar] = b.dataset.eq; saveProfile(); sound.play('click'); renderStore(); });
   body.querySelectorAll('[data-bundle]').forEach(b => b.onclick = () => {
@@ -681,7 +695,7 @@ function renderBotsPanel() {
 }
 const randomPerks = (pool, n = PERK_SLOTS, char) => Object.keys(pool).filter(k => perkFits(k, char)).sort(() => Math.random() - 0.5).slice(0, n);
 function botSurvivor(i, used) {
-  const free = Object.keys(SURVIVORS).filter(c => !used.includes(c));
+  const free = Object.keys(SURVIVORS).filter(c => !used.includes(c) && !LIMITED(c));
   const char = free.length ? free[Math.floor(Math.random() * free.length)] : Object.keys(SURVIVORS)[i % 4];
   used.push(char);
   const item = Math.random() < 0.5 ? 'trap' : 'flashlight';
@@ -702,6 +716,7 @@ $('btn-bots-start').addEventListener('click', () => {
   sound.init(); sound.play('click');
   const roster = [];
   const meRole = botsCfg.role;
+  if (meRole === 'survivor' && !ownsChar(profile.survivor.char)) { toast(`${charName(profile.survivor.char)} is locked. Unlock them in the Store, or pick another survivor.`, 5000); profile.survivor.char = 'mara'; saveProfile(); return; }
   if (meRole === 'killer' && !ownsChar(profile.killer.char)) { toast(`${charName(profile.killer.char)} is part of a chapter. Get it in the Store, or pick another killer.`, 5000); openStore('chapters'); return; }
   roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', pet: petOf(meRole), bot: false });
   const used = meRole === 'survivor' ? [profile.survivor.char] : [];
@@ -903,6 +918,7 @@ function onMatchEnd(S, me, sess) {
   }
   if (me) {
     profile.stats.matches++;
+    (profile.played ||= {})[me.char] = (profile.played[me.char] || 0) + 1;
     const tot = me.score.a + me.score.b + me.score.c + me.score.d;
     profile.stats.embers += tot;
     if (me.role === 'survivor' && me.outcome === 'escaped') profile.stats.escapes++;
@@ -1127,8 +1143,9 @@ function renderLobby() {
     renderLoadout($('lobby-loadout'), me.role, true, sendMyLoadout);
   }
 }
+const playableSurvivor = () => ownsChar(profile.survivor.char) ? profile.survivor.char : 'mara';
 const playableKiller = () => ownsChar(profile.killer.char) ? profile.killer.char : 'butcher';
-function myLoadouts() { return { survivor: { ...profile.survivor, skin: skinId(profile.survivor.char), pet: petOf('survivor') }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer') } }; }
+function myLoadouts() { return { survivor: { ...profile.survivor, char: playableSurvivor(), skin: skinId(playableSurvivor()), pet: petOf('survivor') }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer') } }; }
 function sendMyLoadout(role) {
   const me = myLobbyPlayer();
   if (!me) return;

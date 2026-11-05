@@ -438,10 +438,12 @@ export class Sim {
       }
       case 'esc': {
         // trying to unhook yourself: a 4% chance, and every failed attempt costs hook time
-        if (p.st !== 'caged' || p.stage !== 1 || p.esc >= 3) return;
+        // (Spider-Man: 5 attempts at 30% each)
+        const D = SURVIVORS[p.char] || {}, tries = D.hookEscapes || 3;
+        if (p.st !== 'caged' || p.stage !== 1 || p.esc >= tries) return;
         p.esc++;
-        if (Math.random() < RULES.selfUnhook) { this.freeFromCage(p, null); this.ev({ k: 'msg', text: p.name + ' unhooked themselves!' }); }
-        else { p.cageT = Math.max(0.01, p.cageT - RULES.selfUnhookCost); this.ev({ k: 'escfail', id: p.id, left: 3 - p.esc }); }
+        if (Math.random() < (D.hookChance ?? RULES.selfUnhook)) { this.freeFromCage(p, null); this.ev({ k: 'msg', text: p.name + ' unhooked themselves!' }); }
+        else { p.cageT = Math.max(0.01, p.cageT - RULES.selfUnhookCost); this.ev({ k: 'escfail', id: p.id, left: tries - p.esc }); }
         break;
       }
       case 'sc': this.skillResult(p, m.r); break;

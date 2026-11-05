@@ -334,6 +334,7 @@ function killerViewParts(id, sk) {
   }
   return out;
 }
+const hookTries = p => (SURVIVORS[p.char] && SURVIVORS[p.char].hookEscapes) || 3;
 const isTpv = p => !!p && (p.disguise || !!(KILLERS[p.char] && KILLERS[p.char].tpv));
 // Chucky's pounce arc
 function leapLift(p) {
@@ -634,7 +635,7 @@ export class Game {
     const S = this.S, me = this.mine();
     if (!me || !S) return;
     if (this.skill && this.skill.phase === 'active') { this.resolveSkill(); return; }
-    if (me.st === 'caged') { if (me.stage === 1 && me.esc < 3) this.send({ t: 'act', a: 'esc' }); return; }
+    if (me.st === 'caged') { if (me.stage === 1 && me.esc < hookTries(me)) this.send({ t: 'act', a: 'esc' }); return; }
     const v = findSpace(this.M, S, me);
     // Chucky: Space is a jump. Over a window or pallet it is a quick hop across, anywhere else a leap
     if (!v && me.role === 'killer' && me.char === 'chucky' && !me.hop && !me.vault && !me.leap && me.stun <= 0 && !me.act && me.carry == null) {
@@ -2254,7 +2255,7 @@ export class Game {
         } else if (me.st === 'carried') {
           status = `Struggle!<small>Alternate ${kbd('left')} ${kbd('right')} to break free</small>`; prog = me.wig; label = 'Wiggle';
         } else if (me.st === 'caged') {
-          status = `Hooked<small>${Math.ceil(me.cageT)}s left${me.stage === 1 && me.esc < 3 ? ` · ${kbd('space')} try to unhook yourself (${3 - me.esc} left)` : me.stage >= 2 ? ' · hit the skill checks to fight off the Entity' : ''}</small>`;
+          status = `Hooked<small>${Math.ceil(me.cageT)}s left${me.stage === 1 && me.esc < hookTries(me) ? ` · ${kbd('space')} try to unhook yourself (${hookTries(me) - me.esc} left)` : me.stage >= 2 ? ' · hit the skill checks to fight off the Entity' : ''}</small>`;
           prog = me.cageT / me.cageMax; label = me.stage >= 2 ? 'Struggle phase' : 'Hooked';
         } else if (me.st === 'dead' || me.st === 'out') {
           const tb = this.takeoverTarget();
