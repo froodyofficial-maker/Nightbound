@@ -773,3 +773,4 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .lv-info b { font: 22px 'Bebas Neue', Impact, sans-serif; color: #ffd870; margin-right: 4px; } .lv-info span { font-size: 12px; opacity: .7; }
 .lv-bar { width: 140px; height: 6px; background: #2a1a14; } .lv-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a01810, #e8352b); }
 .lv-style { margin-left: auto; }
+.bv { max-width: 620px; } .bv-title { font: 40px 'Bebas Neue', Impact, sans-serif; letter-spacing: .05em; margin: 4px 0 16px; } .bv-grid .mv { padding: 14px; } .bv-grid .mv[disabled] { cursor: default; }

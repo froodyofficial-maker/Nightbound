@@ -755,8 +755,32 @@ $('btn-bots-start').addEventListener('click', () => {
     for (let i = 1; i < nk; i++) roster.push(botKiller('random', i, [profile.killer.char]));
     for (let i = 0; i < (ns || botsCfg.surv); i++) roster.push(botSurvivor(i + 1, used));
   }
-  startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots', map: botsCfg.map, mode: gm });
+  const go = map => startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots', map, mode: gm });
+  if (botsCfg.map === 'vote') botVote(gm, roster.filter(r => r.bot).length, go); else go(botsCfg.map);
 });
+// map vote against bots: three maps that suit the mode plus Random; you vote, the bots vote, most votes wins
+function botVote(gm, nBots, done) {
+  const pool = MODES[gm] && MODES[gm].bigMap ? Object.keys(BIG_MAPS) : REGULAR_MAPS.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const cands = [...pool.slice(0, 3), 'random'], votes = new Array(cands.length).fill(0);
+  const A = $('announce'), nm = c => c === 'random' ? 'Random map' : MAP_NAMES[c] || c;
+  const draw = (mine, revealed) => {
+    A.innerHTML = `<div class="an-bg"></div><div class="an-inner bv"><div class="an-kicker">Map vote</div><div class="bv-title">${mine == null ? 'Pick the map' : revealed ? 'The votes are in' : 'The bots are voting…'}</div>
+      <div class="mv-grid bv-grid">${cands.map((c, i) => `<button class="mv ${mine === i ? 'on' : ''}" data-bv="${i}" ${mine != null ? 'disabled' : ''}><b>${esc(nm(c))}</b><span>${revealed ? votes[i] + ' vote' + (votes[i] === 1 ? '' : 's') : mine === i ? 'Your vote' : ''}</span><i style="width:${revealed ? votes[i] / (nBots + 1) * 100 : 0}%"></i></button>`).join('')}</div>
+      <p class="hint">${nBots} bot${nBots === 1 ? '' : 's'} vote${nBots === 1 ? 's' : ''} with you. Ties are settled at random.</p></div>`;
+    A.querySelectorAll('[data-bv]').forEach(b => b.onclick = () => pick(+b.dataset.bv));
+  };
+  const pick = i => {
+    sound.play('click'); votes[i]++; draw(i, false);
+    for (let k = 0; k < nBots; k++) votes[Math.floor(Math.random() * cands.length)]++;
+    setTimeout(() => {
+      draw(i, true);
+      const top = Math.max(...votes), tied = cands.filter((_, j) => votes[j] === top), win = tied[Math.floor(Math.random() * tied.length)];
+      setTimeout(() => { A.classList.add('hidden'); toast(`The vote picked ${nm(win)}.`); done(win); }, 1800);
+    }, 1300);
+  };
+  closePanel(); draw(null, false); A.classList.remove('hidden');
+}
 
 // ---------- sessions ----------
 let session = null;
