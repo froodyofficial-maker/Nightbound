@@ -737,7 +737,10 @@ function botSurvivor(i, used) {
 function botKiller(char, n = 0, avoid = []) {
   const ks = Object.keys(KILLERS).filter(k => !avoid.includes(k));
   const c = char && char !== 'random' && !avoid.includes(char) ? char : ks[Math.floor(Math.random() * ks.length)];
-  const sk = SKINS[c]; const skin = Math.random() < 0.5 ? 'default' : sk[1 + Math.floor(Math.random() * (sk.length - 1))].id;
+  // a killer you picked keeps their usual look; random bots may wear an outfit, but never a god-tier one
+  // (Grandpa is a whole different character)
+  const picked = char && char !== 'random' && c === char, outfits = SKINS[c].slice(1).filter(k => !k.god);
+  const skin = picked || !outfits.length || Math.random() < 0.5 ? 'default' : outfits[Math.floor(Math.random() * outfits.length)].id;
   return { id: 'botk' + (n || ''), name: KILLERS[c].name, role: 'killer', char: c, skin, perks: randomPerks(KILLER_PERKS), bot: true };
 }
 // ---------- Testing Area: everything unlocked, nothing earned ----------
