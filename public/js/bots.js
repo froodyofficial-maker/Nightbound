@@ -65,6 +65,11 @@ export class Bots {
       this.survivor(p, dt); this.flashBot(p, dt);
       const K = nearestKiller(S, p);
       if (p.traps > 0 && p.st === 'ok' && K && dist(p, K) < 7 && K.mv && Math.random() < dt * 0.35) this.sim.onMsg(p.id, { t: 'act', a: 'trap' });
+      // Spider-Man: swing away from a killer who is right on him (often up onto a wall or a tree)
+      if (p.char === 'spiderman' && p.st === 'ok' && !p.act && !p.swing && !(p.swingCd > 0) && !(p.perchT > 0) && K && dist(p, K) < 6 && Math.random() < dt * 0.9) {
+        const away = Math.atan2(p.x - K.x, p.z - K.z) + (Math.random() - 0.5) * 1.4;
+        this.sim.onMsg(p.id, { t: 'act', a: 'swing', yaw: away, pitch: Math.random() < 0.6 ? 0.5 : 0 });
+      }
       // Spider-Man: web the killer off a teammate's shoulder, or slow him when he is closing in
       if (p.char === 'spiderman' && p.webs > 0 && p.st === 'ok' && !p.act && K && !(K.webK > 0) && K.stun <= 0 && !losBlocked(this.sim.M, p.x, p.z, K.x, K.z, 1.2)
         && ((K.carry != null && dist(p, K) < 16) || (dist(p, K) < 7 && K.mv)) && Math.random() < dt * (K.carry != null ? 2.5 : 0.8)) {

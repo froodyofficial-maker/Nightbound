@@ -90,7 +90,7 @@ export class Sim {
       case 'pos': {
         if (m.tp !== p.tp) return;
         if (p.role === 'survivor' && p.st !== 'ok' && p.st !== 'down' && p.st !== 'ghost') return;
-        if (p.act || p.stun > 0 || p.leap || p.dash || p.pull || p.snare > 0) { p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); return; }
+        if (p.act || p.stun > 0 || p.leap || p.dash || p.pull || p.snare > 0 || p.swing || p.perchT > 0) { p.yaw = num(m.yaw, p.yaw); p.pitch = num(m.pitch, 0); return; }
         const nx = num(m.x, p.x), nz = num(m.z, p.z);
         // accept anything the player could have covered since their last update (lag spikes
         // included); otherwise pull them back to where the host has them instead of desyncing
@@ -183,6 +183,36 @@ export class Sim {
         p.emote = n;
         (this.emoteAt ||= new Map()).set(p.id, { x: p.x, z: p.z, t: S.t });
         if (n) this.ev({ k: 'emote', id: p.id, n });
+        break;
+      }
+      case 'swing': {
+        // Spider-Man's Web Swing: a strand to the first wall, tree or object along his aim (20m);
+        // he swings to it, and if he was looking up he lands on top and perches there for 5s
+        const W = SURVIVORS.spiderman.swing;
+        if (p.role !== 'survivor' || p.char !== 'spiderman' || p.st !== 'ok' || p.act || p.vault || p.swing || (p.swingCd || 0) > 0) return;
+        const yaw = num(m.yaw, p.yaw), pitch = num(m.pitch, 0), f = fwd(yaw), L = levelOf(M, p.fl);
+        let hit = null;
+        for (let d = 0.6; d <= W.range && !hit; d += 0.25) {
+          const x = p.x + f.x * d, z = p.z + f.z * d;
+          for (const b of L.boxes || M.boxes) if (Math.abs(x - b.x) < b.hx && Math.abs(z - b.z) < b.hz) { hit = { kind: 'box', b, d, x, z, h: b.h || 2 }; break; }
+          if (!hit) for (const c of L.circles || M.circles) if (Math.hypot(x - c.x, z - c.z) < c.r) { hit = { kind: c.kind || 'tree', c, d, x, z, h: c.kind === 'tree' ? 3.2 : Math.max(0.8, c.h || 1.2) }; break; }
+        }
+        if (!hit) return;
+        const up = pitch > 0.2 && hit.h >= 1.0;
+        let x1, z1, y1 = 0;
+        if (up) {
+          // on top: the middle of the wall / box under the strand, or the treetop
+          if (hit.kind === 'box') { x1 = Math.max(hit.b.x - hit.b.hx + 0.15, Math.min(hit.b.x + hit.b.hx - 0.15, hit.x)); z1 = Math.max(hit.b.z - hit.b.hz + 0.15, Math.min(hit.b.z + hit.b.hz - 0.15, hit.z)); }
+          else { x1 = hit.c.x; z1 = hit.c.z; }
+          y1 = Math.min(6, hit.h);
+        } else {
+          const spot = this.safeSpot(p.x + f.x * Math.max(0.5, hit.d - 0.7), p.z + f.z * Math.max(0.5, hit.d - 0.7), p.x, p.z, p.fl || 0); x1 = spot.x; z1 = spot.z;
+        }
+        const y0 = p.perchT > 0 ? p.perchY : 0;
+        p.yaw = yaw; p.perchT = 0; p.perchY = 0;
+        p.swing = { t: 0, d: +(0.35 + hit.d * 0.03).toFixed(3), x0: p.x, z0: p.z, y0, x1: +x1.toFixed(2), z1: +z1.toFixed(2), y1: +y1.toFixed(2), ax: +hit.x.toFixed(2), az: +hit.z.toFixed(2), ay: +Math.min(6, hit.h + (up ? 0.3 : -0.4)).toFixed(2), up };
+        p.tp++;
+        this.ev({ k: 'webswing', id: p.id, x: p.x, z: p.z, ax: p.swing.ax, az: p.swing.az, up });
         break;
       }
       case 'web': {
@@ -588,6 +618,12 @@ export class Sim {
       if (p.heard > 0) { p.heard = Math.max(0, p.heard - dt); if (p.st !== 'ok') p.heard = 0; }
       if (p.webbed > 0) p.webbed = Math.max(0, p.webbed - dt);
       if (p.webK > 0) p.webK = Math.max(0, p.webK - dt);
+      if (p.swingCd > 0) p.swingCd = Math.max(0, p.swingCd - dt);
+      if (p.swing) this.updateSwing(p, dt);
+      else if (p.perchT > 0) {
+        p.perchT = Math.max(0, p.perchT - dt);
+        if (p.perchT === 0 || p.st !== 'ok') this.dropPerch(p);
+      }
       if (p.swapCd > 0) p.swapCd = Math.max(0, p.swapCd - dt);
       if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt * (this.mode === 'adrenaline' ? 1.4 : 1));
       if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
@@ -926,6 +962,7 @@ export class Sim {
     if (K && K.harmless) return;
     if (K && (!levelsMeet(K, s) || (this.M.stairs && Math.abs(heightAt(this.M, K) - heightAt(this.M, s)) > 1.7))) return; // a floor apart // Chucky's empty doll can chase, but not hurt
     if (s.st === 'ghost') return;
+    if (s.perchT > 0 && s.perchY > 1.2) return; // up on a wall or in a tree: out of reach
     if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true;
     // (slimed survivors are slowed and revealed, not one-shot: that made him unbeatable) // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
@@ -1303,6 +1340,26 @@ export class Sim {
     if (C) this.ev({ k: 'swap', from: P.X, to: P.C });
     this.ev({ k: 'swap', from: P.G, to: P.X });
     this.ev({ k: 'depossessed', id: P.X, by: P.C });
+  }
+
+  // Spider-Man swinging on a web strand
+  updateSwing(p, dt) {
+    const W = p.swing; W.t += dt;
+    const f = Math.min(1, W.t / W.d), e = f * f * (3 - 2 * f);
+    p.x = W.x0 + (W.x1 - W.x0) * e; p.z = W.z0 + (W.z1 - W.z0) * e;
+    if (p.st !== 'ok') { p.swing = null; p.swingCd = SURVIVORS.spiderman.swing.cooldown; p.tp++; return; }
+    if (f >= 1) {
+      p.swing = null; p.swingCd = SURVIVORS.spiderman.swing.cooldown; p.tp++;
+      if (W.up) { p.perchT = SURVIVORS.spiderman.swing.perch; p.perchY = W.y1; p.perchFrom = { x: W.x0, z: W.z0 }; this.ev({ k: 'perch', id: p.id, x: p.x, z: p.z, y: W.y1 }); }
+    }
+  }
+  // back down off a perch, on the side he came from
+  dropPerch(p) {
+    const from = p.perchFrom || { x: p.x, z: p.z };
+    const dx = from.x - p.x, dz = from.z - p.z, L = Math.hypot(dx, dz) || 1;
+    const spot = this.safeSpot(p.x + dx / L * 1.0, p.z + dz / L * 1.0, from.x, from.z, p.fl || 0);
+    p.x = spot.x; p.z = spot.z; p.perchT = 0; p.perchY = 0; p.perchFrom = null; p.tp++;
+    this.ev({ k: 'unperch', id: p.id, x: p.x, z: p.z });
   }
 
   // Chucky's pounce: fly along the leap, strike the first survivor in reach, bounce off walls

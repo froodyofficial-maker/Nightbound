@@ -13,7 +13,7 @@ export const ACTIONS = [
   { id: 'item', label: 'Ghost trap · Possess / let go (Chucky)', def: 'KeyG' },
   { id: 'ability2', label: 'Second power (killers)', def: 'KeyR' },
   { id: 'drop', label: 'Drop survivor (killers)', def: 'KeyQ' },
-  { id: 'execute', label: 'Execute (killers) · next player (spectating)', def: 'KeyF' },
+  { id: 'execute', label: 'Execute (killers) · Web Swing (Spider-Man) · next player (spectating)', def: 'KeyF' },
   { id: 'split', label: 'Soul Split (Chucky)', def: 'KeyV' },
   { id: 'takeover', label: 'Take over a bot (after dying)', def: 'KeyT' },
   { id: 'emotes', label: 'Emotes (survivors)', def: 'KeyB' },

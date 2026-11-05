@@ -50,6 +50,7 @@ export function speedOf(p, S, sprint, crouch) {
     }
     if (p.st !== 'ok') return 0; // (a ghost stays where it is)
     if (p.snare > 0) return 0; // caught in Granny's bear trap
+    if (p.swing || p.perchT > 0) return 0; // swinging on a web, or perched up high
     let s = crouch ? SPEED.crouch * (has(p, 'hushed') ? 1.25 : 1) : sprint ? SPEED.run : SPEED.walk;
     if (!crouch && sprint && p.hp === 1 && has(p, 'fleet')) s *= 1.07;
     if (p.boost > 0) s *= p.boostMul || SPEED.hitBoost;
