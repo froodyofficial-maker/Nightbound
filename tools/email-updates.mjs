@@ -10,7 +10,9 @@ const root = process.cwd(), logPath = join(root, '.github/emailed.json');
 const { INBOX } = await import(pathToFileURL(join(root, 'public/js/config.js')).href);
 const log = JSON.parse(readFileSync(logPath, 'utf8'));
 const sent = new Set(log.ids);
-const due = INBOX.filter(m => m.email && !sent.has(m.id)).reverse(); // oldest first
+const TEST = process.env.TEST_EMAIL === 'true';
+// a test run (Actions > Email big updates > Run workflow > test) mails the latest update once, marked [Test], and records nothing
+const due = TEST ? [INBOX[0]] : INBOX.filter(m => m.email && !sent.has(m.id)).reverse(); // oldest first
 if (!due.length) { console.log('Nothing new to email.'); process.exit(0); }
 const key = process.env.BUTTONDOWN_API_KEY;
 if (!key) { console.log('::warning::BUTTONDOWN_API_KEY is not set: skipping emails for ' + due.map(m => m.id).join(', ')); process.exit(0); }
@@ -18,7 +20,7 @@ if (!key) { console.log('::warning::BUTTONDOWN_API_KEY is not set: skipping emai
 const PLAY = 'https://froodyofficial-maker.github.io/Nightbound/';
 const strip = s => String(s).replace(/<[^>]+>/g, '');
 for (const m of due) {
-  const subject = `Nightbound ${m.version}: ${strip(m.title)}`;
+  const subject = `${TEST ? '[Test] ' : ''}Nightbound ${m.version}: ${strip(m.title)}`;
   const body = [
     `## ${strip(m.title)}`, '',
     ...(m.body || []).map(line => `- ${strip(line)}`), '',
@@ -34,6 +36,7 @@ for (const m of due) {
   const text = await r.text();
   if (!r.ok) { console.log(`::error::Buttondown refused "${subject}" (${r.status}): ${text.slice(0, 400)}`); process.exit(1); }
   console.log(`Sent: ${subject}`);
+  if (TEST) continue;
   log.ids.push(m.id);
   writeFileSync(logPath, JSON.stringify(log, null, 1) + '\n');
 }
