@@ -169,7 +169,7 @@ export const SURVIVORS = {
   spiderman: { id: 'spiderman', name: 'Spider-Man', skin: 0x8a1418, hair: 0x8a1418, shirt: 0x9a1a1e, pants: 0x1a2040, hairStyle: 'short', fan: true,
     // limited: 500,000 Embers, in the Store until the end of 7 Nov 2026 (UTC), then gone for good
     limited: { price: 500000, until: Date.UTC(2026, 10, 8, 0, 0) }, hookEscapes: 5, hookChance: 0.3,
-    swing: { name: 'Web Swing', range: 20, cooldown: 4, perch: 5, desc: 'Aim at a wall, tree or object within 20m and press F to swing to it. Look up as you fire to land on top of it and stay up there for 5s, out of the killer\'s reach.' },
+    swing: { name: 'Web Swing', range: 18, cooldown: 15, perch: 5, desc: 'Aim at a wall, tree or object within 18m and press F to swing to it (15s cooldown). Look up as you fire to land on top of it and stay up there for 5s, out of the killer\'s reach.' },
     web: { name: 'Web Shooters', shots: 4, range: 20, slow: 0.45, time: 4, carryTime: 2.5, cd: 0.6, desc: 'Press R to fire a web where you aim (4 shots, 20m). A webbed killer is slowed by 55% for 4s; a killer carrying someone is forced to drop them.' } },
 };
 
@@ -433,10 +433,16 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.49.0';
+export const VERSION = '2.50.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.50.0', version: '2.50.0', date: 'Nov 2026', title: 'Spider-Man Balance', tag: 'Update',
+    body: [
+      'Spider-Man\'s Web Swing now reaches 18m (was 20m) and has a 15-second cooldown (was 4s).',
+    ],
+  },
   {
     id: 'v2.49.0', version: '2.49.0', date: 'Nov 2026', title: 'Granny Fixes & Map Vote Fix', tag: 'Update',
     body: [
