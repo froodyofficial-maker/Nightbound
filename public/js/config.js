@@ -204,13 +204,15 @@ export const KILLER_PERKS = {
   fury:       { name: 'Endgame Fury',  icon: '♨', desc: 'Once the exit gates are powered, gain +8% movement speed.' },
   irongrip:   { name: 'Iron Grip',     icon: '✠', desc: 'Survivors you carry struggle free 30% slower.' },
   stalker:    { name: 'Stalker',       icon: '◐', desc: 'Terror radius -14m. Your lunge reaches 20% farther.' },
+  stunless:   { name: 'Stunless',      icon: '➤', desc: 'Your dash and pounce powers (Bat Rush, Rampage, Pounce) are never stopped or stunned by walls or objects: you slide off them and keep going. Traps still stop you.' },
+  extreme:    { name: 'Extreme Mode',  icon: '∞', only: 'granny', desc: 'Granny only. Once the exit gates are powered, Bat Rush has no limit: hold as long as you like and she keeps going.' },
 };
 
 // perk prices in Embers (perks not listed are free); exclusive perks cost 2,500
 export const PERK_PRICES = {
   medic: 1500, hushed: 1500, sixth: 2000, lockpick: 1500, acrobat: 1500, resolve: 2000, fleet: 2000,
   triage: 2500, overclock: 2500, exposure: 2500, pathfinder: 2500, containment: 2500, exorcist: 2500,
-  static: 1500, dread: 1500, brute: 1500, rust: 2000, sentry: 2000, fury: 1500, irongrip: 2000, stalker: 2500,
+  static: 1500, dread: 1500, brute: 1500, rust: 2000, sentry: 2000, fury: 1500, irongrip: 2000, stalker: 2500, stunless: 6000, extreme: 500000,
 };
 export const PERK_SLOTS = 4;
 // ---------------- Sidekicks (cosmetic companions, for survivors and killers) ----------------
@@ -430,10 +432,18 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.43.0';
+export const VERSION = '2.44.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.44.0', version: '2.44.0', date: 'Nov 2026', title: 'New Killer Perks: Stunless & Extreme Mode', tag: 'Update', email: true,
+    body: [
+      'Stunless (6,000 Embers): your dash and pounce powers (Bat Rush, Rampage, Pounce) are never stopped or stunned by walls or objects. You slide off them and keep going. Traps still stop you.',
+      'Extreme Mode (Granny only, 500,000 Embers): once the exit gates are powered, Bat Rush has no limit. Hold as long as you like and she keeps going.',
+      'Find them in Loadout > Killer > Perks.',
+    ],
+  },
   {
     id: 'v2.43.0', version: '2.43.0', date: 'Nov 2026', title: 'Killer Power Levels & a Granny Rebalance', tag: 'Update', email: true,
     body: [

@@ -81,7 +81,7 @@ const petOf = role => (profile[role].pet && profile.pets[profile[role].pet] && S
 for (const k of [...profile.survivor.perks, ...profile.killer.perks]) profile.perksOwned[k] = true;
 const perkPrice = k => PERK_PRICES[k] || 0;
 const ownsPerk = k => !perkPrice(k) || !!profile.perksOwned[k];
-const perkFits = (k, char) => !SURV_PERKS[k] || !SURV_PERKS[k].only || SURV_PERKS[k].only === char;
+const perkFits = (k, char) => { const P = SURV_PERKS[k] || KILLER_PERKS[k]; return !P || !P.only || P.only === char; };
 const charName0 = id => (KILLERS[id] || SURVIVORS[id] || {}).name || id;
 const saveSettings = () => store.set('settings', settings);
 const saveProfile = () => store.set('profile', profile);
@@ -465,6 +465,7 @@ if (!profile.ogChecked) {
   if ((profile.played && profile.played.granny) || (profile.killer && profile.killer.char === 'granny' && profile.stats.matches > 0)) { profile.grannyOg = true; profile.grannyStyle = 'og'; }
 }
 const grannyOgOn = () => !!profile.grannyOg && profile.grannyStyle === 'og';
+if (profile.grannyOg && !(profile.perksOwned || {}).extreme) { (profile.perksOwned ||= {}).extreme = true; }
 const killerExtras = c => ({ lv: POWER_LV[c] ? myReach(c) : undefined, og: c === 'granny' && grannyOgOn() });
 function powerRowHTML(c) {
   const L = POWER_LV[c], cur = myReach(c), full = cur >= L.max, og = c === 'granny' && grannyOgOn();

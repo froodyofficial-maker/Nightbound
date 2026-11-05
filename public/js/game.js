@@ -2132,7 +2132,7 @@ export class Game {
       const charge = Math.max(0, Math.min(1, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)));
       ready = me.abCd <= 0 && !me.dash; pct = me.aim ? 1 - charge : me.abCd / def.cooldown;
       const heard = this.S ? this.S.players.filter(o => o.role === 'survivor' && o.heard > 0).length : 0;
-      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(Math.min(me.reach || 25, def.minDist + Math.max(0, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)) * (def.maxDist - def.minDist)))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
+      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(Math.min(me.perks.includes('extreme') && this.S && this.S.gatesPowered ? 999 : me.reach || 25, def.minDist + Math.max(0, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)) * (def.maxDist - def.minDist)))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
       if (heard) sub += ` · ${heard} Heard`;
       const SW = K.swap;
       const swapTxt = !this.S.spider ? '' : this.swapHeld ? ' · Spider Mom\'s eyes: release V to swap' : me.swapCd > 0 ? ` · <kbd>V</kbd> ${SW.name} ${Math.ceil(me.swapCd)}s` : ` · <kbd>V</kbd> ${SW.name} ready`;

@@ -344,7 +344,7 @@ export class Sim {
         p.aim = false;
         if (p.abT < D.minCharge) return;
         const kk = Math.max(0, (p.abT - D.minCharge) / (D.maxCharge - D.minCharge));
-        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = Math.min(p.reach || 25, D.minDist + kk * (D.maxDist - D.minDist)); // capped by her power level
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = Math.min(has(p, 'extreme') && S.gatesPowered ? 999 : p.reach || 25, D.minDist + kk * (D.maxDist - D.minDist)); // capped by her power level (Extreme Mode: no cap once the gates are powered)
         p.yaw = yaw; p.dash = { t: 0, d: len / D.speed, dx: f.x, dz: f.z, full: p.abT >= D.maxCharge - 0.02 };
         p.abCd = D.cooldown; p.abT = 0;
         this.ev({ k: 'rush', id: p.id, x: p.x, z: p.z, charge: +k.toFixed(2) });
@@ -420,7 +420,7 @@ export class Sim {
         break;
       }
       case 'bump': {
-        if (p.char === 'butcher' && p.ab === 1) { this.endRampage(p); this.stunKiller(p, 2.0, false); }
+        if (p.char === 'butcher' && p.ab === 1 && !has(p, 'stunless')) { this.endRampage(p); this.stunKiller(p, 2.0, false); } // (Stunless: slides off and keeps going)
         break;
       }
       case 'drop-carry': {
@@ -1326,6 +1326,7 @@ export class Sim {
         return;
       }
     }
+    if (blocked && f > 0.15 && has(K, 'stunless')) { K.leap = null; K.tp++; K.abCd = D.cooldown; K.atk = 2; K.atkHit = false; K.atkT = 0.4; this.ev({ k: 'pounce-land', id: K.id, x: K.x, z: K.z }); return; } // slides off, no stun
     if (blocked && f > 0.15) {
       K.leap = null; K.tp++; K.abCd = D.cooldown;
       this.stunKiller(K, 1.4, false);
@@ -1416,7 +1417,10 @@ export class Sim {
       }
     }
     // a wall stops her dead
-    if (moved < step * 0.35 && R.t > 0.05) {
+    if (moved < step * 0.35 && R.t > 0.05 && has(K, 'stunless')) {
+      // Stunless: she glances off the wall and keeps going; only a dead stop (a corner) ends the rush
+      if (moved < step * 0.08) { K.dash = null; K.tp++; K.atk = 2; K.atkHit = false; K.atkT = 0.5; return; }
+    } else if (moved < step * 0.35 && R.t > 0.05) {
       K.dash = null; K.tp++; this.stunKiller(K, D.wallStun, false);
       this.ev({ k: 'rushwall', id: K.id, x: K.x, z: K.z });
       return;
