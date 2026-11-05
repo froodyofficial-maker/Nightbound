@@ -803,3 +803,7 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .tp .diamond { width: 30px; height: 30px; flex: none; } .tp b { font-size: 13px; font-weight: 600; }
 .tp.on { border-color: #e8352b; background: rgba(60,12,10,.7); }
 @media (max-width: 700px) { .test-grid { grid-template-columns: 1fr; } }
+/* the main menu fits on short (laptop) screens: items scale with the window height too */
+.mainnav { top: clamp(165px, 30vh, 340px); }
+.mainnav button span:not(.newtag) { font-size: clamp(24px, min(3.6vw, 5.1vh), 46px); }
+@media (max-height: 820px) { .mainnav button { padding-top: 4px; padding-bottom: 4px; } }
