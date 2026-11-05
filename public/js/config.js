@@ -433,10 +433,18 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.47.0';
+export const VERSION = '2.48.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.48.0', version: '2.48.0', date: 'Nov 2026', title: 'New: the Testing Area', tag: 'Update', email: true,
+    body: [
+      'A Testing Area on the main menu: try any survivor or killer, any outfit, any perk and any power level for free, even ones you do not own.',
+      'Pick the bots you face, the map and the mode. Passive bots let you practise without being hurt: killer bots still chase you, but they cannot land a hit.',
+      'Test matches give no XP, Embers, rank or weekly-award stats.',
+    ],
+  },
   {
     id: 'v2.47.0', version: '2.47.0', date: 'Nov 2026', title: 'New Map Vote Screen', tag: 'Update',
     body: [

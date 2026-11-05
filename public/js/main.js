@@ -197,7 +197,7 @@ function renderShowcase() {
 }
 
 // ---------- side panel ----------
-const SECTIONS = ['p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-inbox', 'p-pass', 'p-friends'];
+const SECTIONS = ['p-test', 'p-play', 'p-online', 'p-lobby', 'p-loadout', 'p-settings', 'p-help', 'p-inbox', 'p-pass', 'p-friends'];
 let openSection = null;
 function openPanel(id, title, wide = false) {
   for (const p of SECTIONS) $(p).classList.toggle('hidden', p !== id);
@@ -245,6 +245,7 @@ const navActions = {
   help: () => openPanel('p-help', 'How to Play', true),
   store: () => openStore(),
   pass: () => openPanel('p-pass', 'Progress', true),
+  test: () => { renderTest(); openPanel('p-test', 'Testing Area', true); },
 };
 for (const b of $('mainnav').children) {
   b.addEventListener('mouseenter', () => { sound.init(); sound.play('hover'); if (b.dataset.scene) setScene(b.dataset.scene); });
@@ -739,6 +740,57 @@ function botKiller(char, n = 0, avoid = []) {
   const sk = SKINS[c]; const skin = Math.random() < 0.5 ? 'default' : sk[1 + Math.floor(Math.random() * (sk.length - 1))].id;
   return { id: 'botk' + (n || ''), name: KILLERS[c].name, role: 'killer', char: c, skin, perks: randomPerks(KILLER_PERKS), bot: true };
 }
+// ---------- Testing Area: everything unlocked, nothing earned ----------
+const testCfg = { role: 'survivor', char: { survivor: 'mara', killer: 'butcher' }, skin: {}, item: 'flashlight', reach: {}, perks: { survivor: [], killer: [] }, opp: 'random', surv: 4, map: 'random', gm: 'classic', bots: 'normal', diff: 'normal' };
+function renderTest() {
+  const T = testCfg, role = T.role, defs = role === 'killer' ? KILLERS : SURVIVORS, pool = role === 'killer' ? KILLER_PERKS : SURV_PERKS;
+  if (!defs[T.char[role]]) T.char[role] = Object.keys(defs)[0];
+  const c = T.char[role], skins = SKINS[c] || [{ id: 'default', name: 'Default' }];
+  if (!skins.some(k => k.id === T.skin[c])) T.skin[c] = skins[0].id;
+  setSeg('test-role', role); setSeg('test-surv', String(T.surv)); setSeg('test-bots', T.bots); setSeg('test-diff', T.diff);
+  $('test-char').innerHTML = Object.values(defs).map(d => `<option value="${d.id}" ${d.id === c ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+  $('test-skin').innerHTML = skins.map(k => `<option value="${k.id}" ${k.id === T.skin[c] ? 'selected' : ''}>${esc(k.name)}</option>`).join('');
+  $('test-item-row').classList.toggle('hidden', role !== 'survivor'); $('test-item').value = T.item;
+  $('test-opp-row').classList.toggle('hidden', role !== 'survivor'); $('test-surv-row').classList.toggle('hidden', role !== 'killer');
+  $('test-opp').innerHTML = '<option value="random">Random</option>' + Object.values(KILLERS).map(d => `<option value="${d.id}" ${d.id === T.opp ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+  $('test-map').innerHTML = ['random', ...Object.keys(MAP_NAMES)].map(m => `<option value="${m}" ${m === T.map ? 'selected' : ''}>${m === 'random' ? 'Random' : esc(MAP_NAMES[m])}</option>`).join('');
+  $('test-gm').innerHTML = Object.entries(MODES).map(([id, m]) => `<option value="${id}" ${id === T.gm ? 'selected' : ''}>${m.name} (${m.short})</option>`).join('');
+  const L = role === 'killer' && POWER_LV[c];
+  $('test-reach-row').classList.toggle('hidden', !L);
+  if (L) { const r = $('test-reach'); r.min = L.base; r.max = L.max; r.step = L.step; r.value = T.reach[c] ?? L.max; $('test-reach-l').textContent = `${L.power} reach: ${r.value}m`; }
+  T.perks[role] = T.perks[role].filter(k => pool[k] && perkFits(k, c));
+  $('test-perk-n').textContent = `${T.perks[role].length} / ${PERK_SLOTS}`;
+  $('test-perks').innerHTML = Object.entries(pool).filter(([k]) => perkFits(k, c)).map(([k, P]) => `<button class="tp ${T.perks[role].includes(k) ? 'on' : ''}" data-tp="${k}" title="${esc(P.desc)}"><span class="diamond ${role === 'killer' ? 'k' : ''} ${P.only ? 'ex' : ''}">${icon(k)}</span><b>${esc(P.name)}</b></button>`).join('');
+  $('test-perks').querySelectorAll('[data-tp]').forEach(b => b.onclick = () => { const l = T.perks[role], k = b.dataset.tp, i = l.indexOf(k); if (i >= 0) l.splice(i, 1); else { if (l.length >= PERK_SLOTS) l.shift(); l.push(k); } sound.play('click'); renderTest(); });
+  if (menu) { if (role === 'killer') menu.setKiller(c, T.skin[c]); else menu.setSurvivor(c, T.skin[c]); }
+}
+seg('test-role', v => { testCfg.role = v; renderTest(); });
+seg('test-surv', v => { testCfg.surv = +v; });
+seg('test-bots', v => { testCfg.bots = v; });
+seg('test-diff', v => { testCfg.diff = v; });
+$('test-char').onchange = e => { testCfg.char[testCfg.role] = e.target.value; renderTest(); };
+$('test-skin').onchange = e => { testCfg.skin[testCfg.char[testCfg.role]] = e.target.value; renderTest(); };
+$('test-item').onchange = e => { testCfg.item = e.target.value; };
+$('test-opp').onchange = e => { testCfg.opp = e.target.value; };
+$('test-map').onchange = e => { testCfg.map = e.target.value; };
+$('test-gm').onchange = e => { testCfg.gm = e.target.value; };
+$('test-reach').oninput = e => { const c = testCfg.char.killer; testCfg.reach[c] = +e.target.value; $('test-reach-l').textContent = `${POWER_LV[c].power} reach: ${e.target.value}m`; };
+$('btn-test-start').addEventListener('click', () => {
+  sound.init(); sound.play('click');
+  const T = testCfg, role = T.role, c = T.char[role], gm = MODES[T.gm] ? T.gm : 'classic', nk = MODES[gm].killers || 1, ns = MODES[gm].survivors;
+  const me = { id: 'me', name: settings.name, role, char: c, skin: T.skin[c] || 'default', perks: T.perks[role].slice(), item: T.item === 'taser' ? 'flashlight' : T.item, pet: '', bot: false };
+  if (role === 'killer' && POWER_LV[c]) me.lv = T.reach[c] ?? POWER_LV[c].max;
+  const roster = [me], used = role === 'survivor' ? [c] : [];
+  if (role === 'survivor') {
+    for (let i = 0; i < (ns ? ns - 1 : 3); i++) roster.push(botSurvivor(i + 1, used));
+    for (let i = 0; i < nk; i++) roster.push(botKiller(i ? 'random' : T.opp, i, roster.filter(r => r.role === 'killer').map(r => r.char)));
+  } else {
+    for (let i = 1; i < nk; i++) roster.push(botKiller('random', i, [c]));
+    for (let i = 0; i < (ns || T.surv); i++) roster.push(botSurvivor(i + 1, used));
+  }
+  startHostMatch(roster, { myId: 'me', difficulty: T.diff, net: null, kind: 'bots', map: T.map, mode: gm, sandbox: true, passive: T.bots === 'passive', taser: role === 'survivor' && T.item === 'taser' });
+});
+
 $('btn-bots-start').addEventListener('click', () => {
   sound.init(); sound.play('click');
   const roster = [];
@@ -832,6 +884,8 @@ class HostSession {
     this.map = resolveMap(this.opts.map, this.opts.mode);
     this.M = buildMap(this.seed, this.map);
     this.sim = new Sim(this.M, this.roster, { difficulty: this.opts.difficulty, mode: this.opts.mode });
+    if (this.opts.passive) for (const q of this.sim.S.players) if (q.bot && q.role === 'killer') q.harmless = true;
+    if (this.opts.taser) { const q = this.sim.S.players.find(x => x.id === this.myId); if (q) { q.item = 'taser'; q.tasers = 3; q.flash = 0; q.traps = 0; } }
     this.bots = new Bots(this.sim);
     if (this.net) this.net.broadcast({ t: 'start', seed: this.seed, map: this.map, roster: this.roster, difficulty: this.opts.difficulty, mode: this.opts.mode });
     this.game = new Game({ renderer, M: this.M, myId: this.myId, isHost: true, session: this, settings, onEnd: (S, me) => onMatchEnd(S, me, this) });
@@ -986,6 +1040,10 @@ function endSession() {
 }
 
 function onMatchEnd(S, me, sess) {
+  if (sess.opts && sess.opts.sandbox) {
+    $('results-list').insertAdjacentHTML('beforeend', '<div class="prog-sum"><div class="ps-xp"><b>Testing Area</b><span>No XP, Embers or rank in test matches</span></div></div>');
+    me = null; // nothing below is recorded
+  }
   if (me && me.score) {
     // progression: XP, level, rank pips, season pass
     const r = applyMatch(profile, S, me);
@@ -1007,7 +1065,7 @@ function onMatchEnd(S, me, sess) {
   const btn = (label, cls, fn) => { const b = document.createElement('button'); b.textContent = label; b.className = 'btn ' + (cls === 'primary' ? 'primary big' : ''); b.onclick = () => { sound.play('click'); fn(); }; A.appendChild(b); };
   if (sess.kind === 'bots') {
     btn('Main Menu', 'back', () => { endSession(); show('p-main'); });
-    btn('Play Again', 'primary', () => { endSession(); $('btn-bots-start').click(); });
+    btn('Play Again', 'primary', () => { endSession(); $(sess.opts && sess.opts.sandbox ? 'btn-test-start' : 'btn-bots-start').click(); });
   } else if (sess.isHost) {
     btn('Close Room', 'back', () => { leaveOnline(); });
     btn('Back to Lobby', 'primary', () => returnToLobby());

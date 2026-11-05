@@ -795,3 +795,11 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .ms-dots { display: flex; justify-content: center; gap: 4px; min-height: 10px; margin-top: 4px; } .ms-dots i { width: 8px; height: 8px; border-radius: 50%; background: #e8352b; }
 @media (max-width: 800px) { .ms-grid { grid-template-columns: repeat(2, 1fr); } }
 #announce .an-inner.ms { width: min(1100px, 100%); }
+
+/* testing area */
+.test-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.test-perks { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-bottom: 10px; }
+.tp { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: rgba(20,14,12,.8); border: 1px solid rgba(233,224,208,.12); color: inherit; cursor: pointer; text-align: left; }
+.tp .diamond { width: 30px; height: 30px; flex: none; } .tp b { font-size: 13px; font-weight: 600; }
+.tp.on { border-color: #e8352b; background: rgba(60,12,10,.7); }
+@media (max-width: 700px) { .test-grid { grid-template-columns: 1fr; } }

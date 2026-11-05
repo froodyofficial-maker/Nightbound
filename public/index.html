@@ -39,6 +39,7 @@
       <button data-act="loadout"><span>Loadout</span><small>Characters &amp; perks</small></button>
       <button data-act="store"><span>Store <span class="newtag">NEW DLC</span></span><small>Chapters, characters &amp; outfits</small></button>
       <button data-act="pass"><span>Progress <span class="newtag">S1</span></span><small>Level, ranks &amp; season pass</small></button>
+      <button data-act="test"><span>Testing Area</span><small>Try anything, all unlocked</small></button>
       <button data-act="settings"><span>Settings</span><small>Graphics, controls, audio</small></button>
       <button data-act="help"><span>How to Play</span><small>Rules &amp; controls</small></button>
     </nav>
@@ -70,6 +71,26 @@
             <select id="bots-map"><option value="vote">Vote (you + the bots)</option><option value="random">Random</option><option value="granny">Granny's House (new)</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh (new)</option><option value="carnival">Hollowmere Carnival (new)</option><option value="snow">Coldwater Pass (new)</option><option value="quarantine">Quarantine Woods (Infection)</option><option value="outbreak">Outbreak Fairground (Infection)</option></select></div>
           <div class="loadout-mini" id="bots-loadout"></div>
           <div class="actions"><button class="btn primary big" id="btn-bots-start">Ready</button></div>
+        </section>
+
+        <section id="p-test" class="hidden">
+          <p class="hint">Try any character, outfit, perk and power level for free. Test matches give no XP, Embers or rank.</p>
+          <div class="field"><label>Role</label><div class="seg" id="test-role"><button data-v="survivor" class="on">Survivor</button><button data-v="killer">Killer</button></div></div>
+          <div class="test-grid">
+            <div class="field"><label>Character</label><select id="test-char"></select></div>
+            <div class="field"><label>Outfit</label><select id="test-skin"></select></div>
+            <div class="field" id="test-item-row"><label>Item</label><select id="test-item"><option value="flashlight">Flashlight</option><option value="trap">Ghost Trap</option><option value="taser">Taser</option></select></div>
+            <div class="field hidden" id="test-reach-row"><label id="test-reach-l">Power reach</label><input type="range" id="test-reach"></div>
+            <div class="field" id="test-opp-row"><label>Bot killer</label><select id="test-opp"></select></div>
+            <div class="field hidden" id="test-surv-row"><label>Survivors to hunt</label><div class="seg" id="test-surv"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4" class="on">4</button></div></div>
+            <div class="field"><label>Map</label><select id="test-map"></select></div>
+            <div class="field"><label>Game mode</label><select id="test-gm"></select></div>
+            <div class="field"><label>Bots</label><div class="seg" id="test-bots"><button data-v="normal" class="on">Normal</button><button data-v="passive">Passive (killers can't hurt)</button></div></div>
+            <div class="field"><label>Bot difficulty</label><div class="seg" id="test-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
+          </div>
+          <div class="lo-sub"><span>Perks</span><span id="test-perk-n"></span></div>
+          <div class="test-perks" id="test-perks"></div>
+          <div class="actions"><button class="btn primary big" id="btn-test-start">Start testing</button></div>
         </section>
 
         <!-- online -->
