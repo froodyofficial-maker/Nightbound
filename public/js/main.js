@@ -13,6 +13,7 @@ import { loadForeman, onForemanReady, loadBatman } from './foremanGlb.js';
 import { loadChucky, onChuckyReady, chuckyReady } from './chuckyGlb.js';
 import { loadTed } from './sidekicks.js';
 import { loadRealism, realismReady } from './realism.js';
+import { loadSlappy, slappyReady } from './slappyGlb.js';
 import { loadStatic } from './glbModels.js';
 import { loadScene, sceneReady } from './sceneGlb.js';
 import { loadGranny, grannyReady, onGrannyReady, loadGrandpa, loadSpiderMom } from './grannyGlb.js';
@@ -162,6 +163,7 @@ onChuckyReady(() => {
   if (!$('store').classList.contains('hidden')) renderStore();
   renderShowcase();
 });
+loadSlappy().then(m => { if (!m) return; onChuckyReady(() => { forgetArt('chucky'); if (menu && menu.killerChar === 'chucky') menu.setKiller('chucky', menu.killerSkin); if (!$('store').classList.contains('hidden')) renderStore(); }); });
 loadChucky().then(g => { if (!g) toast("Chucky's 3D model couldn't load, so a simple stand-in doll is used. Check your connection and refresh.", 8000); });
 // a match with Chucky in it waits (on the loading screen) for his real model, up to 20s
 const spiderOk = () => !!window.__nbSpiderLoaded;
@@ -173,9 +175,9 @@ async function waitForModels(need) {
   // Granny and her granddaughter, when she's in the match
   if (need === 'granny' || (need && need.granny)) { if (!grannyReady() || !spiderOk()) { loading(true, 'Granny is coming down the stairs…'); await Promise.race([Promise.all([loadGranny(), loadGrandpa(), loadSpiderMom()]), new Promise(r => setTimeout(r, 25000))]); } }
   if (need && need.granny) need = need.chucky;
-  if (!need || chuckyReady()) return;
+  if (!need || (chuckyReady() && slappyReady())) return;
   loading(true, "Waking Chucky up…");
-  await Promise.race([loadChucky(), new Promise(r => setTimeout(r, 20000))]);
+  await Promise.race([Promise.all([loadChucky(), loadSlappy()]), new Promise(r => setTimeout(r, 20000))]);
 }
 onForemanReady(() => { if (menu && menu.killerChar === 'foreman') menu.setKiller('foreman', menu.killerSkin); });
 function stopBG() { if (menu) { menu.dispose(); menu = null; } }

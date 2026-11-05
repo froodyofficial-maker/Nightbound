@@ -376,6 +376,7 @@ export const SKINS = {
     { id: 'default', name: 'Good Guy', price: 0, desc: 'Denim overalls, striped shirt, red hair and a kitchen knife. Hi, I\'m Chucky. Wanna play?' },
     { id: 'charred', name: 'Burnt Out', price: 2500, tint: 0x141210, tintK: 0.88, glow: 0x6a1400, glowK: 0.12, desc: 'Pulled from the toy factory fire. Charred black and still smouldering.' },
     { id: 'voodoo', name: 'Voodoo', price: 4500, tint: 0x7aff8a, tintK: 0.3, glow: 0x0a6a1a, glowK: 0.7, desc: 'Ade due Damballa. A sickly green glow from the inside.' },
+    { id: 'slappy', name: 'Slappy', price: 6000, slappy: true, desc: 'The ventriloquist\'s dummy who talks back. His own body, his own stiff, puppet-like moves, and an iron-banded wooden mallet instead of the knife. (Model: "slappy_animations" by Howard the Lipscomb, CC BY 4.0.)' },
   ],
   granny: [
     { id: 'default', name: 'House Dress', price: 0, desc: 'Her grey nightgown, her bloody bat, and the stare. You know the one.' },
@@ -418,8 +419,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.40.0';
+export const VERSION = '2.41.0';
 export const INBOX = [
+  {
+    id: 'v2.41.0', version: '2.41.0', date: 'Nov 2026', title: 'New Chucky Outfit: Slappy', tag: 'Update',
+    body: [
+      'Slappy the ventriloquist\'s dummy is a new outfit for Chucky (6,000 Embers, Store > Characters > Chucky).',
+      'He has his own hand-made animations: a stiff, puppet-like walk and run, a slow wrong-way head turn, an overhead swing with his iron-banded wooden mallet, a pounce, carrying, a limp wobble when stunned, and a mallet execution.',
+      'Model: "slappy_animations" by Howard the Lipscomb (sketchfab.com/1310545), CC BY 4.0.',
+    ],
+  },
   {
     id: 'v2.40.0', version: '2.40.0', date: 'Nov 2026', title: 'Map Voting', tag: 'Update',
     body: [

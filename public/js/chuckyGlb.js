@@ -13,6 +13,7 @@ export const HEIGHT = 0.95;    // a Good Guy doll is about two and a half feet t
 const FACE_YAW = 0.53;         // the export is turned ~30°: face +Z like the other rigs
 
 export const chuckyReady = () => !!gltf;
+export const chuckyScene = () => gltf && gltf.scene;
 export function onChuckyReady(cb) { if (gltf) cb(); else waiters.push(cb); }
 
 async function bytes() {

@@ -22,7 +22,7 @@ async function bytes(name) {
 }
 
 // put every bone back in the skin's bind pose (the file stores the model mid-stride)
-function toBindPose(scene) {
+export function toBindPose(scene) {
   scene.updateMatrixWorld(true);
   const done = new Set();
   scene.traverse(o => {
