@@ -64,6 +64,7 @@ export const MODES = {
 // killers an infected survivor can turn into
 export const INFECT_POOL = ['butcher', 'wisp', 'harrower', 'lamplighter', 'slimer', 'bateman', 'chucky'];
 
+export const POSSESS_MAX = 66; // Chucky can stay in a survivor's body for 1.1 minutes
 export const KILLERS = {
   butcher: {
     id: 'butcher', name: 'The Butcher', speed: 4.6, terror: 32, weapon: 'Cleaver',
@@ -417,8 +418,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.37.0';
+export const VERSION = '2.38.0';
 export const INBOX = [
+  {
+    id: 'v2.38.0', version: '2.38.0', date: 'Nov 2026', title: 'Chucky Possession Fixes', tag: 'Update',
+    body: [
+      'A possessed survivor\'s ghost can no longer move or repair: it stays frozen where it was until Chucky leaves the body.',
+      'Possession now lasts at most 1.1 minutes (1:06). When time runs out Chucky is forced back into his doll; his HUD shows the time left.',
+      'Anyone Chucky hits while wearing a survivor\'s body now knows it is him: that bot treats the body as the killer from then on.',
+    ],
+  },
   {
     id: 'v2.37.0', version: '2.37.0', date: 'Nov 2026', title: 'Three New Game Modes', tag: 'Update',
     body: [

@@ -1798,7 +1798,7 @@ export class Game {
           break;
         case 'possessed':
           if (e.id === this.myId) { this.feed(`You are inside ${name(e.id)}. Nobody knows. Down a survivor and hook them, then press G to let go.`, 'big'); this.flash = 0.5; }
-          if (e.ghost === this.myId) { this.feed('You have been possessed! You are a ghost now: nobody can see you. Keep repairing generators (10% slower).', 'big'); this.flash = 0.6; this.shake = 0.6; }
+          if (e.ghost === this.myId) { this.feed('You have been possessed! Your ghost is frozen until Chucky leaves your body (at most 1:06).', 'big'); this.flash = 0.6; this.shake = 0.6; }
           break;
         case 'depossessed':
           if (e.by === this.myId) this.feed('You leave the body and return to your doll.', 'big');
@@ -2064,7 +2064,7 @@ export class Game {
     $('controls-hint').innerHTML = me.disguise
       ? `${k(moveLabel(this.settings))} move · ${k('LMB')} strike · ${k(keyLabel(this.settings, 'interact'))} pick up / hook · ${k(keyLabel(this.settings, 'space'))} vault · ${k(keyLabel(this.settings, 'item'))} let go (after a down and a hook) · ${k(keyLabel(this.settings, 'status'))} status`
       : me.st === 'ghost'
-      ? `${k(moveLabel(this.settings))} move · ${k(keyLabel(this.settings, 'interact'))} repair generators · nobody can see you`
+      ? 'You are a frozen ghost · Chucky has your body (1:06 at most) · nobody can see you'
       : me.role === 'killer'
       ? `${k(moveLabel(this.settings))} move · ${k('LMB')} strike · ${k('RMB')} ${esc(KILLERS[me.char].ability.name)}${me.char === 'lamplighter' ? ` · ${k(keyLabel(this.settings, 'ability2'))} Shadow Step` : KILLERS[me.char].ability2 ? ` · ${k(keyLabel(this.settings, 'ability2'))} ${esc(KILLERS[me.char].ability2.name)}` : ''} · ${k(keyLabel(this.settings, 'interact'))} interact · ${k(keyLabel(this.settings, 'execute'))} execute · ${k(keyLabel(this.settings, 'space'))} ${me.char === 'chucky' ? 'jump' : 'vault'}${me.char === 'chucky' ? ` · ${k(keyLabel(this.settings, 'item'))} possess · ${k(keyLabel(this.settings, 'split'))} soul split` : ''} · ${k(keyLabel(this.settings, 'drop'))} drop · ${k(keyLabel(this.settings, 'status'))} status`
       : `${k(moveLabel(this.settings))} move · ${k(keyLabel(this.settings, 'run'))} run · ${k(keyLabel(this.settings, 'crouch'))} crouch · ${k(keyLabel(this.settings, 'interact'))} interact · ${k('RMB')} flashlight · ${k(keyLabel(this.settings, 'item'))} ghost trap · ${k(keyLabel(this.settings, 'space'))} vault / barricade / skill check · ${k(keyLabel(this.settings, 'emotes'))} emotes · ${k(keyLabel(this.settings, 'status'))} status`;
@@ -2077,7 +2077,7 @@ export class Game {
   powerHTML(me) {
     if (me.disguise) {
       const done = me.pdowns >= 1 && me.pcages >= 1;
-      return { ready: done, active: true, pct: 0, html: `<div class="pwt"><div class="pwn">Possession</div><div class="pws">Down ${Math.min(1, me.pdowns)}/1 · Hook ${Math.min(1, me.pcages)}/1</div><div class="keyl">${done ? '' + kbd('item') + ' let go of the body' : 'Nobody knows it\'s you'}</div></div><div class="pwi">${icon('knife')}<div class="cd"></div></div>` };
+      return { ready: done, active: true, pct: 0, html: `<div class="pwt"><div class="pwn">Possession</div><div class="pws">${Math.floor((me.possT || 0) / 60)}:${String(Math.ceil(me.possT || 0) % 60).padStart(2, '0')} left · Down ${Math.min(1, me.pdowns)}/1 · Hook ${Math.min(1, me.pcages)}/1</div><div class="keyl">${done ? '' + kbd('item') + ' let go of the body' : 'Nobody knows it\'s you'}</div></div><div class="pwi">${icon('knife')}<div class="cd"></div></div>` };
     }
     const K = KILLERS[me.char]; let def = K.ability;
     let ready = false, pct = 0, sub = '', pips = '', extra = '';
@@ -2252,9 +2252,8 @@ export class Game {
           if (me.mark > 0) status = `Marked <small>The Harrower can see you · ${Math.ceil(me.mark)}s</small>`;
           if (me.card > 0) status = `Intimidated <small>Slowed and revealed · ${Math.ceil(me.card)}s</small>`;
         } else if (me.st === 'ghost') {
-          if (me.act) { prog = me.prog; label = 'Repairing (as a ghost)'; }
-          else { const it = findInteraction(this.M, S, me); if (it) kp(keyLabel(this.settings, 'interact'), it.label); }
-          status = 'You are a ghost<small>Chucky took your body. Nobody can see you. Repair generators (10% slower) until he lets go.</small>';
+          const holder = S.players.find(o => o.disguise);
+          status = `You are a ghost<small>Chucky took your body. You are frozen until he leaves it${holder && holder.possT > 0 ? ` · ${Math.ceil(holder.possT)}s at most` : ''}.</small>`;
         } else if (me.st === 'down') {
           status = me.healP > 0 ? 'Being helped up' : 'You are dying<small>Crawl to safety — a teammate can help you up</small>';
           if (me.healP > 0) { prog = me.healP; label = 'Recovering'; }

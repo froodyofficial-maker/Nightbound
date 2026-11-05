@@ -476,7 +476,10 @@ export class Bots {
   // ---------- killer ----------
   // a possessed survivor's ghost: nobody can see or touch it, so it just keeps the generators going
   ghost(p, dt) {
-    const sim = this.sim, S = sim.S, M = sim.M, b = this.brain(p);
+    // a possessed survivor's ghost is frozen until Chucky lets go
+    const b = this.brain(p); this.setE(p, b, false); this.move(p, b, 0, 0, dt, false); return;
+    // eslint-disable-next-line no-unreachable
+    const sim = this.sim, S = sim.S, M = sim.M;
     const it = findInteraction(M, S, p);
     if (it && it.k === 'repair') { const g = M.gens[it.id]; p.yaw = Math.atan2(g.x - p.x, g.z - p.z); this.setE(p, b, true); this.move(p, b, 0, 0, dt, false); return; }
     this.setE(p, b, false);

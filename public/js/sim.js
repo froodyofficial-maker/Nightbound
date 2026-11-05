@@ -1,5 +1,5 @@
 // Authoritative game simulation. Runs only on the host (or in single-player).
-import { RULES, KILLERS, SURVIVORS, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
+import { RULES, KILLERS, SURVIVORS, POSSESS_MAX, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
 import { barBox, losBlocked, moveCircle, findPath, cellOf, cellPos, levelOf, levelsMeet, losL, heightAt, levelStep } from './map.js';
 import {
   has, fwd, dist, killerOf, killersOf, nearestKiller, anyKillerHas, playerById, findInteraction, actionTime, terrorRadius, inExit, findSpace, vaultDuration, findExecute, angDiff,
@@ -709,6 +709,12 @@ export class Sim {
   // ---- mode rules that tick: the Survivor Rush clock ----
   updateMode(dt) {
     const S = this.S;
+    // Chucky's time inside a survivor's body runs out after 1.1 minutes
+    if (this.possession) {
+      const P = this.possession, X = this.P(P.X); P.t += dt;
+      if (X) X.possT = Math.max(0, POSSESS_MAX - P.t);
+      if (P.t >= POSSESS_MAX && !(X && X.act && X.act.k === 'execute')) { this.ev({ k: 'msg', text: 'Chucky was forced out of the body!' }); this.release(); }
+    }
     // Blood Moon: every 45s the killer sees every survivor for a moment
     if (this.mode === 'bloodmoon') {
       this.pulseT = (this.pulseT || 0) + dt;
@@ -921,7 +927,8 @@ export class Sim {
     // (slimed survivors are slowed and revealed, not one-shot: that made him unbeatable) // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
     if (K && K.char === 'granny' && s.heard > 0) { instantDown = true; s.heard = 0; }
-    if (this.mode === 'glass') instantDown = true; // Glass Bones: every hit downs // I Hear You: she knew exactly where you were
+    if (this.mode === 'glass') instantDown = true; // Glass Bones: every hit downs
+    if (K && K.disguise) (s.knows ||= {})[K.id] = true; // hit by the 'survivor' Chucky is wearing: now they know // I Hear You: she knew exactly where you were
     const wasHp = s.hp;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;
@@ -1271,7 +1278,7 @@ export class Sim {
     Object.assign(C, { bot: true, harmless: true, act: null, aim: false, leap: null, possCd: 600 });
     if (this.inputs.get(C.id)) Object.assign(this.inputs.get(C.id), { e: false, latch: false });
     if (this.inputs.get(X.id)) Object.assign(this.inputs.get(X.id), { e: false, latch: false });
-    this.possession = { C: C.id, X: X.id, G: gid, orig, cBot };
+    this.possession = { C: C.id, X: X.id, G: gid, orig, cBot, t: 0 }; X.possT = POSSESS_MAX;
     // control moves silently: the survivor's player to the ghost, Chucky's player into the body
     this.ev({ k: 'swap', from: X.id, to: gid });
     this.ev({ k: 'swap', from: C.id, to: X.id });
@@ -1284,7 +1291,7 @@ export class Sim {
     const X = this.P(P.X), C = this.P(P.C), G = this.P(P.G);
     if (X) {
       if (X.carry != null) this.releaseCarry(X, false);
-      Object.assign(X, { role: 'survivor', disguise: false, ...P.orig, bot: G ? G.bot : P.orig.bot, st: 'ok', hp: 1, act: null, prog: 0, atk: 0, atkT: 0, stun: 0, aim: false, pdowns: 0, pcages: 0 });
+      Object.assign(X, { possT: 0, role: 'survivor', disguise: false, ...P.orig, bot: G ? G.bot : P.orig.bot, st: 'ok', hp: 1, act: null, prog: 0, atk: 0, atkT: 0, stun: 0, aim: false, pdowns: 0, pcages: 0 });
       if (G) for (const k in G.score) X.score[k] = (X.score[k] || 0) + G.score[k];
       X.tp++;
     }

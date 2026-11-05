@@ -18,10 +18,10 @@ export const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * M
 export function killerOf(S) { return S.players.find(p => p.role === 'killer'); }
 // modes can have several killers (Two Killers, Infection)
 export function killersOf(S) { return S.players.filter(p => p.role === 'killer'); }
-// (a survivor body possessed by Chucky is not something anyone can tell apart)
+// (a survivor body possessed by Chucky can't be told apart, until he hits you: then you know)
 export function nearestKiller(S, p) {
   let best = null, bd = Infinity;
-  for (const k of S.players) if (k.role === 'killer' && !k.disguise) { const d = p ? Math.hypot(k.x - p.x, k.z - p.z) : 0; if (d < bd) { bd = d; best = k; } }
+  for (const k of S.players) if (k.role === 'killer' && (!k.disguise || (p && p.knows && p.knows[k.id]))) { const d = p ? Math.hypot(k.x - p.x, k.z - p.z) : 0; if (d < bd) { bd = d; best = k; } }
   return best;
 }
 export const anyKillerHas = (S, perk) => S.players.some(k => k.role === 'killer' && has(k, perk));
@@ -48,7 +48,7 @@ export function speedOf(p, S, sprint, crouch) {
       if (S && S.players.some(o => o.act && (o.act.k === 'pickup' || o.act.k === 'heal') && o.act.id === p.id)) return 0;
       return SPEED.crawl * (has(p, 'resolve') ? 1.3 : 1);
     }
-    if (p.st !== 'ok' && p.st !== 'ghost') return 0;
+    if (p.st !== 'ok') return 0; // (a ghost stays where it is)
     if (p.snare > 0) return 0; // caught in Granny's bear trap
     let s = crouch ? SPEED.crouch * (has(p, 'hushed') ? 1.25 : 1) : sprint ? SPEED.run : SPEED.walk;
     if (!crouch && sprint && p.hp === 1 && has(p, 'fleet')) s *= 1.07;
@@ -89,8 +89,9 @@ export function itemLabel(k, n) {
   return name;
 }
 export function findInteraction(M, S, p) {
+  if (p.role === 'survivor' && p.st === 'ghost') return null; // a possessed survivor's ghost is frozen until Chucky lets go
   if (p.role === 'survivor' && p.st === 'ghost') {
-    // a ghost can only repair generators
+    // (unused)
     if (p.vault) return null;
     let best = null, bd = 1.75;
     for (const g of M.gens) { const d = dist(p, g); if (!S.gens[g.id].done && !S.gatesPowered && d < bd) { bd = d; best = { k: 'repair', id: g.id, label: 'Repair generator (as a ghost)' }; } }
