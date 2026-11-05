@@ -418,8 +418,15 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.39.0';
+export const VERSION = '2.40.0';
 export const INBOX = [
+  {
+    id: 'v2.40.0', version: '2.40.0', date: 'Nov 2026', title: 'Map Voting', tag: 'Update',
+    body: [
+      'Online lobbies now vote on the map. Every lobby gets three maps that suit the game mode, plus Random; click one to vote (you can change your mind). The map with the most votes is played; ties are settled at random.',
+      'A new set of maps comes up after every match. The host can still pick a map directly (Map: Players vote / Random / a specific map).',
+    ],
+  },
   {
     id: 'v2.39.0', version: '2.39.0', date: 'Nov 2026', title: 'Carrying: Longer Struggle, Gentler Drops', tag: 'Update',
     body: [

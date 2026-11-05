@@ -972,7 +972,7 @@ $('btn-host').addEventListener('click', async () => {
   try {
     const mode = await resolveMode();
     const net = await hostRoom(mode);
-    lobby = { isHost: true, net, code: net.code, mode, myId: 'host', players: [], fill: true, diff: 'normal', gm: 'classic', inGame: false, chat: [] };
+    lobby = { isHost: true, net, code: net.code, mode, myId: 'host', players: [], fill: true, diff: 'normal', gm: 'classic', inGame: false, chat: [] }; lobby.map = 'vote'; newVote();
     const lo = profile.survivor;
     lobby.players.push({ id: 'host', name: settings.name, role: 'survivor', char: lo.char, skin: skinId(lo.char), perks: lo.perks.slice(), pet: petOf('survivor'), host: true, loadouts: myLoadouts() });
     net.on('msg', (id, m) => hostMsg(id, m));
@@ -1024,6 +1024,8 @@ function hostMsg(id, m) {
     lobby.net.send(id, { t: 'welcome', id });
     addChat(null, String(m.name || 'Player').slice(0, 16) + ' joined.');
     broadcastLobby();
+  } else if (m.t === 'vote') {
+    if (lobby.map === 'vote' && (lobby.cands || []).includes(m.map) && lobby.players.some(x => x.id === id)) { (lobby.votes ||= {})[id] = m.map; broadcastLobby(); }
   } else if (m.t === 'loadout') {
     const p = lobby.players.find(x => x.id === id);
     if (!p) return;
@@ -1035,6 +1037,20 @@ function hostMsg(id, m) {
   }
 }
 // player slots for the lobby's game mode
+// map voting: three maps that suit the mode, plus Random; most votes wins (ties: a random one of the tied)
+function newVote() {
+  if (!lobby) return;
+  const pool = MODES[lobby.gm] && MODES[lobby.gm].bigMap ? Object.keys(BIG_MAPS) : REGULAR_MAPS.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  lobby.cands = [...pool.slice(0, 3), 'random']; lobby.votes = {};
+}
+function voteWinner() {
+  const votes = Object.values(lobby.votes || {}), cands = lobby.cands || ['random'];
+  if (!votes.length) return 'random';
+  const n = c => votes.filter(v => v === c).length, top = Math.max(...cands.map(n));
+  const tied = cands.filter(c => n(c) === top);
+  return tied[Math.floor(Math.random() * tied.length)];
+}
 function lobbyCaps() { const m = MODES[lobby && lobby.gm] || MODES.classic; return { k: m.killers || 1, s: m.survivors || 4 }; }
 function applyLoadout(p, m) {
   let role = m.role === 'killer' ? 'killer' : 'survivor';
@@ -1049,7 +1065,7 @@ function applyLoadout(p, m) {
 }
 function broadcastLobby() {
   if (!lobby || !lobby.isHost) return;
-  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, map: lobby.map || 'random', gm: lobby.gm || 'classic', code: lobby.code });
+  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, map: lobby.map || 'vote', gm: lobby.gm || 'classic', code: lobby.code, cands: lobby.cands || [], votes: lobby.votes || {} });
   renderLobby();
 }
 
@@ -1076,7 +1092,7 @@ function clientMsg(m) {
   if (!m || typeof m !== 'object' || !lobby) return;
   switch (m.t) {
     case 'welcome': lobby.myId = m.id; break;
-    case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; lobby.gm = MODES[m.gm] ? m.gm : 'classic'; renderLobby(); break;
+    case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; lobby.gm = MODES[m.gm] ? m.gm : 'classic'; lobby.cands = Array.isArray(m.cands) ? m.cands : []; lobby.votes = m.votes || {}; renderLobby(); break;
     case 'reject': toast(m.reason); leaveOnline(true); break;
     case 'chat': addChat(m.name, m.text); break;
     case 'start': startClientMatch(m); break;
@@ -1120,7 +1136,7 @@ function showLobby() {
   $('lobby-wait').classList.toggle('hidden', lobby.isHost);
   $('lobby-fill').checked = lobby.fill;
   setSeg('lobby-diff', lobby.diff);
-  $('lobby-map').value = lobby.map || 'random'; $('lobby-map').disabled = !lobby.isHost;
+  $('lobby-map').value = lobby.map || 'vote'; $('lobby-map').disabled = !lobby.isHost;
   renderLobby();
 }
 function myLobbyPlayer() { return lobby && lobby.players.find(p => p.id === lobby.myId); }
@@ -1139,6 +1155,14 @@ function renderLobby() {
   for (let i = 0; i < cap.k; i++) html += slot(killers[i], 'killer');
   for (let i = 0; i < cap.s; i++) html += slot(survs[i], 'survivor');
   $('lobby-slots').innerHTML = html;
+  // map vote
+  const mv = $('map-vote'), voting = lobby.map === 'vote' && (lobby.cands || []).length;
+  mv.classList.toggle('hidden', !voting);
+  if (voting) {
+    const votes = lobby.votes || {}, mine = votes[lobby.myId], tally = c => Object.values(votes).filter(v => v === c).length, total = Object.keys(votes).length;
+    mv.innerHTML = `<div class="lo-sub"><span>Map vote</span><span>${total} / ${ps.length} voted</span></div><div class="mv-grid">${lobby.cands.map(c => `<button class="mv ${mine === c ? 'on' : ''}" data-vote="${c}"><b>${esc(c === 'random' ? 'Random map' : MAP_NAMES[c] || c)}</b><span>${tally(c)} vote${tally(c) === 1 ? '' : 's'}</span><i style="width:${total ? tally(c) / total * 100 : 0}%"></i></button>`).join('')}</div>`;
+    mv.querySelectorAll('[data-vote]').forEach(b => b.onclick = () => { sound.play('click'); if (lobby.isHost) { (lobby.votes ||= {})[lobby.myId] = b.dataset.vote; broadcastLobby(); } else { lobby.net.send({ t: 'vote', map: b.dataset.vote }); lobby.votes = { ...(lobby.votes || {}), [lobby.myId]: b.dataset.vote }; renderLobby(); } });
+  }
   const me = myLobbyPlayer();
   if (me) {
     setSeg('lobby-role', me.role);
@@ -1159,10 +1183,10 @@ function sendMyLoadout(role) {
 }
 seg('lobby-role', v => sendMyLoadout(v));
 seg('lobby-diff', v => { if (lobby && lobby.isHost) { lobby.diff = v; broadcastLobby(); } });
-$('lobby-map').addEventListener('change', e => { if (lobby && lobby.isHost) { lobby.map = e.target.value; broadcastLobby(); } });
+$('lobby-map').addEventListener('change', e => { if (lobby && lobby.isHost) { lobby.map = e.target.value; if (lobby.map === 'vote') newVote(); broadcastLobby(); } });
 $('lobby-gm').addEventListener('change', e => {
   if (!lobby || !lobby.isHost) return;
-  lobby.gm = MODES[e.target.value] ? e.target.value : 'classic';
+  lobby.gm = MODES[e.target.value] ? e.target.value : 'classic'; if (lobby.map === 'vote') newVote();
   // players beyond the new mode's slots move to the other side (or are told the lobby is full)
   const cap = lobbyCaps();
   const ks = lobby.players.filter(p => p.role === 'killer');
@@ -1206,13 +1230,16 @@ $('btn-lobby-start').addEventListener('click', () => {
   if (lobby.fill) for (let i = 1; ns < cap.s; i++, ns++) roster.push(botSurvivor(i, used));
   if (ns === 0) { toast('At least one survivor is needed (or enable bots).'); return; }
   lobby.inGame = true;
-  startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online', map: lobby.map || 'random', mode: lobby.gm || 'classic' });
+  let map = lobby.map || 'random';
+  if (map === 'vote') { map = voteWinner(); const nm = map === 'random' ? 'a random map' : MAP_NAMES[map] || map; addChat(null, `The vote picked ${nm}.`); lobby.net.broadcast({ t: 'chat', name: '', text: `The vote picked ${nm}.` }); }
+  startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online', map, mode: lobby.gm || 'classic' });
 });
 function returnToLobby() {
   if (!lobby) { endSession(); show('p-main'); return; }
   lobby.net.broadcast({ t: 'tolobby' });
   endSession(); stopBG(); startBG();
   lobby.inGame = false;
+  if (lobby.isHost && lobby.map === 'vote') newVote();
   showLobby();
   broadcastLobby();
 }

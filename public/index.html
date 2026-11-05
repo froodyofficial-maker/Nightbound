@@ -97,10 +97,11 @@
           <div class="lobby-grid">
             <div>
               <div class="slots" id="lobby-slots"></div>
+              <div class="map-vote hidden" id="map-vote"></div>
               <div class="host-opts" id="lobby-host-opts">
                 <div class="field"><label>Game mode</label><select id="lobby-gm"></select></div>
                 <label class="check"><input type="checkbox" id="lobby-fill" checked> Fill empty slots with bots</label>
-                <div class="field"><label>Map</label><select id="lobby-map"><option value="random">Random</option><option value="granny">Granny's House (new)</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh</option><option value="carnival">Hollowmere Carnival</option><option value="snow">Coldwater Pass</option><option value="quarantine">Quarantine Woods (Infection)</option><option value="outbreak">Outbreak Fairground (Infection)</option></select></div>
+                <div class="field"><label>Map</label><select id="lobby-map"><option value="vote">Players vote</option><option value="random">Random</option><option value="granny">Granny's House (new)</option><option value="woods">Gravemoor Woods</option><option value="meatworks">Hollow Pines Meatworks</option><option value="marsh">Blackwater Marsh</option><option value="carnival">Hollowmere Carnival</option><option value="snow">Coldwater Pass</option><option value="quarantine">Quarantine Woods (Infection)</option><option value="outbreak">Outbreak Fairground (Infection)</option></select></div>
                 <div class="field"><label>Bot difficulty</label><div class="seg" id="lobby-diff"><button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button></div></div>
               </div>
               <div class="chat"><div id="chat-log"></div><input id="chat-in" maxlength="120" placeholder="Say something… (Enter)"></div>
