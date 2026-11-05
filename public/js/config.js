@@ -422,6 +422,8 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
 export const VERSION = '2.42.0';
+// Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
+// automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
   {
     id: 'v2.42.0', version: '2.42.0', date: 'Nov 2026', title: 'Get Updates by Email', tag: 'Update',
