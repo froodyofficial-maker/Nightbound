@@ -767,3 +767,9 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .news-form { margin-top: 8px; }
 .news-row { display: flex; gap: 6px; margin: 6px 0; }
 .news-row input { flex: 1; padding: 8px; background: #120d0c; border: 1px solid rgba(233,224,208,.2); color: #eee; }
+
+/* killer power levels */
+.lv-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lv-info b { font: 22px 'Bebas Neue', Impact, sans-serif; color: #ffd870; margin-right: 4px; } .lv-info span { font-size: 12px; opacity: .7; }
+.lv-bar { width: 140px; height: 6px; background: #2a1a14; } .lv-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a01810, #e8352b); }
+.lv-style { margin-left: auto; }

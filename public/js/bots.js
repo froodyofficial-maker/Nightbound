@@ -622,8 +622,8 @@ export class Bots {
       }
       if (p.char === 'chucky' && !p.harmless && target && los && p.abCd <= 0 && !p.leap && d > 3 && d < 7.5 && !p.atk && this.clearLine(p.x, p.z, tx, tz)) {
         // coil just long enough to reach where they will be
-        const A = KILLERS.chucky.ability, lead = Math.min(d + 2.4, A.max);
-        if (!b.aim) { b.aim = true; b.aimT = 0.1 + Math.max(0, (lead - A.min) / (A.max - A.min)) * A.coil + D.react * 0.2; sim.onMsg(p.id, { t: 'in', e: false, aim: true }); }
+        const A = KILLERS.chucky.ability, AM = p.reach || A.max, lead = Math.min(d + 2.4, AM);
+        if (!b.aim) { b.aim = true; b.aimT = 0.1 + Math.max(0, (lead - A.min) / (AM - A.min)) * A.coil + D.react * 0.2; sim.onMsg(p.id, { t: 'in', e: false, aim: true }); }
       }
       if (p.char === 'chucky' && !p.harmless && !target && p.ab2Cd <= 0 && Math.random() < dt * 0.15) sim.onMsg(p.id, { t: 'act', a: 'ability2' });
       if (p.char === 'granny' && !p.tele) {

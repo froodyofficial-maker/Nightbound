@@ -24,7 +24,7 @@ import { sound, loadClip } from './audio.js';
 import { showTrailer, trailerPlaying } from './trailer.js';
 import { ACTIONS, bound, keyName, RESERVED } from './keybinds.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
-import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER } from './config.js';
+import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER , POWER_LV, powerReach } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
 import { Friends, fmtCode, GIFT_MAX } from './friends.js';
@@ -315,16 +315,24 @@ function renderLoadout(container, role, compact, onChange) {
       return `<button class="inv-d ${lo.perks.includes(k) ? 'eq' : ''} ${o ? '' : 'locked'} ${f ? '' : 'other'} ${k === loSel ? 'sel' : ''}" data-perk="${k}" title="${esc(p.name)}"><span class="diamond ${role === 'killer' ? 'k' : ''} ${p.only ? 'ex' : ''}">${icon(k)}</span>${!o ? `<i class="pr">${(perkPrice(k) / 1000).toFixed(1).replace('.0', '')}k</i>` : ''}</button>`;
     }).join('');
     container.innerHTML = `<div class="lo2">
-      <div class="lo2-chars">${Object.values(defs).filter(c => shownChar(c.id)).map(c => `<button class="lo2-por ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" title="${esc(c.name)}"><img alt="" src="${art('portrait', c.id, skinId(c.id), 120, 120)}"><span>${esc(c.name.replace(/^The /, ''))}</span>${ownsChar(c.id) ? '' : '<i class="lock">DLC</i>'}</button>`).join('')}</div>
+      <div class="lo2-chars">${Object.values(defs).filter(c => shownChar(c.id)).map(c => `<button class="lo2-por ${lo.char === c.id ? 'on' : ''} ${ownsChar(c.id) ? '' : 'locked'}" data-c="${c.id}" title="${esc(c.name)}"><img alt="" src="${art('portrait', c.id, skinId(c.id), 120, 120)}"><span>${esc(c.name.replace(/^The /, ''))}</span>${ownsChar(c.id) ? '' : `<i class="lock">${LIMITED(c.id) ? 'LIMITED' : 'DLC'}</i>`}</button>`).join('')}</div>
       <div class="lo2-head"><b>${esc(charName0(lo.char))}</b>${role === 'killer' && defs[lo.char] ? `<span>${icon(POWER_ICON[lo.char])}${esc(defs[lo.char].ability.name)}</span>` : ''}</div>
       ${role === 'survivor' ? `<div class="lo2-row"><span class="lo2-lbl">Item</span><div class="seg lo-item"><button data-item="flashlight" class="${lo.item !== 'trap' ? 'on' : ''}">Flashlight</button><button data-item="trap" class="${lo.item === 'trap' ? 'on' : ''}">Ghost Trap</button></div></div>` : ''}
       <div class="lo2-row"><span class="lo2-lbl">Sidekick</span><div class="seg lo-pet"><button data-petpick="" class="${!petOf(role) ? 'on' : ''}">None</button>${Object.entries(SIDEKICKS).map(([id, s]) => `<button data-petpick="${id}" class="${petOf(role) === id ? 'on' : ''} ${profile.pets[id] ? '' : 'locked'}">${esc(s.name)}${profile.pets[id] ? '' : ' 🔒'}</button>`).join('')}</div></div>
+      ${role === 'killer' && POWER_LV[lo.char] ? powerRowHTML(lo.char) : ''}
       <div class="lo2-row"><span class="lo2-lbl">Perks</span><div class="lo2-slots">${slots}</div></div>
       <div class="lo2-inv-t"><span>Inventory · Perks</span><span>${Object.keys(perks).filter(ownsPerk).length} / ${Object.keys(perks).length} owned · ${price(profile.stats.embers)}</span></div>
       <div class="lo2-inv">${grid}</div>
       <div class="lo2-detail"><span class="diamond ${role === 'killer' ? 'k' : ''} ${P.only ? 'ex' : ''}">${icon(loSel)}</span><div><b>${esc(P.name)}</b>${P.only ? `<em>${esc(charName0(P.only))} only</em>` : ''}<small>${esc(P.desc)}</small><div class="row">${act}</div></div></div>
       ${LORE[lo.char] ? loreHTML(lo.char) : ''}
     </div>`;
+    container.querySelectorAll('[data-lvup]').forEach(b => b.onclick = () => {
+      const c = b.dataset.lvup, L = POWER_LV[c], cur = myReach(c);
+      if (cur >= L.max) return;
+      if (!spend(L.cost, `${L.power} +${L.step}m`)) return;
+      profile.levels[c] = cur + L.step; saveProfile(); sound.play('escaped'); toast(`${L.power} now reaches ${cur + L.step}m`); rerender();
+    });
+    container.querySelectorAll('[data-gstyle]').forEach(b => b.onclick = () => { profile.grannyStyle = b.dataset.gstyle; saveProfile(); sound.play('click'); rerender(); });
     container.querySelectorAll('.inv-d').forEach(el => {
       el.onclick = () => { loSel = el.dataset.perk; sound.play('hover'); rerender(); };
       el.ondblclick = () => { toggle(el.dataset.perk); rerender(); };
@@ -448,6 +456,21 @@ const RARITY0 = p => p === 0 ? '' : p < 2000 ? 'common' : p < 3500 ? 'rare' : p 
 const RARITY = (p, sk) => sk && sk.god ? 'god' : sk && sk.limited ? 'limited' : RARITY0(p);
 let storeTab = 'chapters', storeRole = 'survivor', storeChar = null, storePreview = null;
 const ownsChapter = id => !!(profile.dlc && profile.dlc[id]);
+// ---------- killer power levels (reach in metres, bought with Embers) ----------
+profile.levels ||= {};
+const myReach = c => powerReach(c, profile.levels[c]);
+// players who played Granny before her rework keep her original Bat Rush and can switch styles
+if (!profile.ogChecked) {
+  profile.ogChecked = true;
+  if ((profile.played && profile.played.granny) || (profile.killer && profile.killer.char === 'granny' && profile.stats.matches > 0)) { profile.grannyOg = true; profile.grannyStyle = 'og'; }
+}
+const grannyOgOn = () => !!profile.grannyOg && profile.grannyStyle === 'og';
+const killerExtras = c => ({ lv: POWER_LV[c] ? myReach(c) : undefined, og: c === 'granny' && grannyOgOn() });
+function powerRowHTML(c) {
+  const L = POWER_LV[c], cur = myReach(c), full = cur >= L.max, og = c === 'granny' && grannyOgOn();
+  const style = c === 'granny' && profile.grannyOg ? `<div class="seg lv-style"><button data-gstyle="new" class="${!og ? 'on' : ''}">Current</button><button data-gstyle="og" class="${og ? 'on' : ''}">Original</button></div>` : '';
+  return `<div class="lo2-row lv-row"><span class="lo2-lbl">${esc(L.power)}</span><div class="lv-box">${og ? `<div class="lv-info"><b>No limit</b></div>` : `<div class="lv-info"><b>${cur}m</b><span>of ${L.max}m</span></div><div class="lv-bar"><i style="width:${(cur - L.base) / (L.max - L.base) * 100}%"></i></div>${full ? '<span class="of-p own">Max level</span>' : `<button class="btn primary" data-lvup="${c}">+${L.step}m · ${price(L.cost)}</button>`}`}${style}</div></div>`;
+}
 const LIMITED = c => SURVIVORS[c] && SURVIVORS[c].limited;
 const ownsChar = c => (!LIMITED(c) || !!profile.owned['char:' + c]) && (!CHAPTER_OF[c] || ownsChapter(CHAPTER_OF[c]));
 // a limited character leaves the Store for good when the sale ends (owners keep them)
@@ -721,7 +744,7 @@ $('btn-bots-start').addEventListener('click', () => {
   const meRole = botsCfg.role;
   if (meRole === 'survivor' && !ownsChar(profile.survivor.char)) { toast(`${charName(profile.survivor.char)} is locked. Unlock them in the Store, or pick another survivor.`, 5000); profile.survivor.char = 'mara'; saveProfile(); return; }
   if (meRole === 'killer' && !ownsChar(profile.killer.char)) { toast(`${charName(profile.killer.char)} is part of a chapter. Get it in the Store, or pick another killer.`, 5000); openStore('chapters'); return; }
-  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', pet: petOf(meRole), bot: false });
+  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', pet: petOf(meRole), bot: false, ...(meRole === 'killer' ? killerExtras(profile.killer.char) : {}) });
   const used = meRole === 'survivor' ? [profile.survivor.char] : [];
   const gm = MODES[botsCfg.gm] ? botsCfg.gm : 'classic', nk = MODES[gm].killers || 1, ns = MODES[gm].survivors;
   if (meRole === 'survivor') {
@@ -1173,7 +1196,7 @@ function renderLobby() {
 }
 const playableSurvivor = () => ownsChar(profile.survivor.char) ? profile.survivor.char : 'mara';
 const playableKiller = () => ownsChar(profile.killer.char) ? profile.killer.char : 'butcher';
-function myLoadouts() { return { survivor: { ...profile.survivor, char: playableSurvivor(), skin: skinId(playableSurvivor()), pet: petOf('survivor') }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer') } }; }
+function myLoadouts() { return { survivor: { ...profile.survivor, char: playableSurvivor(), skin: skinId(playableSurvivor()), pet: petOf('survivor') }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer'), ...killerExtras(playableKiller()) } }; }
 function sendMyLoadout(role) {
   const me = myLobbyPlayer();
   if (!me) return;
@@ -1221,7 +1244,7 @@ $('btn-leave-lobby').addEventListener('click', () => leaveOnline());
 $('btn-lobby-start').addEventListener('click', () => {
   if (!lobby || !lobby.isHost) return;
   const ps = lobby.players;
-  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, item: p.item, pet: p.pet || '', bot: false }));
+  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, item: p.item, pet: p.pet || '', bot: false, ...(p.role === 'killer' ? { lv: +(p.loadouts?.killer?.lv) || undefined, og: !!p.loadouts?.killer?.og } : {}) }));
   const used = roster.filter(r => r.role === 'survivor').map(r => r.char);
   const cap = lobbyCaps();
   if (!roster.some(r => r.role === 'killer')) {

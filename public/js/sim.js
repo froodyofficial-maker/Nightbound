@@ -1,5 +1,5 @@
 // Authoritative game simulation. Runs only on the host (or in single-player).
-import { RULES, KILLERS, SURVIVORS, POSSESS_MAX, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
+import { RULES, KILLERS, SURVIVORS, POSSESS_MAX, POWER_LV, powerReach, SPEED, DIFFICULTY, HALF, MODES, INFECT_POOL, SURV_PERKS, PERK_SLOTS, ITEMS } from './config.js';
 import { barBox, losBlocked, moveCircle, findPath, cellOf, cellPos, levelOf, levelsMeet, losL, heightAt, levelStep } from './map.js';
 import {
   has, fwd, dist, killerOf, killersOf, nearestKiller, anyKillerHas, playerById, findInteraction, actionTime, terrorRadius, inExit, findSpace, vaultDuration, findExecute, angDiff,
@@ -70,7 +70,7 @@ export class Sim {
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : r.char === 'bateman' ? 1 : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
-        item: mode === 'bloodmoon' && r.role === 'survivor' ? 'taser' : r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' && mode !== 'bloodmoon' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' && mode !== 'bloodmoon' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: mode === 'bloodmoon' && r.role === 'survivor' ? 2 : 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
+        item: mode === 'bloodmoon' && r.role === 'survivor' ? 'taser' : r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' && mode !== 'bloodmoon' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' && mode !== 'bloodmoon' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: mode === 'bloodmoon' && r.role === 'survivor' ? 2 : 0, zap: 0, spied: 0, fl: 0, sp: 0, reach: r.role === 'killer' && POWER_LV[r.char] ? (r.char === 'granny' && r.og ? 999 : powerReach(r.char, r.lv)) : 0, og: r.char === 'granny' && !!r.og, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
         possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false,
         pet: typeof r.pet === 'string' && ['ted', 'rosy'].includes(r.pet) ? r.pet : '',
@@ -314,7 +314,7 @@ export class Sim {
         // Chucky: leap as far as he coiled for, knife first
         if (p.role !== 'killer' || p.char !== 'chucky' || !p.aim || p.leap || p.stun > 0 || p.carry != null || p.act) return;
         const D = KILLERS.chucky.ability, yaw = num(m.yaw, p.yaw), f = fwd(yaw);
-        const dist = D.min + (D.max - D.min) * Math.min(1, Math.max(0, p.abT - 0.1) / D.coil);
+        const mx = p.reach || D.max, dist = D.min + (mx - D.min) * Math.min(1, Math.max(0, p.abT - 0.1) / D.coil);
         p.yaw = yaw; p.aim = false; p.abT = 0;
         p.leap = { t: 0, d: +(0.35 + dist * 0.035).toFixed(3), x0: p.x, z0: p.z, x1: p.x + f.x * dist, z1: p.z + f.z * dist, h: +(0.7 + dist * 0.06).toFixed(2) };
         this.ev({ k: 'pounce', id: p.id, x: p.x, z: p.z });
@@ -344,7 +344,7 @@ export class Sim {
         p.aim = false;
         if (p.abT < D.minCharge) return;
         const kk = Math.max(0, (p.abT - D.minCharge) / (D.maxCharge - D.minCharge));
-        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = D.minDist + kk * (D.maxDist - D.minDist);
+        const yaw = num(m.yaw, p.yaw), f = fwd(yaw), len = Math.min(p.reach || 25, D.minDist + kk * (D.maxDist - D.minDist)); // capped by her power level
         p.yaw = yaw; p.dash = { t: 0, d: len / D.speed, dx: f.x, dz: f.z, full: p.abT >= D.maxCharge - 0.02 };
         p.abCd = D.cooldown; p.abT = 0;
         this.ev({ k: 'rush', id: p.id, x: p.x, z: p.z, charge: +k.toFixed(2) });
@@ -471,7 +471,7 @@ export class Sim {
     if (p.char === 'granny') {
       // (Bat Rush is held and released: see 'in' aim and the 'rush' action)
     } else if (p.char === 'butcher') {
-      if (p.ab === 0 && p.abCd <= 0 && p.charges > 0 && !p.atk) { p.charges--; p.ab = 1; p.abT = 2.6; this.ev({ k: 'rampage', id: p.id }); }
+      if (p.ab === 0 && p.abCd <= 0 && p.charges > 0 && !p.atk) { p.charges--; p.ab = 1; p.abT = (p.reach || 22) / 8.6; this.ev({ k: 'rampage', id: p.id }); }
     } else if (p.char === 'wisp') {
       if (p.ab === 0 && p.abCd <= 0 && !p.atk) { p.ab = 2; p.abT = 0.7; this.ev({ k: 'fade', id: p.id, on: true }); }
       else if (p.ab === 1) { p.ab = 3; p.abT = 1.0; this.ev({ k: 'fade', id: p.id, on: false }); }
@@ -1185,7 +1185,7 @@ export class Sim {
 
   // ---- the Foreman's chain hook: fly, then either reel a survivor in or yank him to a wall ----
   updateChains(K, dt) {
-    const S = this.S, M = this.M, range = KILLERS.foreman.ability.range;
+    const S = this.S, M = this.M, range = K.reach || KILLERS.foreman.ability.range;
     // killer yanked to a wall
     if (K.pull) {
       K.pull.t += dt;
@@ -1380,7 +1380,7 @@ export class Sim {
     if (K.stun > 0 || K.carry != null) { K.dash = null; return; }
     R.t += dt;
     // steering: turn toward where she is looking, at a limited rate
-    const want = Math.atan2(R.dx, R.dz) + Math.max(-D.turn * dt, Math.min(D.turn * dt, angDiff(Math.atan2(R.dx, R.dz), K.yaw)));
+    const tr = K.og ? 2.4 : D.turn, want = Math.atan2(R.dx, R.dz) + Math.max(-tr * dt, Math.min(tr * dt, angDiff(Math.atan2(R.dx, R.dz), K.yaw)));
     R.dx = Math.sin(want); R.dz = Math.cos(want);
     const step = D.speed * dt;
     if (!K.fl) {

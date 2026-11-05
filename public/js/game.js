@@ -2109,7 +2109,7 @@ export class Game {
     } else if (me.char === 'chucky') {
       const coil = me.aim ? Math.min(1, Math.max(0, (me.abT || 0) - 0.1) / def.coil) : 0;
       ready = me.abCd <= 0 && !me.leap; pct = me.aim ? 1 - coil : me.abCd / def.cooldown;
-      sub = me.leap ? 'Pouncing!' : me.aim ? `Coiling… ${Math.round(def.min + (def.max - def.min) * coil)}m` : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready';
+      sub = me.leap ? 'Pouncing!' : me.aim ? `Coiling… ${Math.round(def.min + ((me.reach || def.max) - def.min) * coil)}m` : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready';
       const mm = t => Math.floor(t / 60) + ':' + String(Math.ceil(t % 60)).padStart(2, '0');
       extra = (me.ab2Cd > 0 ? `${kbd('ability2')} Laugh ${Math.ceil(me.ab2Cd)}s` : "" + kbd('ability2') + " Laugh ready") + ' · ' + (me.harmless ? 'Possessing…' : me.possCd > 0 ? `${kbd('item')} Possess ${mm(me.possCd)}` : '' + kbd('item') + ' Possess ready');
       const S = this.S, oneLeft = S && !S.gatesPowered && S.gensNeeded - S.gensDone === 1 && (S.dolls || []).length;
@@ -2132,7 +2132,7 @@ export class Game {
       const charge = Math.max(0, Math.min(1, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)));
       ready = me.abCd <= 0 && !me.dash; pct = me.aim ? 1 - charge : me.abCd / def.cooldown;
       const heard = this.S ? this.S.players.filter(o => o.role === 'survivor' && o.heard > 0).length : 0;
-      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(def.minDist + Math.max(0, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)) * (def.maxDist - def.minDist))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
+      sub = me.dash ? 'Rushing!' : me.aim ? (me.abT < def.minCharge ? 'Winding up…' : `Release! ${Math.round(Math.min(me.reach || 25, def.minDist + Math.max(0, (me.abT - def.minCharge) / (def.maxCharge - def.minCharge)) * (def.maxDist - def.minDist)))}m`) : me.abCd > 0 ? Math.ceil(me.abCd) + 's' : 'Ready · hold RMB';
       if (heard) sub += ` · ${heard} Heard`;
       const SW = K.swap;
       const swapTxt = !this.S.spider ? '' : this.swapHeld ? ' · Spider Mom\'s eyes: release V to swap' : me.swapCd > 0 ? ` · <kbd>V</kbd> ${SW.name} ${Math.ceil(me.swapCd)}s` : ` · <kbd>V</kbd> ${SW.name} ready`;

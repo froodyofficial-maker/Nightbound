@@ -65,6 +65,15 @@ export const MODES = {
 export const INFECT_POOL = ['butcher', 'wisp', 'harrower', 'lamplighter', 'slimer', 'bateman', 'chucky'];
 
 export const POSSESS_MAX = 66; // Chucky can stay in a survivor's body for 1.1 minutes
+// Power levels: a killer's dash / pounce / hook reach starts low and is bought up with Embers.
+// base and max in metres, step metres per level, cost Embers per level
+export const POWER_LV = {
+  granny: { power: 'Bat Rush', base: 25, max: 50, step: 1, cost: 10000 },
+  butcher: { power: 'Rampage', base: 20, max: 40, step: 2, cost: 2500 },
+  chucky: { power: 'Pounce', base: 7, max: 14, step: 1, cost: 3000 },
+  foreman: { power: 'Chain Hook', base: 14, max: 24, step: 1, cost: 2500 },
+};
+export const powerReach = (char, lv) => { const L = POWER_LV[char]; if (!L) return 0; const v = typeof lv === 'number' && isFinite(lv) ? lv : L.base; return Math.max(L.base, Math.min(L.max, Math.round(v / L.step) * L.step)); };
 export const KILLERS = {
   butcher: {
     id: 'butcher', name: 'The Butcher', speed: 4.6, terror: 32, weapon: 'Cleaver',
@@ -130,7 +139,7 @@ export const KILLERS = {
     lore: 'She has kept you in her house for five days. She hears every creak of the floorboards, and she does not like guests leaving early.',
     exec: { name: 'Bedtime Trap', desc: 'Forces the survivor to their knees, sets a bear trap in front of them, and shoves their face into it.' },
     shotgun: { name: 'Shotgun', cooldown: 2.2, raise: 0.3, range: 45, minDmg: 6, maxDmg: 36, near: 2.5, far: 22.5 },
-    ability: { name: 'Bat Rush', cooldown: 8, minCharge: 0.25, maxCharge: 1.0, minDist: 3, maxDist: 8, speed: 13, turn: 2.4, palletBonus: 2, slamRadius: 2.6, slamGen: 0.1, wallStun: 0.9, desc: 'Hold to wind up the bat (slowed), release to charge: the longer you hold, the further she goes, with no limit (3m, 8m at one second, and on). Steer the charge with the mouse. She crashes straight through windows and smashes dropped pallets (each one carries her 2m further), and strikes the first survivor in her way; a Heard survivor goes straight down. Fully wound up, the charge ends in a Ground Slam: everyone around her is struck and a nearby generator is damaged. Charging into a wall stuns her.' },
+    ability: { name: 'Bat Rush', cooldown: 8, minCharge: 0.25, maxCharge: 1.0, minDist: 3, maxDist: 8, speed: 13, turn: 1.9, palletBonus: 2, slamRadius: 2.6, slamGen: 0.1, wallStun: 0.9, desc: 'Hold to wind up the bat (slowed), release to charge: the longer you hold, the further she goes (3m, 8m at one second, and on), up to her power level (25m to start, 50m fully levelled). Steer the charge with the mouse. She crashes straight through windows and smashes dropped pallets (each one carries her 2m further), and strikes the first survivor in her way; a Heard survivor goes straight down. Fully wound up, the charge ends in a Ground Slam: everyone around her is struck and a nearby generator is damaged. Charging into a wall stuns her.' },
     ability2: { name: 'I Hear You', key: 'R', cooldown: 25, reveal: 6, heard: 15, desc: 'Stop and listen. Every survivor who is running, repairing, healing or unhooking anywhere on the map is revealed for 6s and Heard for 15s: her next hit on a Heard survivor puts them straight down.' },
     teleport: { name: 'Creep', key: 'G', cooldown: 25, time: 1.2, haste: 3, desc: 'Hold G: every window, pallet, generator and hook on the map is marked. Release to vanish and reappear at the one in your sights, with a short burst of speed.' },
     swap: { name: 'Body Swap', key: 'V', cooldown: 6, desc: 'Switch bodies with Spider Mom, any time: Granny appears where Spider Mom was, and Spider Mom where Granny stood. Hold V to look through Spider Mom\'s eyes first, release to swap.' },
@@ -421,10 +430,18 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.42.0';
+export const VERSION = '2.43.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.43.0', version: '2.43.0', date: 'Nov 2026', title: 'Killer Power Levels & a Granny Rebalance', tag: 'Update', email: true,
+    body: [
+      'Killer power levels: dash, pounce and hook powers now start shorter and get longer as you level them up with Embers (Loadout > Killer, under the character name).',
+      'Granny\'s Bat Rush starts at 25m and levels up 1m at a time to 50m (10,000 Embers per metre). She also turns a little slower while rushing.',
+      'The Butcher\'s Rampage: 20m to start, up to 40m (2m per level, 2,500 Embers). Chucky\'s Pounce: 7m to 14m (3,000 Embers per metre). The Foreman\'s Chain Hook: 14m to 24m (2,500 Embers per metre).',
+    ],
+  },
   {
     id: 'v2.42.0', version: '2.42.0', date: 'Nov 2026', title: 'Get Updates by Email', tag: 'Update',
     body: [
