@@ -56,7 +56,7 @@ export function speedOf(p, S, sprint, crouch) {
     if (p.slimed > 0) s *= 0.7;
     if (p.card > 0) s *= 0.8; // intimidated by a business card
     if (p.webbed > 0) s *= 0.65; // caught in Spider Mom's web
-    return s;
+    return S && modeOf(S) === 'adrenaline' ? s * 1.3 : s;
   }
   const K = KILLERS[p.char];
   // Chucky in a survivor's body: a survivor's legs, but he never tires of running
@@ -75,7 +75,7 @@ export function speedOf(p, S, sprint, crouch) {
   if (p.char === 'granny' && p.aim) s *= 0.55;  // winding up the bat
   if ((p.char === 'harrower' || p.char === 'foreman' || p.char === 'bateman') && p.aim) s *= p.char === 'foreman' ? 0.75 : p.char === 'bateman' ? 0.6 : SPEED.aimSlow;
   if (p.diffMul) s *= p.diffMul;
-  return s;
+  return S && modeOf(S) === 'adrenaline' ? s * 1.3 : s;
 }
 
 // What can this player interact with (hold E)?
@@ -176,7 +176,7 @@ export function actionTime(k, p, S) {
     case 'kick': return RULES.kickTime * (has(p, 'brute') ? 0.65 : 1);
     case 'break': return RULES.breakTime * (has(p, 'brute') ? 0.65 : 1);
     case 'rescue': return RULES.rescueTime * (has(p, 'lockpick') ? 0.5 : 1) * (S && anyKillerHas(S, 'rust') ? 2 : 1);
-    case 'gate': return RULES.gateTime * (has(p, 'lockpick') ? 0.7 : 1) * (has(p, 'pathfinder') ? 0.6 : 1) * (modeOf(S) === 'rush' ? 0.5 : 1);
+    case 'gate': return RULES.gateTime * (has(p, 'lockpick') ? 0.7 : 1) * (has(p, 'pathfinder') ? 0.6 : 1) * (modeOf(S) === 'rush' ? 0.5 : modeOf(S) === 'adrenaline' ? 0.75 : 1);
     default: return 0;
   }
 }

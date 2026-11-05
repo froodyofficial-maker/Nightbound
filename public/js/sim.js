@@ -70,7 +70,7 @@ export class Sim {
         charges: r.char === 'butcher' ? KILLERS.butcher.ability.charges : 0, chargeT: 0,
         ammo: r.char === 'harrower' ? KILLERS.harrower.ability.ammo : r.char === 'bateman' ? 1 : 0, ammoT: 0,
         ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0,
-        item: r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
+        item: mode === 'bloodmoon' && r.role === 'survivor' ? 'taser' : r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' && mode !== 'bloodmoon' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' && mode !== 'bloodmoon' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: mode === 'bloodmoon' && r.role === 'survivor' ? 2 : 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
         possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false,
         pet: typeof r.pet === 'string' && ['ted', 'rosy'].includes(r.pet) ? r.pet : '',
@@ -586,7 +586,7 @@ export class Sim {
       if (p.webbed > 0) p.webbed = Math.max(0, p.webbed - dt);
       if (p.webK > 0) p.webK = Math.max(0, p.webK - dt);
       if (p.swapCd > 0) p.swapCd = Math.max(0, p.swapCd - dt);
-      if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt);
+      if (p.abCd > 0) p.abCd = Math.max(0, p.abCd - dt * (this.mode === 'adrenaline' ? 1.4 : 1));
       if (p.ab2Cd > 0) p.ab2Cd = Math.max(0, p.ab2Cd - dt);
       if (p.teleCd > 0) p.teleCd = Math.max(0, p.teleCd - dt);
       if (p.phase > 0) { p.phase = Math.max(0, p.phase - dt); if (p.phase === 0) this.endPhase(p); }
@@ -671,7 +671,7 @@ export class Sim {
         g.reg = false;
         let rate = 0;
         for (const p of S.players) if (p.act && p.act.k === 'repair' && p.act.id === i) {
-          let r = 1 / RULES.genCharges * (M.indoor ? 1.12 : 1) * (this.mode === 'rush' ? 2 : 1) * (p.st === 'ghost' ? 0.9 : 1); // tighter indoor maps favour the killer
+          let r = 1 / RULES.genCharges * (M.indoor ? 1.12 : 1) * (this.mode === 'rush' ? 2 : 1) * (this.mode === 'glass' ? 1.4 : this.mode === 'adrenaline' ? 1.25 : 1) * (p.st === 'ghost' ? 0.9 : 1); // tighter indoor maps favour the killer
           if (has(p, 'shared')) r *= 1 + 0.15 * (g.n - 1);
           if (Ks.some(K => has(K, 'dread') && dist(K, p) < terrorRadius(K))) r *= 0.9;
           rate += r;
@@ -709,6 +709,11 @@ export class Sim {
   // ---- mode rules that tick: the Survivor Rush clock ----
   updateMode(dt) {
     const S = this.S;
+    // Blood Moon: every 45s the killer sees every survivor for a moment
+    if (this.mode === 'bloodmoon') {
+      this.pulseT = (this.pulseT || 0) + dt;
+      if (this.pulseT >= 45) { this.pulseT = 0; for (const p of S.players) if (p.role === 'survivor' && p.st === 'ok') p.reveal = Math.max(p.reveal, 4); this.ev({ k: 'pulse', moon: true }); }
+    }
     // Infection: every 60s the infected sense every survivor for a moment (no endless hide-and-seek)
     if (this.mode === 'infection') {
       this.pulseT = (this.pulseT || 0) + dt;
@@ -915,7 +920,8 @@ export class Sim {
     if (K && K.char === 'foreman' && K.ab === 1 && !this.chainDmg) instantDown = true;
     // (slimed survivors are slowed and revealed, not one-shot: that made him unbeatable) // one strike from the hook, in the dark
     s.act = null; s.prog = 0;
-    if (K && K.char === 'granny' && s.heard > 0) { instantDown = true; s.heard = 0; } // I Hear You: she knew exactly where you were
+    if (K && K.char === 'granny' && s.heard > 0) { instantDown = true; s.heard = 0; }
+    if (this.mode === 'glass') instantDown = true; // Glass Bones: every hit downs // I Hear You: she knew exactly where you were
     const wasHp = s.hp;
     s.hp = instantDown ? 0 : s.hp - 1;
     K.score.a += 300;

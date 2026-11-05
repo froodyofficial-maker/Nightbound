@@ -56,6 +56,9 @@ export const MODES = {
   duo: { name: 'Two Killers', short: '2 vs 8', killers: 2, survivors: 8, desc: 'Two killers hunt eight survivors. Six generators power the gates.' },
   dark: { name: 'Lights Out', short: 'Horror', desc: 'The lights never come on. Thick fog, no auras for survivors, half-charged flashlights.' },
   rush: { name: 'Survivor Rush', short: '5 min', time: 300, desc: 'Five-minute matches. Generators and gates go twice as fast, and the killer gets a burst of speed after every hit. When the clock runs out, the gates power up and the night collapses fast.' },
+  glass: { name: 'Glass Bones', short: 'One hit', desc: 'Every hit puts a survivor straight down. To make up for it, generators repair 40% faster. One mistake and you are on the floor.' },
+  adrenaline: { name: 'Adrenaline', short: 'Fast', desc: 'Everyone moves 30% faster, generators and exit gates go 25% faster, and killer powers recharge 40% faster. Chases are frantic.' },
+  bloodmoon: { name: 'Blood Moon', short: 'Tasers', desc: 'A red moon over the map. Every 45 seconds the killer sees every survivor for 4 seconds, but every survivor starts with a 2-shot Taser instead of their item.' },
   infection: { name: 'Infection', short: '2 vs 10', killers: 2, survivors: 10, bigMap: true, desc: 'No hooks. Two killers, ten survivors, on big maps built for it. Downed survivors rise as killers a few seconds later, and every 60s the infected sense every survivor. Escape through the gates, or be the last survivor standing and survive a 45-second last stand.' },
 };
 // killers an infected survivor can turn into
@@ -414,8 +417,17 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.36.0';
+export const VERSION = '2.37.0';
 export const INBOX = [
+  {
+    id: 'v2.37.0', version: '2.37.0', date: 'Nov 2026', title: 'Three New Game Modes', tag: 'Update',
+    body: [
+      'Glass Bones: every hit puts a survivor straight down, but generators repair 40% faster. No second chances.',
+      'Adrenaline: everyone moves 30% faster, generators and gates go 25% faster, and killer powers recharge 40% faster.',
+      'Blood Moon: a red moon rises. Every 45 seconds the killer sees every survivor for 4 seconds, but every survivor carries a 2-shot Taser.',
+      'Pick them under Game mode when you play against bots, or in an online lobby.',
+    ],
+  },
   {
     id: 'v2.36.0', version: '2.36.0', date: 'Nov 2026', title: 'Weekly Awards: Best Survivor & Best Killer', tag: 'Update',
     body: [

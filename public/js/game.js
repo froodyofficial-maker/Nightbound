@@ -379,6 +379,15 @@ export class Game {
     const q = QUALITY[this.settings.quality] || QUALITY.medium;
     initPhoto(this.renderer, this.settings.quality);
     this.W = buildWorld(this.M, this.settings.quality);
+    // Blood Moon mode: a red moon, red-tinged fog and moonlight
+    { const S0 = this.session.state && this.session.state(); if (S0 && S0.mode === 'bloodmoon' && !this.M.indoor) {
+      const W = this.W, red = new THREE.Color(0xff3a26);
+      if (W.moon) W.moon.color.set(0xff8a70);
+      if (W.scene.fog) W.scene.fog.color.lerp(new THREE.Color(0x3a0806), 0.6);
+      if (W.scene.background && W.scene.background.isColor) W.scene.background.lerp(new THREE.Color(0x3a0806), 0.6);
+      if (W.sky && W.sky.material.uniforms) { W.sky.material.uniforms.mid.value.lerp(new THREE.Color(0x3a0a08), 0.7); W.sky.material.uniforms.bot.value.lerp(new THREE.Color(0x3a0806), 0.6); }
+      if (W.sky) W.sky.traverse(o => { if (o !== W.sky && o.material && o.material.color && (o.isSprite || o.geometry && o.geometry.type === 'CircleGeometry')) o.material.color.copy(red); });
+    } }
     this.scene = this.W.scene;
     this.camera = new THREE.PerspectiveCamera(this.settings.fov || 75, innerWidth / innerHeight, 0.05, q.far);
     this.q = q; this.pr = q.pixel; this.ftAvg = 1 / 60; this.drT = 0; this.fpsT = 0; this.fpsN = 0;
@@ -1960,7 +1969,8 @@ export class Game {
           break;
         }
         case 'chainland': sound.play('thud', e.x, e.z); this.smoke.spawn(e.x, 0.3, e.z, 10, 0x2a2622, 1.4, 1.2, 0.3, 0.6); if (e.id === this.myId) this.shake = 0.8; break;
-        case 'pulse': if (me && me.role === 'survivor' && me.st === 'ok') { this.feed('The infected can sense you…', 'big'); this.flash = 0.2; } else if (me && me.role === 'killer') this.feed('You sense the living.'); break;
+        case 'pulse': if (e.moon) { if (me && me.role === 'survivor' && me.st === 'ok') { this.feed('The Blood Moon shows you to the killer!', 'big'); this.flash = 0.2; } else if (me && me.role === 'killer') this.feed('The Blood Moon reveals every survivor.', 'big'); break; }
+          if (me && me.role === 'survivor' && me.st === 'ok') { this.feed('The infected can sense you…', 'big'); this.flash = 0.2; } else if (me && me.role === 'killer') this.feed('You sense the living.'); break;
         case 'exposed': if (me && me.role === 'survivor') this.feed(`${name(e.by)}'s Exposure: the killer is revealed!`, e.by === this.myId ? 'big' : ''); if (e.id === this.myId) this.feed('Exposed! The survivors can see you.', 'big'); break;
         case 'overclock': this.sparks.spawn(e.x, 1.5, e.z, 30, 0x8affff, 2, 0.8, -6); if (me && me.role === 'survivor') this.feed('Overclock: another generator jumped ahead.'); break;
         case 'laststand': if (e.id === this.myId) { this.feed('You are the last survivor! Survive 45 seconds.', 'big'); this.flash = 0.4; } sound.play('powered'); break;
