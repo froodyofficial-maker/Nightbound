@@ -27,6 +27,7 @@ import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAU
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
 import { Friends, fmtCode, GIFT_MAX } from './friends.js';
+import { Awards, AWARD, revealOf } from './awards.js';
 
 window.__nbBooted = true;
 for (const id of ['boot-loading', 'boot-error']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
@@ -919,6 +920,7 @@ function onMatchEnd(S, me, sess) {
   if (me) {
     profile.stats.matches++;
     (profile.played ||= {})[me.char] = (profile.played[me.char] || 0) + 1;
+    awards.record(me, S);
     const tot = me.score.a + me.score.b + me.score.c + me.score.d;
     profile.stats.embers += tot;
     if (me.role === 'survivor' && me.outcome === 'escaped') profile.stats.escapes++;
@@ -1233,6 +1235,7 @@ function renderPass() {
   $('pass-body').innerHTML = `
     <div class="pr-top"><div class="lv-ring"><b>${lv.lvl}</b><small>Level</small></div><div class="lv-info"><b>${esc(settings.name)}</b><div class="bar"><div style="width:${(lv.into / lv.need * 100).toFixed(1)}%"></div></div><span>${lv.into.toLocaleString()} / ${lv.need.toLocaleString()} XP to level ${lv.lvl + 1}</span>${Object.keys(P.badges || {}).length ? `<div class="badges">${Object.keys(P.badges).map(b => `<i>${b === 's1-final' ? 'Dawn Survivor' : 'Long Night'}</i>`).join('')}</div>` : ''}</div></div>
     <div class="rk-row">${rankCard('survivor')}${rankCard('killer')}</div>
+    ${awardsHTML()}
     <p class="hint">Ranks go up with good matches (escaping, a high score, or killing most of the survivors) and down with bad ones. Grades run Ash, Bronze, Silver, Gold and Iridescent, IV to I.</p>
     <div class="sp-head"><div><b>${esc(SEASON.name)}</b><span>${left} day${left === 1 ? '' : 's'} left · tier ${tier} / ${SEASON.tiers.length}</span></div><div class="bar"><div style="width:${(tier >= SEASON.tiers.length ? 100 : (P.season.xp % SEASON.tierXp) / SEASON.tierXp * 100).toFixed(1)}%"></div></div><span class="hint">Free pass. Every match earns season XP; ${SEASON.tierXp.toLocaleString()} XP per tier.</span></div>
     <div class="sp-grid">${tiers}</div>`;
@@ -1325,6 +1328,37 @@ friends.on('invite', (id, name, code) => {
   clearTimeout(c.hideT); c.hideT = setTimeout(() => c.classList.add('hidden'), 30000);
 });
 $('friends-btn').onclick = () => { sound.init(); sound.play('click'); openPanel('p-friends', 'Friends'); };
+// ---------- weekly awards: Best Survivor and Best Killer of the whole player base ----------
+const awards = new Awards(profile, saveProfile, friends);
+function awardsHTML() {
+  const W = awards.ensureWeek(), next = revealOf(W.w), ms = next - Date.now(), h = Math.max(0, Math.floor(ms / 36e5));
+  const when = h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${h}h ${Math.max(0, Math.floor(ms / 6e4) % 60)}m`;
+  const T = awards.top(3), row = (r, i, k) => `<li class="${r.fid === friends.id ? 'me' : ''}"><i>${i + 1}</i><b>${esc(r.n)}</b><span>${k === 's' ? `${r.se} escape${r.se === 1 ? '' : 's'}` : `${r.kk} kill${r.kk === 1 ? '' : 's'}`}</span></li>`;
+  const lastW = Object.keys(profile.awards || {}).map(Number).sort((a, b) => b - a)[0], last = lastW != null ? profile.awards[lastW] : null;
+  return `<div class="aw-box"><div class="aw-head"><b>Weekly Awards</b><span>Revealed in ${when} · ${AWARD.prize.toLocaleString()} Embers to each winner</span></div>
+    <div class="aw-cols">
+      <div><small>Best Survivor (most escapes)</small><ol>${T.s.map((r, i) => row(r, i, 's')).join('') || '<li class="none">Nobody yet</li>'}</ol></div>
+      <div><small>Best Killer (most kills)</small><ol>${T.k.map((r, i) => row(r, i, 'k')).join('') || '<li class="none">Nobody yet</li>'}</ol></div>
+    </div>
+    <p class="hint">Your week: ${W.se} escape${W.se === 1 ? '' : 's'} in ${W.ms} survivor match${W.ms === 1 ? '' : 'es'} · ${W.kk} kill${W.kk === 1 ? '' : 's'} in ${W.mk} killer match${W.mk === 1 ? '' : 'es'}. Ties go to the higher score. ${friends.mq ? '' : 'Connecting to the online relay…'}</p>
+    ${last ? `<p class="hint">Last winners: ${last.s ? `Best Survivor <b>${esc(last.s.n)}</b>` : 'no Best Survivor'} · ${last.k ? `Best Killer <b>${esc(last.k.n)}</b>` : 'no Best Killer'}</p>` : ''}</div>`;
+}
+let awT = 0;
+awards.on('live', () => { if ($('p-pass').classList.contains('hidden') || Date.now() - awT < 1500) return; awT = Date.now(); renderPass(); });
+awards.on('reveal', (w, r) => showAwards(w, r));
+function showAwards(w, r) {
+  closePanel(); sound.play('escaped');
+  const card = (t, x, stat) => `<div class="aw-card"><small>${t}</small>${x ? `<b>${esc(x.n)}</b><span>${stat}</span>` : '<b>No winner</b><span>nobody qualified this week</span>'}</div>`;
+  const A = $('announce');
+  A.innerHTML = `<div class="an-bg"></div><div class="an-inner aw-an"><div class="an-kicker">Weekly Awards · week ending ${new Date(revealOf(w)).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</div>
+    <div class="an-x" style="font-size:clamp(40px,7vw,80px)">The best <span>of the fog</span></div>
+    <div class="aw-cards">${card('Best Survivor', r.s, r.s ? `${r.s.se} escapes${r.s.sp ? ` · ${r.s.sp.toLocaleString()} pts` : ""}` : '')}${card('Best Killer', r.k, r.k ? `${r.k.kk} kills${r.k.kp ? ` · ${r.k.kp.toLocaleString()} pts` : ""}` : '')}</div>
+    ${r.prize ? `<div class="aw-you">That's you! +${r.prize.toLocaleString()} Embers</div>` : `<p class="hint">Each winner gets ${AWARD.prize.toLocaleString()} Embers. A new week starts now: escape and kill to top the board.</p>`}
+    <div class="an-actions"><button class="btn primary big" id="aw-ok">Nice</button></div></div>`;
+  A.classList.remove('hidden');
+  $('aw-ok').onclick = () => { sound.play('click'); hideAnnounce(); };
+  renderShowcase();
+}
 friends.connect();
 
 // ---------- main loop ----------
@@ -1406,4 +1440,4 @@ startBG();
 requestAnimationFrame(loop);
 const qj = new URLSearchParams(location.search).get('join');
 if (qj) { openPanel('p-online', 'Online Match'); $('join-code').value = qj.toUpperCase(); setTimeout(() => doJoin(qj), 300); }
-window.__nb = { get session() { return session; }, get lobby() { return lobby; }, settings, profile, friends };
+window.__nb = { get session() { return session; }, get lobby() { return lobby; }, settings, profile, friends, get awards() { return awards; } };

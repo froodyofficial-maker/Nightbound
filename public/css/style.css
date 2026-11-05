@@ -732,3 +732,24 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .gift-row input { width: 130px; padding: 7px 8px; background: #120d0c; border: 1px solid rgba(233,224,208,.2); color: #eee; }
 .fr-row .btn svg { width: 14px; height: 14px; vertical-align: -2px; }
 .lim-left { display: block; width: 100%; margin-top: 6px; color: #ff6a50; font-size: 13px; letter-spacing: .04em; }
+
+/* weekly awards */
+.aw-box { margin: 18px 0; padding: 14px 16px; border: 1px solid rgba(224,184,74,.35); background: linear-gradient(180deg, rgba(60,40,10,.35), rgba(10,8,6,.6)); }
+.aw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.aw-head b { font: 22px 'Bebas Neue', Impact, sans-serif; letter-spacing: .06em; color: #ffd870; }
+.aw-head span { font-size: 13px; opacity: .8; }
+.aw-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+.aw-cols small { opacity: .7; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.aw-cols ol { list-style: none; margin: 6px 0 0; padding: 0; }
+.aw-cols li { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.aw-cols li i { font-style: normal; width: 18px; color: #e0b84a; font-weight: 700; }
+.aw-cols li b { flex: 1; } .aw-cols li span { opacity: .8; font-size: 13px; }
+.aw-cols li.me b { color: #ffd870; } .aw-cols li.none { opacity: .5; }
+.aw-an { text-align: center; max-width: 640px; }
+.aw-cards { display: flex; gap: 14px; justify-content: center; margin: 18px 0; flex-wrap: wrap; }
+.aw-card { flex: 1; min-width: 220px; padding: 18px; border: 1px solid rgba(224,184,74,.5); background: rgba(40,28,8,.6); }
+.aw-card small { display: block; letter-spacing: .1em; text-transform: uppercase; color: #e0b84a; font-size: 12px; }
+.aw-card b { display: block; font: 34px 'Bebas Neue', Impact, sans-serif; margin: 6px 0 2px; }
+.aw-card span { opacity: .8; font-size: 13px; }
+.aw-you { font: 26px 'Bebas Neue', Impact, sans-serif; color: #ffd870; margin-bottom: 10px; }
+@media (max-width: 700px) { .aw-cols { grid-template-columns: 1fr; } }

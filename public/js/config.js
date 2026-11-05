@@ -414,8 +414,16 @@ export const CHAPTER_OF = Object.fromEntries(CHAPTERS.filter(c => !c.base).map(c
 export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) || {};
 
 // ---------------- Inbox: version notes & gifts ----------------
-export const VERSION = '2.35.0';
+export const VERSION = '2.36.0';
 export const INBOX = [
+  {
+    id: 'v2.36.0', version: '2.36.0', date: 'Nov 2026', title: 'Weekly Awards: Best Survivor & Best Killer', tag: 'Update',
+    body: [
+      'Every week the whole player base competes for two titles: Best Survivor (most escapes that week) and Best Killer (most kills). Ties go to the higher score. Each winner gets 100,000 Embers, and one player can win both.',
+      'The first awards are revealed TODAY, 5 November at 18:00 UTC, then every week at the same time. This first week counts every escape and kill you have ever made.',
+      'Open Progress to see the live top 3 for each title, your own week, and the countdown. Winners are announced in-game the next time you open Nightbound after the reveal.',
+    ],
+  },
   {
     id: 'v2.35.0', version: '2.35.0', date: 'Nov 2026', title: 'Spider-Man: Limited Edition', tag: 'Update',
     body: [

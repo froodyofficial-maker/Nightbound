@@ -48,11 +48,14 @@ export class Friends {
     this.mq.on('closed', () => { this.mq = null; clearInterval(this.beat); setTimeout(() => this.connect(), 5000); this.emit('change'); });
     for (const t of [me + '/req/+', me + '/acc/+', me + '/inv', me + '/msg', me + '/gift/+']) this.mq.subscribe(t);
     for (const f of this.p.friends) this.mq.subscribe(T(f.id) + '/st');
+    for (const t of this.extra || []) this.mq.subscribe(t);
     this.heartbeat(); clearInterval(this.beat); this.beat = setInterval(() => this.heartbeat(), 15000);
     this.ticker ||= setInterval(() => this.emit('change'), 10000);
     addEventListener('beforeunload', () => this.publish(T(this.id) + '/st', JSON.stringify({ name: this.getName(), t: Date.now(), state: 'offline' }), true));
-    this.emit('change');
+    this.emit('change'); this.emit('connected');
   }
+  // other modules (weekly awards) listen on extra topics through this connection
+  watch(topic) { (this.extra ||= new Set()).add(topic); if (this.mq) this.mq.subscribe(topic); }
   // publish with an optional MQTT "retain" flag (Mqtt.publish has no retain option)
   publish(topic, text, retain) {
     if (!this.mq || !this.mq.ws || this.mq.ws.readyState !== 1) return;
@@ -64,6 +67,7 @@ export class Friends {
 
   onMessage(topic, text) {
     const me = T(this.id);
+    if (!topic.startsWith('nightbound/v2/u/')) { this.emit('raw', topic, text); return; }
     const from = topic.split('/').pop().toUpperCase();
     let m = null; if (text) try { m = JSON.parse(text); } catch { return; }
     if (topic.startsWith(me + '/req/')) {
