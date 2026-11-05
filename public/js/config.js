@@ -433,10 +433,18 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.48.0';
+export const VERSION = '2.49.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.49.0', version: '2.49.0', date: 'Nov 2026', title: 'Granny Fixes & Map Vote Fix', tag: 'Update',
+    body: [
+      'Granny swings her bat with her original, full attack animation again: the big overhead wind-up, the strike and the follow-through.',
+      'Granny can now be picked as the bot killer when you play as a survivor.',
+      'Fixed: choosing "Vote (you + the bots)" for the map in bot matches now always opens the map vote (it is also the default).',
+    ],
+  },
   {
     id: 'v2.48.0', version: '2.48.0', date: 'Nov 2026', title: 'New: the Testing Area', tag: 'Update', email: true,
     body: [

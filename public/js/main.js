@@ -701,7 +701,7 @@ if (profile.lastVersion !== VERSION) {
 }
 
 // ---------- bot match ----------
-const botsCfg = { role: 'survivor', team: 3, surv: 4, killer: 'random', diff: 'normal', map: 'random', gm: 'classic' };
+const botsCfg = { role: 'survivor', team: 3, surv: 4, killer: 'random', diff: 'normal', map: 'vote', gm: 'classic' };
 // game mode pickers (bot match and lobby)
 const gmOptions = () => Object.entries(MODES).map(([id, m]) => `<option value="${id}">${m.name} (${m.short})</option>`).join('');
 $('bots-gm').innerHTML = gmOptions(); $('lobby-gm').innerHTML = gmOptions();
@@ -808,6 +808,7 @@ $('btn-bots-start').addEventListener('click', () => {
     for (let i = 0; i < (ns || botsCfg.surv); i++) roster.push(botSurvivor(i + 1, used));
   }
   const go = map => startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots', map, mode: gm });
+  botsCfg.map = $('bots-map').value || botsCfg.map; // what the dropdown shows is what you get
   if (botsCfg.map === 'vote') botVote(gm, roster.filter(r => r.bot).length, go); else go(botsCfg.map);
 });
 // ---------- map select screen (Rivals style): pictures, live tallies, a countdown ----------
