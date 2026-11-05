@@ -774,3 +774,24 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .lv-bar { width: 140px; height: 6px; background: #2a1a14; } .lv-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a01810, #e8352b); }
 .lv-style { margin-left: auto; }
 .bv { max-width: 620px; } .bv-title { font: 40px 'Bebas Neue', Impact, sans-serif; letter-spacing: .05em; margin: 4px 0 16px; } .bv-grid .mv { padding: 14px; } .bv-grid .mv[disabled] { cursor: default; }
+
+/* map select screen */
+.ms { max-width: 1100px; width: 100%; }
+.ms-title { font: 42px 'Bebas Neue', Impact, sans-serif; letter-spacing: .05em; margin: 2px 0 10px; } .ms-title b { color: #ffd870; font-weight: 400; }
+.ms-timer { position: relative; height: 8px; background: rgba(255,255,255,.08); margin: 0 auto 18px; max-width: 520px; border-radius: 4px; overflow: visible; }
+.ms-timer i { display: block; height: 100%; background: linear-gradient(90deg, #e8352b, #ffb040); border-radius: 4px; transition: width .1s linear; }
+.ms-timer span { position: absolute; right: -44px; top: -8px; font: 20px 'Bebas Neue', Impact, sans-serif; color: #ffd870; }
+.ms-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.ms-card { padding: 0 0 10px; background: rgba(14,10,9,.9); border: 2px solid rgba(233,224,208,.14); color: inherit; cursor: pointer; text-align: center; transition: transform .15s, border-color .15s, opacity .3s; }
+.ms-card:hover:not([disabled]) { transform: translateY(-4px); border-color: rgba(232,53,43,.7); }
+.ms-card.on { border-color: #e8352b; box-shadow: 0 0 22px rgba(232,53,43,.45); }
+.ms-card.win { border-color: #ffd870; box-shadow: 0 0 34px rgba(255,200,90,.6); transform: scale(1.04); }
+.ms-card.lose { opacity: .35; }
+.ms-img { position: relative; aspect-ratio: 16 / 9; background: #120c0b center / cover no-repeat; }
+.ms-img.rnd { background: radial-gradient(circle at 50% 40%, #4a1410, #0c0606 70%); display: grid; place-items: center; }
+.ms-img.rnd span { font: 72px 'Bebas Neue', Impact, sans-serif; color: rgba(255,216,112,.85); }
+.ms-img em { position: absolute; right: 8px; bottom: 8px; min-width: 30px; padding: 2px 8px; font: 22px 'Bebas Neue', Impact, sans-serif; font-style: normal; background: rgba(0,0,0,.7); color: #fff; border-radius: 3px; }
+.ms-card b { display: block; margin-top: 8px; font: 20px 'Bebas Neue', Impact, sans-serif; letter-spacing: .04em; }
+.ms-dots { display: flex; justify-content: center; gap: 4px; min-height: 10px; margin-top: 4px; } .ms-dots i { width: 8px; height: 8px; border-radius: 50%; background: #e8352b; }
+@media (max-width: 800px) { .ms-grid { grid-template-columns: repeat(2, 1fr); } }
+#announce .an-inner.ms { width: min(1100px, 100%); }

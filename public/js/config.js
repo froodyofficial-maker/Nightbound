@@ -433,10 +433,17 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.46.0';
+export const VERSION = '2.47.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.47.0', version: '2.47.0', date: 'Nov 2026', title: 'New Map Vote Screen', tag: 'Update',
+    body: [
+      'The map vote now happens right before the match: when the host starts (or you press Ready against bots), everyone gets a full-screen map select with a picture of each map, live vote counts and a 10-second timer.',
+      'Bots in empty slots vote too. Most votes wins; ties are settled at random. The match starts as soon as everyone has voted.',
+    ],
+  },
   {
     id: 'v2.46.0', version: '2.46.0', date: 'Nov 2026', title: 'Map Voting Against Bots', tag: 'Update',
     body: [

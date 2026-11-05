@@ -758,28 +758,53 @@ $('btn-bots-start').addEventListener('click', () => {
   const go = map => startHostMatch(roster, { myId: 'me', difficulty: botsCfg.diff, net: null, kind: 'bots', map, mode: gm });
   if (botsCfg.map === 'vote') botVote(gm, roster.filter(r => r.bot).length, go); else go(botsCfg.map);
 });
-// map vote against bots: three maps that suit the mode plus Random; you vote, the bots vote, most votes wins
-function botVote(gm, nBots, done) {
+// ---------- map select screen (Rivals style): pictures, live tallies, a countdown ----------
+const MAP_IMG = id => (document.querySelector('script[type=importmap]') ? '' : 'public/') + 'img/maps/' + id + '.jpg';
+const mapName = c => c === 'random' ? 'Random' : MAP_NAMES[c] || c;
+function voteCands(gm) {
   const pool = MODES[gm] && MODES[gm].bigMap ? Object.keys(BIG_MAPS) : REGULAR_MAPS.slice();
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  const cands = [...pool.slice(0, 3), 'random'], votes = new Array(cands.length).fill(0);
-  const A = $('announce'), nm = c => c === 'random' ? 'Random map' : MAP_NAMES[c] || c;
-  const draw = (mine, revealed) => {
-    A.innerHTML = `<div class="an-bg"></div><div class="an-inner bv"><div class="an-kicker">Map vote</div><div class="bv-title">${mine == null ? 'Pick the map' : revealed ? 'The votes are in' : 'The bots are voting…'}</div>
-      <div class="mv-grid bv-grid">${cands.map((c, i) => `<button class="mv ${mine === i ? 'on' : ''}" data-bv="${i}" ${mine != null ? 'disabled' : ''}><b>${esc(nm(c))}</b><span>${revealed ? votes[i] + ' vote' + (votes[i] === 1 ? '' : 's') : mine === i ? 'Your vote' : ''}</span><i style="width:${revealed ? votes[i] / (nBots + 1) * 100 : 0}%"></i></button>`).join('')}</div>
-      <p class="hint">${nBots} bot${nBots === 1 ? '' : 's'} vote${nBots === 1 ? 's' : ''} with you. Ties are settled at random.</p></div>`;
-    A.querySelectorAll('[data-bv]').forEach(b => b.onclick = () => pick(+b.dataset.bv));
+  return [...pool.slice(0, 3), 'random'];
+}
+function voteWinnerOf(cands, votes) {
+  const v = Object.values(votes || {}); if (!v.length) return cands[Math.floor(Math.random() * cands.length)];
+  const n = c => v.filter(x => x === c).length, top = Math.max(...cands.map(n)), tied = cands.filter(c => n(c) === top);
+  return tied[Math.floor(Math.random() * tied.length)];
+}
+const MS = { st: null, timer: null };
+// st: { cands, votes {voter: map}, mine, ends (ms), voters, winner, onVote }
+function mapSelect(st) {
+  MS.st = st;
+  const A = $('announce'), v = Object.values(st.votes || {}), n = c => v.filter(x => x === c).length;
+  A.innerHTML = `<div class="an-bg"></div><div class="an-inner ms"><div class="an-kicker">Map vote</div>
+    <div class="ms-title">${st.winner ? `Next map: <b>${esc(mapName(st.winner))}</b>` : st.mine ? 'Waiting for the others…' : 'Vote for the next map'}</div>
+    <div class="ms-timer"><i></i><span></span></div>
+    <div class="ms-grid">${st.cands.map(c => `<button class="ms-card ${st.mine === c ? 'on' : ''} ${st.winner === c ? 'win' : ''} ${st.winner && st.winner !== c ? 'lose' : ''}" data-ms="${c}" ${st.winner ? 'disabled' : ''}>
+      <div class="ms-img ${c === 'random' ? 'rnd' : ''}" ${c !== 'random' ? `style="background-image:url('${MAP_IMG(c)}')"` : ''}>${c === 'random' ? '<span>?</span>' : ''}<em>${n(c)}</em></div>
+      <b>${esc(mapName(c))}</b><div class="ms-dots">${Array.from({ length: n(c) }, () => '<i></i>').join('')}</div></button>`).join('')}</div>
+    <p class="hint">${v.length} / ${st.voters} voted · most votes wins, ties are settled at random</p></div>`;
+  A.querySelectorAll('[data-ms]').forEach(b => b.onclick = () => { if (st.winner || st.mine === b.dataset.ms) return; sound.play('click'); st.onVote(b.dataset.ms); });
+  A.classList.remove('hidden');
+  const tick = () => {
+    if (MS.st !== st) return;
+    const left = Math.max(0, st.ends - Date.now()), bar = A.querySelector('.ms-timer i'), lab = A.querySelector('.ms-timer span');
+    if (bar) bar.style.width = (st.winner ? 0 : left / st.total * 100) + '%'; if (lab) lab.textContent = st.winner ? '' : Math.ceil(left / 1000) + 's';
   };
-  const pick = i => {
-    sound.play('click'); votes[i]++; draw(i, false);
-    for (let k = 0; k < nBots; k++) votes[Math.floor(Math.random() * cands.length)]++;
-    setTimeout(() => {
-      draw(i, true);
-      const top = Math.max(...votes), tied = cands.filter((_, j) => votes[j] === top), win = tied[Math.floor(Math.random() * tied.length)];
-      setTimeout(() => { A.classList.add('hidden'); toast(`The vote picked ${nm(win)}.`); done(win); }, 1800);
-    }, 1300);
+  clearInterval(MS.timer); MS.timer = setInterval(tick, 100); tick();
+}
+function closeMapSelect() { clearInterval(MS.timer); MS.st = null; $('announce').classList.add('hidden'); }
+
+// bot matches: you and the bots vote; the bots trickle their votes in during the countdown
+function botVote(gm, nBots, done) {
+  const total = 10000, st = { cands: voteCands(gm), votes: {}, mine: null, ends: Date.now() + total, total, voters: nBots + 1, winner: null };
+  const finish = () => {
+    if (st.winner) return; st.winner = voteWinnerOf(st.cands, st.votes); mapSelect(st); sound.play('powered');
+    setTimeout(() => { closeMapSelect(); done(st.winner); }, 2200);
   };
-  closePanel(); draw(null, false); A.classList.remove('hidden');
+  st.onVote = c => { st.mine = c; st.votes.me = c; mapSelect(st); if (Object.keys(st.votes).length >= st.voters) setTimeout(finish, 900); };
+  for (let i = 0; i < nBots; i++) setTimeout(() => { if (st.winner) return; st.votes['bot' + i] = st.cands[Math.floor(Math.random() * st.cands.length)]; if (MS.st === st) mapSelect(st); if (st.mine && Object.keys(st.votes).length >= st.voters) setTimeout(finish, 900); }, 1200 + Math.random() * 5500);
+  setTimeout(finish, total);
+  closePanel(); mapSelect(st);
 }
 
 // ---------- sessions ----------
@@ -1050,6 +1075,7 @@ function cleanSkin(char, skin) { return (SKINS[char] || []).some(s => s.id === s
 function hostMsg(id, m) {
   if (!m || typeof m !== 'object') return;
   if (m.t === 'ping') { lobby.net.send(id, { t: 'pong', c: m.c }, true); return; }
+  if (m.t === 'vote' && lobby.voting) { if (lobby.players.some(x => x.id === id)) lobby.voting.cast(id, String(m.map)); return; }
   if (lobby.inGame && session && session.isHost) {
     if (m.t === 'hello') lobby.net.send(id, { t: 'reject', reason: 'A match is in progress. Try again when it ends.' });
     else session.remote(id, m);
@@ -1075,7 +1101,7 @@ function hostMsg(id, m) {
     addChat(null, String(m.name || 'Player').slice(0, 16) + ' joined.');
     broadcastLobby();
   } else if (m.t === 'vote') {
-    if (lobby.map === 'vote' && (lobby.cands || []).includes(m.map) && lobby.players.some(x => x.id === id)) { (lobby.votes ||= {})[id] = m.map; broadcastLobby(); }
+    if (lobby.voting && lobby.players.some(x => x.id === id)) lobby.voting.cast(id, String(m.map));
   } else if (m.t === 'loadout') {
     const p = lobby.players.find(x => x.id === id);
     if (!p) return;
@@ -1093,6 +1119,12 @@ function newVote() {
   const pool = MODES[lobby.gm] && MODES[lobby.gm].bigMap ? Object.keys(BIG_MAPS) : REGULAR_MAPS.slice();
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   lobby.cands = [...pool.slice(0, 3), 'random']; lobby.votes = {};
+}
+function showVote(m) {
+  if (!lobby) return;
+  if (lobby.isHost) { const V = lobby.voting; if (!V) return; mapSelect({ cands: V.cands, votes: V.votes, mine: V.votes.host || null, ends: V.ends, total: V.total, voters: V.voters, winner: V.winner, onVote: c => V.cast('host', c) }); return; }
+  mapSelect({ cands: m.cands, votes: m.votes || {}, mine: (m.votes || {})[lobby.myId] || null, ends: Date.now() + (m.left || 0), total: m.total || 10000, voters: m.voters || 1, winner: m.winner || null,
+    onVote: c => { lobby.net.send({ t: 'vote', map: c }); const st = MS.st; if (st) { st.mine = c; st.votes = { ...st.votes, [lobby.myId]: c }; mapSelect(st); } } });
 }
 function voteWinner() {
   const votes = Object.values(lobby.votes || {}), cands = lobby.cands || ['random'];
@@ -1145,7 +1177,8 @@ function clientMsg(m) {
     case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; lobby.gm = MODES[m.gm] ? m.gm : 'classic'; lobby.cands = Array.isArray(m.cands) ? m.cands : []; lobby.votes = m.votes || {}; renderLobby(); break;
     case 'reject': toast(m.reason); leaveOnline(true); break;
     case 'chat': addChat(m.name, m.text); break;
-    case 'start': startClientMatch(m); break;
+    case 'mapvote': showVote(m); break;
+    case 'start': closeMapSelect(); startClientMatch(m); break;
     case 's': case 'ev': if (session && !session.isHost) session.onMsg(m); break;
     case 'pong': if (typeof m.c === 'number') { const rtt = performance.now() - m.c; netStat.ping = netStat.ping == null ? rtt : netStat.ping + (rtt - netStat.ping) * 0.3; } break;
     case 'tolobby': if (session) { endSession(); stopBG(); } lobby.inGame = false; showLobby(); break;
@@ -1205,14 +1238,9 @@ function renderLobby() {
   for (let i = 0; i < cap.k; i++) html += slot(killers[i], 'killer');
   for (let i = 0; i < cap.s; i++) html += slot(survs[i], 'survivor');
   $('lobby-slots').innerHTML = html;
-  // map vote
-  const mv = $('map-vote'), voting = lobby.map === 'vote' && (lobby.cands || []).length;
-  mv.classList.toggle('hidden', !voting);
-  if (voting) {
-    const votes = lobby.votes || {}, mine = votes[lobby.myId], tally = c => Object.values(votes).filter(v => v === c).length, total = Object.keys(votes).length;
-    mv.innerHTML = `<div class="lo-sub"><span>Map vote</span><span>${total} / ${ps.length} voted</span></div><div class="mv-grid">${lobby.cands.map(c => `<button class="mv ${mine === c ? 'on' : ''}" data-vote="${c}"><b>${esc(c === 'random' ? 'Random map' : MAP_NAMES[c] || c)}</b><span>${tally(c)} vote${tally(c) === 1 ? '' : 's'}</span><i style="width:${total ? tally(c) / total * 100 : 0}%"></i></button>`).join('')}</div>`;
-    mv.querySelectorAll('[data-vote]').forEach(b => b.onclick = () => { sound.play('click'); if (lobby.isHost) { (lobby.votes ||= {})[lobby.myId] = b.dataset.vote; broadcastLobby(); } else { lobby.net.send({ t: 'vote', map: b.dataset.vote }); lobby.votes = { ...(lobby.votes || {}), [lobby.myId]: b.dataset.vote }; renderLobby(); } });
-  }
+  // the map vote happens on its own screen when the host starts the match
+  $('map-vote').classList.toggle('hidden', lobby.map !== 'vote');
+  $('map-vote').innerHTML = '<p class="hint">Map: everyone votes on a map screen right before the match starts.</p>';
   const me = myLobbyPlayer();
   if (me) {
     setSeg('lobby-role', me.role);
@@ -1280,9 +1308,20 @@ $('btn-lobby-start').addEventListener('click', () => {
   if (lobby.fill) for (let i = 1; ns < cap.s; i++, ns++) roster.push(botSurvivor(i, used));
   if (ns === 0) { toast('At least one survivor is needed (or enable bots).'); return; }
   lobby.inGame = true;
-  let map = lobby.map || 'random';
-  if (map === 'vote') { map = voteWinner(); const nm = map === 'random' ? 'a random map' : MAP_NAMES[map] || map; addChat(null, `The vote picked ${nm}.`); lobby.net.broadcast({ t: 'chat', name: '', text: `The vote picked ${nm}.` }); }
-  startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online', map, mode: lobby.gm || 'classic' });
+  const go = map => startHostMatch(roster, { myId: 'host', difficulty: lobby.diff, net: lobby.net, kind: 'online', map, mode: lobby.gm || 'classic' });
+  if ((lobby.map || 'vote') !== 'vote') { go(lobby.map); return; }
+  // everyone (and the bots filling empty slots) votes on the map screen first
+  const total = 10000, nBots = roster.filter(r => r.bot).length, V = lobby.voting = { cands: voteCands(lobby.gm), votes: {}, ends: Date.now() + total, total, voters: ps.length + nBots, winner: null };
+  const share = () => { lobby.net.broadcast({ t: 'mapvote', cands: V.cands, votes: V.votes, left: Math.max(0, V.ends - Date.now()), total, voters: V.voters, winner: V.winner }); showVote(); };
+  const finish = () => {
+    if (V.winner) return; V.winner = voteWinnerOf(V.cands, V.votes); share();
+    addChat(null, `The vote picked ${mapName(V.winner)}.`);
+    setTimeout(() => { lobby.voting = null; closeMapSelect(); go(V.winner); }, 2200);
+  };
+  V.cast = (who, c) => { if (V.winner || !V.cands.includes(c)) return; V.votes[who] = c; share(); if (Object.keys(V.votes).length >= V.voters) setTimeout(finish, 900); };
+  for (let i = 0; i < nBots; i++) setTimeout(() => V.cast('bot' + i, V.cands[Math.floor(Math.random() * V.cands.length)]), 1200 + Math.random() * 5500);
+  setTimeout(finish, total);
+  share();
 });
 function returnToLobby() {
   if (!lobby) { endSession(); show('p-main'); return; }
