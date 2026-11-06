@@ -972,7 +972,13 @@ export function makeGenerator() {
     bulbs.push(add(G.sph(0.06), bm, 0.3 + (i - 1) * 0.16, 1.82, 0.25));
   }
   add(G.box(0.55, 0.03, 0.06), dark, 0.3, 1.76, 0.25);
-  const auraM = new THREE.Mesh(G.box(1.3, 1.3, 1.0), auraMat(0xffffff)); auraM.position.y = 0.65; auraM.visible = false; auraM.renderOrder = 10; g.add(auraM);
+  // the aura (seen through walls) is the generator's own outline, not a box: a merged copy of its parts
+  const parts = []; g.updateMatrixWorld(true);
+  g.traverse(o => { if (o.isMesh && o.geometry) { const gg = o.geometry.index ? o.geometry : null; parts.push({ geo: gg || o.geometry, matrix: o.matrix.clone() }); } });
+  let auraM;
+  try { auraM = new THREE.Mesh(mergeGeos(parts.filter(q => q.geo.index)), auraMat(0xffffff)); auraM.scale.setScalar(1.03); }
+  catch { auraM = new THREE.Mesh(G.box(1.1, 1.0, 0.85), auraMat(0xffffff)); auraM.position.y = 0.55; }
+  auraM.visible = false; auraM.renderOrder = 10; g.add(auraM);
   g.userData = { pistons, bulbs, body, aura: auraM };
   return g;
 }

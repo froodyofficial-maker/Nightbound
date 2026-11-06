@@ -273,4 +273,13 @@ Sound.prototype.clip = function (name, x, z, opt = {}) {
   const src = this.ctx.createBufferSource(); src.buffer = b; src.connect(out); src.start();
   return b.duration;
 };
+// a TV-style censor bleep the length of a voice clip (for sidekick lines set to 'Bleep')
+Sound.prototype.clipLen = name => (clips[name] ? clips[name].duration : 0);
+Sound.prototype.bleep = function (len, x, z) {
+  if (!this.ok) return 0;
+  const out = this.out(x, z, 7, 40); if (!out) return 0;
+  const t = this.ctx.currentTime, d = Math.max(0.35, len || 1);
+  this.tone(out, t, d, 'sine', 1000, null, 0.22, 0.01);
+  return d;
+};
 export const sound = new Sound();

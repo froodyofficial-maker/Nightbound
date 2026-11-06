@@ -13,7 +13,7 @@ import { buildWorld, updateWorld, pointBlocked, QUALITY } from './world.js';
 import { chuckyReady } from './chuckyGlb.js';
 import { slappyReady } from './slappyGlb.js';
 import { grannyReady, grandpaReady, spiderMomReady, makeSpiderMom } from './grannyGlb.js';
-import { Sidekick, TED_LINES, TED_CAPTIONS, resetVoices } from './sidekicks.js';
+import { Sidekick, TED_LINES, TED_CAPTIONS, resetVoices, tedPref, tedText } from './sidekicks.js';
 import { remapCode, label as keyLabel, moveLabel } from './keybinds.js';
 import { bakeArm } from './fpArms.js';
 import { foremanReady, batmanReady } from './foremanGlb.js';
@@ -1194,16 +1194,17 @@ export class Game {
   petVoice(line, x, z) {
     const heard = Math.hypot(x - sound.lx, z - sound.lz) < 40;
     if (!heard) return -1;
-    const len = sound.clip('ted/' + line, x, z) || 2.5; // (2.5s of subtitle if audio is unavailable)
+    const bleep = tedPref(line) === 'bleep';
+    const len = (bleep ? sound.bleep(sound.clipLen('ted/' + line), x, z) : sound.clip('ted/' + line, x, z)) || 2.5; // (2.5s of subtitle if audio is unavailable)
     if (this.settings.subs === false) return len;
     let el = document.getElementById('subs');
     if (!el) { el = document.createElement('div'); el.id = 'subs'; this.hud.appendChild(el); }
-    const show = txt => { el.innerHTML = `<b>Ted:</b> ${String(txt).replace(/[<>&]/g, '')}`; el.classList.add('show'); };
+    const show = txt => { const s = String(txt), tag = s.endsWith(' <i>(bleeped)</i>'); el.innerHTML = `<b>Ted:</b> ${(tag ? s.slice(0, -17) : s).replace(/[<>&]/g, '')}${tag ? ' <i>(bleeped)</i>' : ''}`; el.classList.add('show'); };
     for (const h of this.capT || []) clearTimeout(h);
     this.capT = [];
     const caps = TED_CAPTIONS[line];
-    if (caps && caps.length) for (const [at, txt] of caps) this.capT.push(setTimeout(() => show(txt), at * 1000));
-    else show(TED_LINES[line]);
+    if (caps && caps.length && !bleep) for (const [at, txt] of caps) this.capT.push(setTimeout(() => show(txt), at * 1000));
+    else show(bleep ? tedText(line) + ' <i>(bleeped)</i>' : TED_LINES[line]);
     clearTimeout(this.subsT); this.subsT = setTimeout(() => el.classList.remove('show'), (len + 0.8) * 1000);
     return len;
   }

@@ -11,7 +11,7 @@ import { initPhoto } from './pbr.js';
 import { MenuScene } from './menu.js';
 import { loadForeman, onForemanReady, loadBatman } from './foremanGlb.js';
 import { loadChucky, onChuckyReady, chuckyReady } from './chuckyGlb.js';
-import { loadTed } from './sidekicks.js';
+import { loadTed, setTedPrefs, tedText, TED_LINES, TED_RUDE } from './sidekicks.js';
 import { loadRealism, realismReady } from './realism.js';
 import { loadSlappy, slappyReady } from './slappyGlb.js';
 import { loadStatic } from './glbModels.js';
@@ -458,6 +458,7 @@ const RARITY = (p, sk) => sk && sk.god ? 'god' : sk && sk.limited ? 'limited' : 
 let storeTab = 'chapters', storeRole = 'survivor', storeChar = null, storePreview = null;
 const ownsChapter = id => !!(profile.dlc && profile.dlc[id]);
 // ---------- killer power levels (reach in metres, bought with Embers) ----------
+setTedPrefs(profile.tedLines || {});
 profile.levels ||= {};
 const myReach = c => powerReach(c, profile.levels[c]);
 // players who played Granny before her rework keep her original Bat Rush and can switch styles
@@ -504,7 +505,7 @@ function closeStore() {
   renderShowcase();
 }
 $('st-close').onclick = () => { sound.play('click'); closeStore(); };
-$('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { storeTab = b.dataset.t; sound.play('click'); renderStore(); });
+$('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { editTed = false; storeTab = b.dataset.t; sound.play('click'); renderStore(); });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !session && !$('store').classList.contains('hidden')) closeStore(); });
 
 // ---------- store: the desktop app ----------
@@ -529,6 +530,7 @@ function renderStore() {
   else if (storeTab === 'app') body.innerHTML = appHTML();
   else body.innerHTML = charactersHTML();
   bindStore(body);
+  $('show-drag').style.display = storeTab === 'sidekicks' && editTed ? 'none' : ''; // no turntable hint over the line editor
   if (menu && storeTab === 'sidekicks') { const role = storePetRole; menu.setShowcase(profile[role].char, skinId(profile[role].char), 0.3, storePet); menu.setMode('show'); menu.showFor = null; }
   else if (menu) { if (storeTab === 'characters') { if (!menu.showRig || menu.showFor !== storeChar + ':' + (storePreview || skinId(storeChar))) { menu.showFor = storeChar + ':' + (storePreview || skinId(storeChar)); previewSkin(storePreview || skinId(storeChar)); } else menu.setMode('show'); } else menu.setMode(menuMode); }
 }
@@ -588,18 +590,51 @@ function collectionsHTML() {
 }
 // ---------- sidekicks ----------
 let storePet = 'ted', storePetRole = 'survivor';
+// Edit Ted: choose, line by line, what he says (Play), what gets bleeped, and what he never says (Off)
+let editTed = false;
+function tedEditHTML() {
+  const P = profile.tedLines ||= {};
+  const rows = Object.keys(TED_LINES).map(k => {
+    const v = P[k] || 'play';
+    return `<div class="ted-line"><button class="btn small" data-tedhear="${k}" title="Preview">▶</button><span class="tl-txt ${v === 'off' ? 'off' : ''}">${esc(v === 'bleep' ? tedText(k) : TED_LINES[k])}</span>
+      <div class="seg tl-seg">${['play', 'bleep', 'off'].map(o => `<button data-tedset="${k}" data-v="${o}" class="${v === o ? 'on' : ''}">${o === 'play' ? 'Play' : o === 'bleep' ? 'Bleep' : 'Off'}</button>`).join('')}</div></div>`;
+  }).join('');
+  return `<div class="ted-edit"><div class="te-head"><button class="btn" data-tedback>← Sidekicks</button><div><small>Edit sidekick</small><b>Ted's lines</b></div>
+    <div class="te-presets"><button class="btn" data-tedpreset="family">Family friendly</button><button class="btn" data-tedpreset="all">Everything on</button></div></div>
+    <p class="hint">Play: Ted says it. Bleep: a censor bleep instead, and the swearing is starred out in the subtitles. Off: he never says it. This applies to every Ted you hear, online too.</p>
+    <div class="ted-lines">${rows}</div></div>`;
+}
 function sidekicksHTML() {
+  if (editTed && profile.pets.ted) return tedEditHTML();
   const cards = Object.entries(SIDEKICKS).map(([id, s]) => {
     const own = !!profile.pets[id];
     const eq = r => profile[r].pet === id;
     const btns = own ? ['survivor', 'killer'].map(r => `<button class="btn ${eq(r) ? '' : 'primary'}" data-petequip="${id}" data-petrole="${r}">${eq(r) ? 'Unequip' : 'Equip'} (${r === 'killer' ? 'Killer' : 'Survivor'})</button>`).join('')
       : `<span class="ch-price">${price(s.price)}</span><button class="btn primary" data-petbuy="${id}">Buy</button>`;
-    return `<div class="pet-card ${storePet === id ? 'on' : ''}" data-pet="${id}"><div class="pet-t"><small>Sidekick</small><b>${esc(s.name)}</b></div><p>${esc(s.desc)}</p><div class="row">${btns}</div></div>`;
+    const edit = own && id === 'ted' ? `<button class="btn" data-tededit>Edit Ted</button>` : '';
+    return `<div class="pet-card ${storePet === id ? 'on' : ''}" data-pet="${id}"><div class="pet-t"><small>Sidekick</small><b>${esc(s.name)}</b></div><p>${esc(s.desc)}</p><div class="row">${btns}${edit}</div></div>`;
   }).join('');
   return `<div class="ch-row-title">Sidekicks · they follow you, react to the match and can't be hurt. Equip one for your survivor and one for your killer.</div><div class="pet-grid">${cards}</div>`;
 }
 
 function bindStore(body) {
+  body.querySelectorAll('[data-tededit]').forEach(b => b.onclick = e => { e.stopPropagation(); sound.play('click'); editTed = true; renderStore(); });
+  body.querySelectorAll('[data-tedback]').forEach(b => b.onclick = () => { sound.play('click'); editTed = false; renderStore(); });
+  body.querySelectorAll('[data-tedset]').forEach(b => b.onclick = () => {
+    const P = profile.tedLines ||= {}, k = b.dataset.tedset, v = b.dataset.v;
+    if (v === 'play') delete P[k]; else P[k] = v;
+    setTedPrefs(P); saveProfile(); sound.play('click'); renderStore();
+  });
+  body.querySelectorAll('[data-tedpreset]').forEach(b => b.onclick = () => {
+    const P = profile.tedLines = {};
+    if (b.dataset.tedpreset === 'family') for (const k of TED_RUDE) P[k] = 'bleep';
+    setTedPrefs(P); saveProfile(); sound.play('click'); renderStore();
+  });
+  body.querySelectorAll('[data-tedhear]').forEach(b => b.onclick = () => {
+    sound.init(); const k = b.dataset.tedhear, v = (profile.tedLines || {})[k] || 'play';
+    if (v === 'off') { sound.play('click'); return; }
+    if (v === 'bleep') sound.bleep(sound.clipLen('ted/' + k), sound.lx || 0, sound.lz || 0); else sound.clip('ted/' + k, sound.lx || 0, sound.lz || 0);
+  });
   body.querySelectorAll('[data-pet]').forEach(el => el.onclick = e => { if (e.target.closest('button')) return; storePet = el.dataset.pet; sound.play('hover'); renderStore(); });
   body.querySelectorAll('[data-petbuy]').forEach(b => b.onclick = () => { const id = b.dataset.petbuy; if (profile.pets[id] || !spend(SIDEKICKS[id].price, SIDEKICKS[id].name)) return; profile.pets[id] = true; profile.survivor.pet ||= id; saveProfile(); storePet = id; renderStore(); });
   body.querySelectorAll('[data-petequip]').forEach(b => b.onclick = () => { const id = b.dataset.petequip, r = b.dataset.petrole; profile[r].pet = profile[r].pet === id ? '' : id; storePet = id; storePetRole = r; saveProfile(); sound.play('click'); renderStore(); });

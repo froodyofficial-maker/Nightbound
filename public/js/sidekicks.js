@@ -272,13 +272,24 @@ export const TED_CAPTIONS = {
   thunder: [],
 };
 
+// the player's choices for each of Ted's lines (Store > Sidekicks > Edit Ted): 'play' (default), 'bleep' or 'off'.
+// They apply to every Ted heard on this screen.
+let PREFS = {};
+export function setTedPrefs(p) { PREFS = p || {}; }
+export const tedPref = line => PREFS[line] || 'play';
+// swearing in the subtitles is starred out when a line is bleeped
+const SWEAR = /\b(bastard|cock|shit|fucking|fuck|pussy|pissed|jesus)\b/gi;
+export const tedText = line => tedPref(line) === 'bleep' ? String(TED_LINES[line] || '').replace(SWEAR, w => w[0] + '*'.repeat(w.length - 1)) : TED_LINES[line];
+// lines with swearing in them: what the 'Family friendly' button bleeps
+export const TED_RUDE = Object.keys(TED_LINES).filter(k => new RegExp(SWEAR.source, 'i').test(TED_LINES[k]));
+
 // lines Ted can say again; every other line is said at most once a match
 const TED_REPEAT = new Set(['bringit', 'shit', 'cock', 'arfh']);
 // one voice channel for every Ted in the match (on this screen): they never talk over each
 // other, and a once-a-match line said by one Ted is never said again by another
 const VOICE = { busyUntil: 0, said: new Set() };
 export function resetVoices() { VOICE.busyUntil = 0; VOICE.said.clear(); }
-const usable = line => TED_LINES[line] && (TED_REPEAT.has(line) || !VOICE.said.has(line));
+const usable = line => TED_LINES[line] && tedPref(line) !== 'off' && (TED_REPEAT.has(line) || !VOICE.said.has(line));
 
 // ---------------- the sidekick ----------------
 export class Sidekick {

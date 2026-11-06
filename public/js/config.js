@@ -433,10 +433,19 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.50.0';
+export const VERSION = '2.51.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.51.0', version: '2.51.0', date: 'Nov 2026', title: 'Edit Your Sidekick', tag: 'Update',
+    body: [
+      'New: Edit Ted (Store > Sidekicks). Set each of his lines to Play, Bleep or Off.',
+      'Bleep swaps the line for a censor bleep and stars out the swearing in the subtitles. One tap for Family friendly.',
+      'Your choices apply to every Ted you hear, including other players\' Teds online.',
+      'Fixed: the floating boxes some players saw on maps. A generator\'s aura is now the outline of the generator itself.',
+    ],
+  },
   {
     id: 'v2.50.0', version: '2.50.0', date: 'Nov 2026', title: 'Spider-Man Balance', tag: 'Update',
     body: [

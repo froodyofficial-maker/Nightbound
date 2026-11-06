@@ -807,3 +807,15 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .mainnav { top: clamp(165px, 30vh, 340px); }
 .mainnav button span:not(.newtag) { font-size: clamp(24px, min(3.6vw, 5.1vh), 46px); }
 @media (max-height: 820px) { .mainnav button { padding-top: 4px; padding-bottom: 4px; } }
+
+/* ---------- Edit Ted (sidekick voice lines) ---------- */
+.ted-edit { max-width: 980px; }
+.ted-edit .te-head { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+.ted-edit .te-head small { display: block; font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: var(--red2); }
+.ted-edit .te-head b { font-family: var(--title); font-size: 30px; font-weight: 400; color: var(--bone); }
+.ted-edit .te-presets { margin-left: auto; display: flex; gap: 8px; }
+.ted-lines { display: grid; gap: 6px; }
+.ted-line { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); }
+.ted-line .tl-txt { color: var(--bone); font-size: 15px; }
+.ted-line .tl-txt.off { color: var(--dim); text-decoration: line-through; }
+.ted-line .tl-seg button { min-width: 70px; }
