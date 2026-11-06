@@ -95,6 +95,7 @@ const BIOS = {
   raghuvir: 'Big, steady and impossible to scare. Carries the heaviest proton pack on the team, and two Ghost Traps.',
   abeer: 'Quick hands, quicker wit. Swears the readings on his PKE meter spell out names. Carries two Ghost Traps.',
   tomas: 'Former park ranger. Knows every trail on the moor, and that none of them lead out.',
+  steve: 'Fan-made crossover. Has survived more nights than anyone can count. This one has no sunrise.',
   spiderman: 'Fan-made crossover. Fast, agile, and armed with Web Shooters: 4 shots (R) that slow the killer hard or make him drop whoever he is carrying.',
 };
 

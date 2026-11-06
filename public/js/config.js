@@ -165,6 +165,8 @@ export const SURVIVORS = {
   // Ghostbusters fan-made crossover
   raghuvir: { id: 'raghuvir', name: 'Raghuvir', skin: 0xb08058, hair: 0x0e0a08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', big: true, gb: true },
   abeer: { id: 'abeer', name: 'Abeer', skin: 0xa87650, hair: 0x120c08, shirt: 0xb8a878, pants: 0xb0a070, hairStyle: 'short', gb: true },
+  // Minecraft fan-made crossover (model: "Minecraft - Steve" by Vincent Yanez, sketchfab.com/vinceyanez, CC BY 4.0)
+  steve: { id: 'steve', name: 'Steve', skin: 0xb5835a, hair: 0x3b2a1a, shirt: 0x00a8a8, pants: 0x3a3a9a, hairStyle: 'short', fan: true },
   // Marvel fan-made crossover (model: "Spiderman_topy" by sabra, sketchfab.com/sabrayf, CC BY 4.0)
   spiderman: { id: 'spiderman', name: 'Spider-Man', skin: 0x8a1418, hair: 0x8a1418, shirt: 0x9a1a1e, pants: 0x1a2040, hairStyle: 'short', fan: true,
     // limited: 500,000 Embers, in the Store until the end of 7 Nov 2026 (UTC), then gone for good
@@ -259,6 +261,11 @@ export const LORE = {
     'Thankfully, Abeer was able to force the demon to un-possess him. Unfortunately, once both were united, a portal opened up, and the entity grabbed both, pulling them into the realm of Nightbound.',
     'Somewhere, in some alternate universe, things went differently. They were saved. But the entity? It can warp reality to get what it wants.',
   ] },
+  steve: { title: 'The Long Night', story: [
+    'A fan-made crossover. Steve has survived more nights than anyone can count: he builds a shelter before sunset, lights a torch, and waits for the morning.',
+    'One night he dug a little too deep. The tunnel opened into fog, the fog opened into a clearing, and the sun never came up.',
+    'He does not have his pickaxe, his torches or his bed. He has his blocky hands, a flashlight that someone left behind, and a lot of practice running from things in the dark.',
+  ] },
   spiderman: { title: 'The Wall-Crawler', story: [
     'One night the city went quiet. No sirens, no traffic, no lights in the windows. Peter swung toward the only light left: a campfire burning on a rooftop that should not have been there.',
     'When he landed, the rooftop was a clearing in the woods and the skyline was gone. His spider-sense has not stopped buzzing since.',
@@ -346,6 +353,11 @@ export const SKINS = {
     { id: 'street', name: 'Beige Puffer', price: 1500, shirt: 0xb8a48a, pants: 0x1a1a1e, desc: 'Off duty: beige puffer jacket with a black hood and sleeves.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['puffer', { color: 0xb8a48a }]] },
     { id: 'realism', name: 'Realism', price: 6000, glb: 'ray', desc: 'A fully realistic Ghostbuster: worn khaki flight suit, straps, name patch and a heavy proton pack. (Model: "Ghostbusters - Dr. Ray Stantz" by spinningblade, CC BY 4.0.)' },
     { id: 'slimed', name: 'Slimed', price: 3500, desc: 'He got slimed. It glows.', fx: [['face', { kind: 'r', skin: 0xb08058 }], 'fringehair', 'specs', ['protonpack', {}], ['wand', {}], ['tint', { color: 0x8aff6a, k: 0.35, e: 0x2a8a1a, ei: 0.5 }]] },
+  ],
+  steve: [
+    { id: 'default', name: 'Steve', price: 0, desc: 'The original. Cyan shirt, blue jeans, and a face that has seen a thousand nights. (Model: "Minecraft - Steve" by Vincent Yanez, CC BY 4.0.)' },
+    { id: 'night', name: 'Night Shift', price: 2500, tint: 0x8a8ab0, desc: 'Steve after one night too many in the fog: everything a shade colder.' },
+    { id: 'gilded', name: 'Gilded', price: 6000, tint: 0xffd27a, desc: 'Struck it rich in the mines. Shines a little too much for somewhere this dark.' },
   ],
   spiderman: [
     { id: 'default', name: 'Classic Suit', price: 0, glb: 'spiderman', desc: 'Red and blue, raised webbing, silver lenses. Your friendly neighbourhood Spider-Man. (Model: "Spiderman_topy" by sabra, CC BY 4.0.)' },
@@ -437,10 +449,18 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.52.0';
+export const VERSION = '2.53.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.53.0', version: '2.53.0', date: 'Nov 2026', title: 'New Survivor: Steve', tag: 'Update',
+    body: [
+      'Fan-made crossover: Steve joins the survivors, free for everyone. Blocky, stubborn, and very used to long nights.',
+      'Two new outfits for him in the Store: Night Shift and Gilded.',
+      'Model: "Minecraft - Steve" by Vincent Yanez (CC BY 4.0).',
+    ],
+  },
   {
     id: 'v2.52.0', version: '2.52.0', date: 'Nov 2026', title: 'Power Ups', tag: 'Update',
     body: [

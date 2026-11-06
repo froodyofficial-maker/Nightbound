@@ -1,5 +1,6 @@
 // Procedural 3D models: rigged characters, killers, props. Every character mesh has an
 // "aura" twin (fresnel glow, drawn through walls) that can be toggled on.
+import { STEVE_JOINTS, STEVE_PARTS, STEVE_SKIN } from './steveGeo.js';
 import * as THREE from 'three';
 import { tex } from './textures.js';
 import { makeForemanGlb, animateGlb } from './foremanGlb.js';
@@ -199,7 +200,49 @@ function buildHand(R, jn, s, skin, b = 1, nails = false) {
 }
 
 const FEMALE = { mara: true, june: true };
+// Steve (fan-made crossover): the blocky original, his six boxes hung on the survivor joints so every
+// survivor animation drives him. Model: "Minecraft - Steve" by Vincent Yanez (sketchfab.com/vinceyanez), CC BY 4.0.
+let steveMat = null;
+function makeSteve(sk = {}) {
+  const R = new Rig(), J = STEVE_JOINTS;
+  if (!steveMat) {
+    const tex = new THREE.TextureLoader().load(STEVE_SKIN);
+    tex.flipY = false; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
+    steveMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 });
+  }
+  const m = sk.tint != null ? (() => { const c = steveMat.clone(); c.color = new THREE.Color(sk.tint); return c; })() : steveMat;
+  R.joint('tilt', null, 0, 0, 0);
+  R.joint('hips', 'tilt', ...J.hips);
+  R.joint('spine', 'hips', ...J.spine);
+  R.joint('head', 'spine', ...J.head);
+  for (const s of ['L', 'R']) {
+    R.joint('sh' + s, 'spine', ...J['sh' + s]); R.joint('el' + s, 'sh' + s, ...J['el' + s]); R.joint('hand' + s, 'el' + s, ...J['hand' + s]);
+    R.joint('lg' + s, 'hips', ...J['lg' + s]); R.joint('kn' + s, 'lg' + s, ...J['kn' + s]);
+  }
+  for (const part of Object.values(STEVE_PARTS)) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(part.pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(part.uv, 2));
+    g.computeVertexNormals();
+    R.mesh(part.joint, g, m);
+  }
+  R.kind = 'survivor'; R.steve = true;
+  R.finalize();
+  // wounds: blood on the blocks when injured / dying
+  const bloodM = new THREE.MeshStandardMaterial({ color: 0x6a0606, emissive: 0x2a0000, roughness: 0.18 });
+  const cube = new THREE.BoxGeometry(1, 1, 1);
+  const part = (jn, x, y, z, sx, sy, sz) => { const b = new THREE.Mesh(cube, bloodM); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.visible = false; R.j[jn].add(b); return b; };
+  const group = list => ({ set visible(v) { for (const b of list) b.visible = v; } });
+  R.wounds = {
+    light: group([part('spine', 0.06, 0.45, 0.112, 0.11, 0.11, 0.01), part('shL', 0.01, -0.2, 0.112, 0.06, 0.08, 0.01)]),
+    heavy: group([part('spine', -0.05, 0.25, 0.112, 0.17, 0.17, 0.01), part('lgR', 0, -0.2, 0.112, 0.06, 0.11, 0.01), part('head', 0.08, 0.2, 0.225, 0.08, 0.06, 0.01), part('knL', 0, -0.15, 0.112, 0.06, 0.06, 0.01)]),
+  };
+  applySkinFx(R, sk);
+  return R;
+}
+
 export function makeSurvivor(def, sk = {}) {
+  if (def.id === 'steve') return makeSteve(sk);
   const R = new Rig();
   const fem = !!FEMALE[def.id];
   def = { ...def, shirt: sk.shirt ?? def.shirt, pants: sk.pants ?? def.pants, hair: sk.hair ?? def.hair };
