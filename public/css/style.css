@@ -819,3 +819,6 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .ted-line .tl-txt { color: var(--bone); font-size: 15px; }
 .ted-line .tl-txt.off { color: var(--dim); text-decoration: line-through; }
 .ted-line .tl-seg button { min-width: 70px; }
+/* six store tabs on one row */
+.st-tabs { flex-wrap: nowrap; min-width: 0; }
+.st-tabs button { padding: 8px clamp(8px, 1.1vw, 16px); font-size: clamp(18px, 1.75vw, 26px); white-space: nowrap; }

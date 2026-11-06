@@ -73,6 +73,7 @@ export class Sim {
         item: mode === 'bloodmoon' && r.role === 'survivor' ? 'taser' : r.item === 'trap' ? 'trap' : 'flashlight', flash: r.role === 'survivor' && r.item !== 'trap' && mode !== 'bloodmoon' ? RULES.flashBattery * (mode === 'dark' ? 0.5 : 1) : 0, traps: r.role === 'survivor' && r.item === 'trap' && mode !== 'bloodmoon' ? (r.char === 'raghuvir' || r.char === 'abeer' ? 3 : 2) + ((r.perks || []).includes('containment') ? 1 : 0) : 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, tasers: mode === 'bloodmoon' && r.role === 'survivor' ? 2 : 0, zap: 0, spied: 0, fl: 0, sp: 0, reach: r.role === 'killer' && POWER_LV[r.char] ? (r.char === 'granny' && r.og ? 999 : powerReach(r.char, r.lv)) : 0, og: r.char === 'granny' && !!r.og, heard: 0, webbed: 0, webs: r.role === 'survivor' && r.char === 'spiderman' ? SURVIVORS.spiderman.web.shots : 0, webK: 0, dash: null, swapCd: 0,
         score: { a: 0, b: 0, c: 0, d: 0 }, outcome: '', diffMul: r.role === 'killer' && r.bot ? this.diff.killerSpeed : 1,
         possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false,
+        pu: Array.isArray(r.pu) ? r.pu.filter(k => k === 'phantomtraps').slice(0, 4) : [],
         pet: typeof r.pet === 'string' && ['ted', 'rosy'].includes(r.pet) ? r.pet : '',
       });
     }
@@ -271,7 +272,8 @@ export class Sim {
         if (this.S.traps.some(t => Math.hypot(t.x - p.x, t.z - p.z) < 2)) return;
         p.traps--; const f = fwd(p.yaw);
         const t = { id: ++this.S.tid, x: p.x + f.x * 0.9, z: p.z + f.z * 0.9, by: p.id };
-        this.S.traps.push(t); this.ev({ k: 'trapset', id: p.id, x: t.x, z: t.z });
+        if ((p.pu || []).includes('phantomtraps')) t.inv = 1; // Power Up: the killer can't see it
+        this.S.traps.push(t); this.ev({ k: 'trapset', id: p.id, x: t.x, z: t.z, inv: t.inv || 0 });
         break;
       }
       case 'attack': {

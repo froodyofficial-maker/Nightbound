@@ -433,10 +433,21 @@ export const skinOf = (char, id) => (SKINS[char] || []).find(s => s.id === id) |
 // ---------------- Inbox: version notes & gifts ----------------
 // email updates: the Buttondown newsletter's username (empty: the option stays hidden)
 export const NEWSLETTER = 'nightbound';
-export const VERSION = '2.51.0';
+// ---------------- Power Ups (Store): permanent unlocks, switched on and off in the Store ----------------
+export const POWERUPS = {
+  phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
+};
+export const VERSION = '2.52.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.52.0', version: '2.52.0', date: 'Nov 2026', title: 'Power Ups', tag: 'Update',
+    body: [
+      'New in the Store: Power Ups, permanent upgrades you unlock once and switch on or off any time.',
+      'Phantom Traps (20,000 Embers): your Ghost Traps are invisible to the killer. Your team still sees them, and the killer never hears you set one down.',
+    ],
+  },
   {
     id: 'v2.51.0', version: '2.51.0', date: 'Nov 2026', title: 'Edit Your Sidekick', tag: 'Update',
     body: [

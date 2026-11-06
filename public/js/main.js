@@ -24,7 +24,7 @@ import { sound, loadClip } from './audio.js';
 import { showTrailer, trailerPlaying } from './trailer.js';
 import { ACTIONS, bound, keyName, RESERVED } from './keybinds.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
-import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER , POWER_LV, powerReach } from './config.js';
+import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER , POWERUPS, POWER_LV, powerReach } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
 import { Friends, fmtCode, GIFT_MAX } from './friends.js';
@@ -528,6 +528,7 @@ function renderStore() {
   else if (storeTab === 'collections') body.innerHTML = collectionsHTML();
   else if (storeTab === 'sidekicks') body.innerHTML = sidekicksHTML();
   else if (storeTab === 'app') body.innerHTML = appHTML();
+  else if (storeTab === 'powerups') body.innerHTML = powerupsHTML();
   else body.innerHTML = charactersHTML();
   bindStore(body);
   $('show-drag').style.display = storeTab === 'sidekicks' && editTed ? 'none' : ''; // no turntable hint over the line editor
@@ -604,6 +605,17 @@ function tedEditHTML() {
     <p class="hint">Play: Ted says it. Bleep: a censor bleep instead, and the swearing is starred out in the subtitles. Off: he never says it. This applies to every Ted you hear, online too.</p>
     <div class="ted-lines">${rows}</div></div>`;
 }
+// ---------- Power Ups: bought once, switched on and off here ----------
+const activePU = () => Object.keys(POWERUPS).filter(k => (profile.powerups || {})[k] && !(profile.puOff || {})[k]);
+function powerupsHTML() {
+  const cards = Object.entries(POWERUPS).map(([id, u]) => {
+    const own = !!(profile.powerups || {})[id], on = own && !(profile.puOff || {})[id];
+    const btns = own ? `<div class="seg"><button data-puon="${id}" class="${on ? 'on' : ''}">On</button><button data-puoff="${id}" class="${on ? '' : 'on'}">Off</button></div>`
+      : `<span class="ch-price">${price(u.price)}</span><button class="btn primary" data-pubuy="${id}">Unlock</button>`;
+    return `<div class="pet-card pu-card ${on ? 'on' : ''}"><div class="pet-t"><small>Power Up · ${u.role === 'killer' ? 'Killer' : 'Survivor'}</small><b>${esc(u.name)}</b></div><p>${esc(u.desc)}</p><div class="row">${btns}</div></div>`;
+  }).join('');
+  return `<div class="ch-row-title">Power Ups · permanent upgrades. Buy once, switch them on or off any time.</div><div class="pet-grid">${cards}</div>`;
+}
 function sidekicksHTML() {
   if (editTed && profile.pets.ted) return tedEditHTML();
   const cards = Object.entries(SIDEKICKS).map(([id, s]) => {
@@ -618,6 +630,9 @@ function sidekicksHTML() {
 }
 
 function bindStore(body) {
+  body.querySelectorAll('[data-pubuy]').forEach(b => b.onclick = () => { const id = b.dataset.pubuy, u = POWERUPS[id]; if ((profile.powerups || {})[id] || !spend(u.price, u.name)) return; (profile.powerups ||= {})[id] = true; saveProfile(); sound.play('caged'); renderStore(); });
+  body.querySelectorAll('[data-puon]').forEach(b => b.onclick = () => { delete (profile.puOff ||= {})[b.dataset.puon]; saveProfile(); sound.play('click'); renderStore(); });
+  body.querySelectorAll('[data-puoff]').forEach(b => b.onclick = () => { (profile.puOff ||= {})[b.dataset.puoff] = true; saveProfile(); sound.play('click'); renderStore(); });
   body.querySelectorAll('[data-tededit]').forEach(b => b.onclick = e => { e.stopPropagation(); sound.play('click'); editTed = true; renderStore(); });
   body.querySelectorAll('[data-tedback]').forEach(b => b.onclick = () => { sound.play('click'); editTed = false; renderStore(); });
   body.querySelectorAll('[data-tedset]').forEach(b => b.onclick = () => {
@@ -835,7 +850,7 @@ $('btn-bots-start').addEventListener('click', () => {
   const meRole = botsCfg.role;
   if (meRole === 'survivor' && !ownsChar(profile.survivor.char)) { toast(`${charName(profile.survivor.char)} is locked. Unlock them in the Store, or pick another survivor.`, 5000); profile.survivor.char = 'mara'; saveProfile(); return; }
   if (meRole === 'killer' && !ownsChar(profile.killer.char)) { toast(`${charName(profile.killer.char)} is part of a chapter. Get it in the Store, or pick another killer.`, 5000); openStore('chapters'); return; }
-  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', pet: petOf(meRole), bot: false, ...(meRole === 'killer' ? killerExtras(profile.killer.char) : {}) });
+  roster.push({ id: 'me', name: settings.name, role: meRole, char: profile[meRole].char, skin: skinId(profile[meRole].char), perks: profile[meRole].perks, item: profile.survivor.item || 'flashlight', pet: petOf(meRole), pu: activePU(), bot: false, ...(meRole === 'killer' ? killerExtras(profile.killer.char) : {}) });
   const used = meRole === 'survivor' ? [profile.survivor.char] : [];
   const gm = MODES[botsCfg.gm] ? botsCfg.gm : 'classic', nk = MODES[gm].killers || 1, ns = MODES[gm].survivors;
   if (meRole === 'survivor') {
@@ -1346,7 +1361,7 @@ function renderLobby() {
 }
 const playableSurvivor = () => ownsChar(profile.survivor.char) ? profile.survivor.char : 'mara';
 const playableKiller = () => ownsChar(profile.killer.char) ? profile.killer.char : 'butcher';
-function myLoadouts() { return { survivor: { ...profile.survivor, char: playableSurvivor(), skin: skinId(playableSurvivor()), pet: petOf('survivor') }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer'), ...killerExtras(playableKiller()) } }; }
+function myLoadouts() { return { survivor: { ...profile.survivor, char: playableSurvivor(), skin: skinId(playableSurvivor()), pet: petOf('survivor'), pu: activePU() }, killer: { ...profile.killer, char: playableKiller(), skin: skinId(playableKiller()), pet: petOf('killer'), ...killerExtras(playableKiller()) } }; }
 function sendMyLoadout(role) {
   const me = myLobbyPlayer();
   if (!me) return;
@@ -1394,7 +1409,7 @@ $('btn-leave-lobby').addEventListener('click', () => leaveOnline());
 $('btn-lobby-start').addEventListener('click', () => {
   if (!lobby || !lobby.isHost) return;
   const ps = lobby.players;
-  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, item: p.item, pet: p.pet || '', bot: false, ...(p.role === 'killer' ? { lv: +(p.loadouts?.killer?.lv) || undefined, og: !!p.loadouts?.killer?.og } : {}) }));
+  const roster = ps.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: p.perks, item: p.item, pet: p.pet || '', pu: Array.isArray(p.loadouts?.survivor?.pu) ? p.loadouts.survivor.pu : [], bot: false, ...(p.role === 'killer' ? { lv: +(p.loadouts?.killer?.lv) || undefined, og: !!p.loadouts?.killer?.og } : {}) }));
   const used = roster.filter(r => r.role === 'survivor').map(r => r.char);
   const cap = lobbyCaps();
   if (!roster.some(r => r.role === 'killer')) {

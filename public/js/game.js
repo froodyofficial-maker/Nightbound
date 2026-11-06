@@ -1617,7 +1617,11 @@ export class Game {
     this.trapMeshes ||= new Map();
     const live = new Set((S.traps || []).map(t => t.id));
     for (const [id, m] of this.trapMeshes) if (!live.has(id)) { this.scene.remove(m); this.trapMeshes.delete(id); }
+    const killerEyes = (() => { const m = this.mine(); return !!m && m.role === 'killer'; })();
     for (const t of S.traps || []) {
+      // Phantom Traps (Power Up): the killer never sees them
+      if (t.inv && killerEyes) { const m = this.trapMeshes.get(t.id); if (m) m.visible = false; continue; }
+      if (this.trapMeshes.has(t.id) && !this.trapMeshes.get(t.id).visible) this.trapMeshes.get(t.id).visible = true;
       if (this.trapMeshes.has(t.id)) { const m = this.trapMeshes.get(t.id); m.userData.glow.material.opacity = 0.5 + Math.sin(this.t * 6) * 0.3; continue; }
       const g = new THREE.Group(); g.position.set(t.x, 0, t.z);
       const model = cloneStatic('ghosttrap');
@@ -1813,7 +1817,7 @@ export class Game {
           break;
         }
         case 'taserdead': if (e.id === this.myId) this.feed('Your Taser is out of shots. Swap it at a chest.'); break;
-        case 'trapset': if (e.id === this.myId) this.feed('Ghost Trap set.'); sound.play('click', e.x, e.z); break;
+        case 'trapset': if (e.id === this.myId) this.feed(e.inv ? 'Phantom Trap set. The killer can\'t see it.' : 'Ghost Trap set.'); if (!(e.inv && this.mine() && this.mine().role === 'killer')) sound.play('click', e.x, e.z); break;
         case 'trapped': {
           const by = S && playerById(S, e.by);
           this.feed(`The killer stepped in ${by ? by.name + "'s" : 'a'} Ghost Trap!`, e.by === this.myId || e.id === this.myId ? 'big' : '');
