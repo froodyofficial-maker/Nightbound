@@ -252,7 +252,7 @@ const navActions = {
   test: () => { renderTest(); openPanel('p-test', 'Testing Area', true); },
   fortnight: () => openFortnightHub(),
 };
-for (const b of $('mainnav').children) {
+for (const b of [...$('mainnav').children, ...$('subnav').children]) {
   b.addEventListener('mouseenter', () => { sound.init(); sound.play('hover'); if (b.dataset.scene) setScene(b.dataset.scene); });
   b.addEventListener('click', () => {
     sound.init(); sound.play('click');
@@ -1646,7 +1646,7 @@ function fnBuildHub() {
     <div class="fh-left">
       <div class="fh-kicker">Limited event · <span id="fh-left"></span></div>
       <div class="fh-logo">FORT<span>NIGHT</span></div>
-      <div class="fh-tag">Battle royale on Nightfall Isle</div>
+      <div class="fh-tag">Battle royale in Nightfall City</div>
       <div class="fh-prize"><b>${FN.prize.toLocaleString()}</b><span>Embers to the player with the most wins when the event ends</span></div>
       <div class="fh-me" id="fh-me"></div>
       <div class="fh-how">Wear any killer or survivor you own (no powers). Loot guns and heals from chests and the ground, stay inside the fog ring, and be the last one standing. Every win counts.</div>
@@ -1657,6 +1657,7 @@ function fnBuildHub() {
       <div class="fh-play">
         <div id="fh-queue"></div>
         <div class="fh-diff"><span>Bots</span><div class="seg" id="fh-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div></div>
+        <div class="fh-diff"><span>View</span><div class="seg" id="fh-view"><button data-v="tp">Third person</button><button data-v="fp">First person</button></div></div>
         <div class="fh-btns"><button class="btn" id="fh-back">Back</button><button class="btn primary big" id="fh-go">PLAY</button></div>
       </div>
     </div>`;
@@ -1664,6 +1665,7 @@ function fnBuildHub() {
   $('fh-back').onclick = () => { sound.play('click'); if (lobby && lobby.fn) leaveOnline(true); closeFortnight(); };
   $('fh-go').onclick = () => { sound.init(); sound.play('click'); if (fnState === 'idle') fnPlayNow(); else if (fnState === 'lobby' && lobby && lobby.isHost) fnStartLobby(); };
   fnHub.querySelectorAll('#fh-diff button').forEach(b => b.onclick = () => { fnCfg.diff = b.dataset.v; fnRender(); });
+  fnHub.querySelectorAll('#fh-view button').forEach(b => b.onclick = () => { settings.fnFP = b.dataset.v === 'fp'; saveSettings(); sound.play('click'); fnRender(); });
   return fnHub;
 }
 function fnLookList() {
@@ -1690,6 +1692,7 @@ function fnRender() {
   $('fh-looks').innerHTML = fnLookList().map(([role, c]) => `<button class="fh-ch ${role} ${L.char === c && L.role === role ? 'on' : ''}" data-r="${role}" data-c="${c}">${esc((role === 'killer' ? KILLERS : SURVIVORS)[c].name)}</button>`).join('');
   $('fh-looks').querySelectorAll('button').forEach(b => b.onclick = () => { if (fnState !== 'idle') { toast('Pick your character before you queue.'); return; } sound.play('click'); profile.fnLook = { role: b.dataset.r, char: b.dataset.c }; saveProfile(); fnShowLook(); fnRender(); });
   fnHub.querySelectorAll('#fh-diff button').forEach(b => b.classList.toggle('on', b.dataset.v === fnCfg.diff));
+  fnHub.querySelectorAll('#fh-view button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'fp') === !!settings.fnFP));
   // the queue
   const go = $('fh-go'), q = $('fh-queue');
   go.disabled = !active;
@@ -1871,8 +1874,8 @@ const AN_GRANNY = `<div class="an-bg granny"></div><div class="an-inner">
 const AN_FN = `<div class="an-bg fn-bg"></div><div class="an-inner"><div class="an-kicker">Limited event · 5 days · now live</div>
   <div class="msg-banner fn-art" style="height:min(34vh,300px);margin:10px auto 14px;max-width:780px;border:1px solid rgba(181,108,255,.5)"></div>
   <div class="an-x fn-x">FORT<span>NIGHT</span></div>
-  <p class="an-sub">Battle royale comes to Nightbound, in broad daylight. Drop onto Nightfall Isle (mountains, hills, farms and cabins to search) with up to 16 players, wearing any killer or survivor you own (no powers). Loot guns from chests, stay inside the fog, and be the last one standing.</p>
-  <ul class="an-list"><li>The player with the <b>most wins</b> when the event ends gets <b>${FN.prize.toLocaleString()} Embers</b></li><li>Matchmaking with everyone online; bots fill the empty spots</li><li>5 guns in 5 grades, chests, sacks and rucksacks to search, heals and ward, a closing fog</li></ul>
+  <p class="an-sub">Battle royale comes to Nightbound. Drop into Nightfall City, a whole island of streets, shops, apartments, houses and docks to search, with up to 16 players, wearing any killer or survivor you own (no powers). Loot guns from chests, stay inside the fog, and be the last one standing.</p>
+  <ul class="an-list"><li>The player with the <b>most wins</b> when the event ends gets <b>${FN.prize.toLocaleString()} Embers</b></li><li>Matchmaking with everyone online; bots fill the empty spots</li><li>Over 100 buildings to search, first or third person, 5 guns in 5 grades, a closing fog</li></ul>
   <div class="an-actions"><button class="btn primary big" id="an-play">Play Fortnight</button><button class="btn" id="an-close">Close</button></div></div>`;
 function showAnnounce(kind = 'offal') {
   closePanel();
@@ -1910,12 +1913,12 @@ $('news-card').onclick = () => { sound.init(); if (fnActive()) { openFortnightHu
 function fnPromo() {
   const on = fnActive(), shown = Date.now() < FN.end + 3 * 864e5;
   $('fn-nav').classList.toggle('hidden', !shown);
-  $('fn-nav').querySelector('small').textContent = on ? `Battle royale · ${FN.prize.toLocaleString()} Embers prize · ${fmtLeft(fnLeft())} left` : 'The event is over: see who won';
+  $('fn-nav').querySelector('small').textContent = on ? 'Event' : 'Results';
   const nc = $('news-card');
-  if (on) { nc.classList.add('fn'); nc.innerHTML = `<div class="fn-art"></div><div class="nc-txt"><span>Limited event · ends in ${fmtLeft(fnLeft())}</span><b>Fortnight <i>· 500K Embers</i></b></div>`; }
+  if (on) { nc.classList.add('fn'); nc.innerHTML = `<div class="fn-art"></div><div class="nc-txt"><span>Limited event · ends in ${fmtLeft(fnLeft())}</span><b>Fortnight</b><em>Battle royale in the city. Most wins takes <strong>${FN.prize.toLocaleString()} Embers</strong>.</em><i class="nc-go">Play now ›</i></div>`; }
   else if (nc.classList.contains('fn')) { nc.classList.remove('fn'); nc.innerHTML = '<div class="granny-art"></div><div class="nc-txt"><span>New chapter · Watch the trailer</span><b>Granny <i>×</i> Nightbound</b></div>'; }
   let bar = document.querySelector('.fn-bar');
-  if (on && !bar) { bar = document.createElement('div'); bar.className = 'fn-bar'; bar.onclick = () => { sound.init(); sound.play('click'); openFortnightHub(); }; $('menu').appendChild(bar); }
+  if (false && on && !bar) { bar = document.createElement('div'); bar.className = 'fn-bar'; bar.onclick = () => { sound.init(); sound.play('click'); openFortnightHub(); }; $('menu').appendChild(bar); }
   if (bar) { bar.classList.toggle('hidden', !on); bar.innerHTML = `FORTNIGHT EVENT LIVE · <b>${FN.prize.toLocaleString()} EMBERS</b> FOR THE MOST WINS · ENDS IN ${fmtLeft(fnLeft()).toUpperCase()} · PLAY NOW ›`; }
   document.querySelectorAll('.fn-card').forEach(c => { c.classList.toggle('hidden', !on); c.onclick = () => { sound.play('click'); openFortnightHub(); }; });
 }

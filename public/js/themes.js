@@ -190,7 +190,7 @@ const snow = {
 };
 
 export const THEMES = { marsh, carnival, snow };
-export const MAP_NAMES = { isle: 'Nightfall Isle', woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name, quarantine: 'Quarantine Woods', outbreak: 'Outbreak Fairground', granny: "Granny's House" };
+export const MAP_NAMES = { isle: 'Nightfall City', woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name, quarantine: 'Quarantine Woods', outbreak: 'Outbreak Fairground', granny: "Granny's House" };
 // Infection maps: twice the area of a regular map (7x7 cells instead of 5x5), built for a dozen
 // players: more generators, long sight lines broken up by loops, and spawns spread around the edges.
 export const BIG_MAPS = {

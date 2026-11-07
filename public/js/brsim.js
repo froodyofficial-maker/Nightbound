@@ -43,7 +43,7 @@ export function rayWall(M, ox, oy, oz, dx, dy, dz, maxT) {
           const y = oy + dy * t0; if (y >= 0 && y <= h && t0 < best) best = t0;
         } else {
           let t0 = 0, t1 = maxT;
-          for (const [o0, d0, lo, hi] of [[ox, dx, o.x - o.hx, o.x + o.hx], [oy, dy, 0, h], [oz, dz, o.z - o.hz, o.z + o.hz]]) {
+          for (const [o0, d0, lo, hi] of [[ox, dx, o.x - o.hx, o.x + o.hx], [oy, dy, o.y0 || 0, h], [oz, dz, o.z - o.hz, o.z + o.hz]]) {
             if (Math.abs(d0) < 1e-9) { if (o0 < lo || o0 > hi) { t0 = Infinity; break; } continue; }
             let a0 = (lo - o0) / d0, a1 = (hi - o0) / d0; if (a0 > a1) [a0, a1] = [a1, a0];
             t0 = Math.max(t0, a0); t1 = Math.min(t1, a1); if (t0 > t1) { t0 = Infinity; break; }

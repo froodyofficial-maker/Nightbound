@@ -451,10 +451,22 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.55.0';
+export const VERSION = '2.56.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.56.0', version: '2.56.0', date: 'Nov 2026', title: 'Fortnight moves to Nightfall City (+ first person, new menu)', tag: 'Event', email: true, banner: 'fn', image: 'public/img/fortnight-email.jpg',
+    body: [
+      'The Fortnight event has a brand new map: Nightfall City, an island almost twice the size of the old one, with a town square, downtown blocks of shops and apartments, suburbs of houses with yards, the Rust Docks warehouses, parks, a filling station, wooded hills and beaches.',
+      'Over 100 buildings you can walk into, each with loot of its own in every room, plus chests, sacks and rucksacks everywhere.',
+      'Night, but you can see: street lamps, lit windows and neon signs light the streets.',
+      'First person mode: press V in a match (or pick it on the event screen). Your gun sways, kicks and lines up when you aim.',
+      'Better animations: guns lowered while sprinting, reloading and healing poses, recoil, and players fall when eliminated.',
+      'Smoother: the whole city is drawn in a few dozen batches and loot is lighter to draw.',
+      'A cleaner main menu: three big choices, everything else in one row, and the event on its own card.',
+    ],
+  },
   {
     id: 'v2.55.0', version: '2.55.0', date: 'Nov 2026', title: 'Fortnight: a 5-day battle royale event', tag: 'Event', email: true, banner: 'fn', image: 'public/img/fortnight-email.jpg',
     body: [

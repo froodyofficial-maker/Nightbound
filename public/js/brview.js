@@ -42,6 +42,27 @@ export function gunModel(id, r = 0) {
   }
   return g;
 }
+// one mesh per model: every part merged, its material colour baked into vertex colours
+const MERGED = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3 });
+const MGEO = new Map();
+export function merged(key, make, mat = MERGED) {
+  let geo = MGEO.get(key);
+  if (!geo) {
+    const g = make(); g.updateMatrixWorld(true);
+    const pos = [], nor = [], col = [], v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3();
+    g.traverse(o => {
+      if (!o.isMesh) return;
+      const gg = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry, P = gg.attributes.position, Nn = gg.attributes.normal, c = (o.material && o.material.color) || new THREE.Color(1, 1, 1);
+      nm.getNormalMatrix(o.matrixWorld);
+      for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); pos.push(v.x, v.y, v.z); n.fromBufferAttribute(Nn, i).applyMatrix3(nm).normalize(); nor.push(n.x, n.y, n.z); col.push(c.r, c.g, c.b); }
+    });
+    geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.computeBoundingSphere(); MGEO.set(key, geo);
+  }
+  const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m;
+}
+export const gunMesh = (id, r = 0, mat) => merged('gun:' + id + ':' + r, () => gunModel(id, r), mat);
 function healModel(id) {
   const g = new THREE.Group(), H = HEALS[id];
   if (id === 'bandage') { g.add(cyl(0.08, 0.12, mat('band', { color: 0xe8e0d0, roughness: 0.9 }), 0, 0.08, 0, 14)); g.children[0].rotation.x = 0; }
@@ -116,10 +137,12 @@ export class BRView {
     this.buildWorld();
     this.onWheel = e => { if (!this.g.paused && document.pointerLockElement) { const me = this.g.mine(); if (me && me.st === 'ok') this.slot(((me.slot + (e.deltaY > 0 ? 1 : -1)) % SLOTS + SLOTS) % SLOTS); } };
     addEventListener('wheel', this.onWheel, { passive: true });
-    this.big('FORTNIGHT', 'Loot up, stay out of the fog, be the last one standing', 5);
+    this.fp = !!game.settings.fnFP;
+    this.big('FORTNIGHT', 'Loot up, stay out of the fog, be the last one standing  ·  V: first / third person', 5);
   }
   dispose() {
     removeEventListener('wheel', this.onWheel);
+    if (this.vm && this.vm.parent) this.vm.parent.remove(this.vm);
     $('hud').classList.remove('br');
     if (this.el) this.el.remove();
   }
@@ -131,9 +154,9 @@ export class BRView {
     this.chests = M.br.chests.map(c => {
       const g = new THREE.Group(); g.position.set(c.x, terrainH(M, c.x, c.z), c.z); g.rotation.y = c.rot; g.scale.setScalar(1.15);
       const W = mat('chestw', { color: 0x6a4626, roughness: 0.8 }), I = mat('chesti', { color: 0x3a3836, metalness: 0.7, roughness: 0.45 }), G = mat('chestg', { color: 0xd8b060, metalness: 0.8, roughness: 0.3, emissive: 0x6a4a10, emissiveIntensity: 0.8 });
-      g.add(box(0.9, 0.42, 0.56, W, 0, 0.21, 0)); g.add(box(0.94, 0.06, 0.6, G, 0, 0.42, 0));
+      g.add(merged('chest', () => { const q = new THREE.Group(); q.add(box(0.9, 0.42, 0.56, W, 0, 0.21, 0)); q.add(box(0.94, 0.06, 0.6, G, 0, 0.42, 0)); return q; }));
       const lid = new THREE.Group(); lid.position.set(0, 0.42, -0.28); g.add(lid);
-      lid.add(box(0.92, 0.16, 0.58, W, 0, 0.08, 0.28)); lid.add(box(0.12, 0.1, 0.04, G, 0, 0.06, 0.58));
+      lid.add(merged('chestlid', () => { const q = new THREE.Group(); q.add(box(0.92, 0.16, 0.58, W, 0, 0.08, 0.28)); q.add(box(0.12, 0.1, 0.04, G, 0, 0.06, 0.58)); return q; }));
       const glow = new THREE.Mesh(new THREE.CircleGeometry(0.9, 24), new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }));
       glow.rotation.x = -Math.PI / 2; glow.position.y = 0.03; g.add(glow);
       g.visible = false; S.add(g);
@@ -143,13 +166,16 @@ export class BRView {
     const burlap = mat('burlap', { color: 0x8a6e48, roughness: 0.95 }), rope = mat('rope', { color: 0xb8a070, roughness: 0.9 }), canvas = mat('canvas', { color: 0x4a5a3a, roughness: 0.85 }), strap = mat('strap', { color: 0x2a2018, roughness: 0.7 });
     this.sacks = (M.br.sacks || []).map(c => {
       const g = new THREE.Group(); g.position.set(c.x, terrainH(M, c.x, c.z), c.z); g.rotation.y = c.rot;
-      if (c.kind === 'sack') {
-        const body = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 9), burlap); body.scale.set(1, 1.15, 0.85); body.position.y = 0.3; g.add(body);
-        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 0.16, 8), burlap); neck.position.y = 0.66; g.add(neck);
-        const tie = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.018, 6, 12), rope); tie.rotation.x = Math.PI / 2; tie.position.y = 0.62; g.add(tie);
-      } else {
-        g.add(box(0.46, 0.5, 0.26, canvas, 0, 0.25, 0)); g.add(box(0.46, 0.14, 0.3, canvas, 0, 0.5, 0.02)); g.add(box(0.3, 0.18, 0.08, canvas, 0, 0.2, 0.16));
-        for (const x of [-0.13, 0.13]) g.add(box(0.05, 0.5, 0.03, strap, x, 0.27, -0.15));
+      if (c.kind === 'sack') g.add(merged('sack', () => {
+        const q = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 9), burlap); body.scale.set(1, 1.15, 0.85); body.position.y = 0.3; q.add(body);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 0.16, 8), burlap); neck.position.y = 0.66; q.add(neck);
+        const tie = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.018, 6, 12), rope); tie.rotation.x = Math.PI / 2; tie.position.y = 0.62; q.add(tie);
+        return q;
+      }));
+      else {
+        g.add(merged('pack', () => { const q = new THREE.Group(); q.add(box(0.46, 0.5, 0.26, canvas, 0, 0.25, 0)); q.add(box(0.46, 0.14, 0.3, canvas, 0, 0.5, 0.02)); q.add(box(0.3, 0.18, 0.08, canvas, 0, 0.2, 0.16));
+          for (const x of [-0.13, 0.13]) q.add(box(0.05, 0.5, 0.03, strap, x, 0.27, -0.15)); return q; }));
         g.rotation.z = 0.12;
       }
       g.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -194,7 +220,7 @@ export class BRView {
       if (!o || o.key !== L.k + L.i + L.r) {
         if (o) this.scene.remove(o.g);
         const g = new THREE.Group(); g.position.set(L.x, 0, L.z);
-        const m = L.k === 'w' ? gunModel(L.i, L.r) : L.k === 'h' ? healModel(L.i) : ammoModel(L.i);
+        const m = L.k === 'w' ? gunMesh(L.i, L.r) : L.k === 'h' ? merged('heal:' + L.i, () => healModel(L.i)) : merged('ammo:' + L.i, () => ammoModel(L.i));
         const hold = new THREE.Group(); hold.add(m); hold.position.y = L.k === 'w' ? 0.45 : 0.15; if (L.k === 'w') hold.rotation.z = Math.PI / 2 - 0.2;
         g.add(hold);
         g.position.y = terrainH(this.M, L.x, L.z);
@@ -210,7 +236,7 @@ export class BRView {
     // only what's near is drawn
     for (const o of this.loot.values()) {
       const d = Math.hypot(o.g.position.x - cam.x, o.g.position.z - cam.z);
-      o.g.visible = d < 60;
+      o.g.visible = d < 42;
       if (o.g.visible) { o.hold.rotation.y = this.g.t * 0.9 + o.seed; o.hold.position.y += (0.45 + Math.sin(this.g.t * 2 + o.seed) * 0.04 - o.hold.position.y) * 0.2 * (o.key[0] === 'w' ? 1 : 0); }
     }
   }
@@ -223,24 +249,35 @@ export class BRView {
         if (c.brGun) c.brGun.parent && c.brGun.parent.remove(c.brGun);
         c.brGun = null; c.brKey = key;
         if (key) {
-          const gun = gunModel(it.id, it.r), R = c.rig, hand = R.j && R.j.handR && R.j.handR !== R.j.head ? R.j.handR : null;
+          const gun = new THREE.Group(); gun.add(gunMesh(it.id, it.r)); const R = c.rig, hand = R.j && R.j.handR && R.j.handR !== R.j.head ? R.j.handR : null;
           gun.scale.setScalar(1.4); // a touch larger than life, so you can tell what someone's carrying
           if (hand) { gun.rotation.x = Math.PI / 2; gun.position.set(0, -0.09, 0.03); hand.add(gun); c.brHand = true; }
           else { gun.position.set(-0.28, 1.25, 0.45); R.root.add(gun); c.brHand = false; }
           c.brGun = gun;
         }
       }
-      // aiming pose (procedural rigs): right arm out along the aim, left hand on the gun
-      const j = c.rig.j;
-      if (key && c.brHand && j && j.shR && j.elR && p.st === 'ok' && !p.heal) {
-        const pitch = p.id === this.g.myId ? (p.pitch || 0) : (p.pitch || 0);
-        j.shR.rotation.x = -1.45 - pitch * 0.85; j.shR.rotation.z = -0.05; j.elR.rotation.x = -0.12;
-        if (j.shL && j.elL) { j.shL.rotation.x = -1.25 - pitch * 0.7; j.shL.rotation.z = 0.55; j.elL.rotation.x = -0.75; }
+      // poses (procedural rigs): aiming, gun low while sprinting, reloading, patching up; a kick when firing
+      const j = c.rig.j, root = c.rig.root;
+      if (j && j.shR && j.elR && p.st === 'ok') {
+        const pitch = p.pitch || 0, kick = c.kickAt != null ? Math.max(0, 1 - (this.g.t - c.kickAt) / 0.14) : 0;
+        if (p.heal) { j.shR.rotation.x = -0.95; j.elR.rotation.x = -1.2; j.shR.rotation.z = 0.25; if (j.shL) { j.shL.rotation.x = -0.95; j.elL.rotation.x = -1.2; j.shL.rotation.z = -0.25; } }
+        else if (key && c.brHand) {
+          if (p.rel > 0) { const w = Math.sin(this.g.t * 9) * 0.12; j.shR.rotation.x = -0.75; j.elR.rotation.x = -1.0; if (j.shL) { j.shL.rotation.x = -0.9 + w; j.shL.rotation.z = 0.5; j.elL.rotation.x = -1.3; } if (c.brGun) c.brGun.rotation.y = 0.5; }
+          else if (p.mv === 2 && !p.ads) { j.shR.rotation.x = -0.55; j.shR.rotation.z = -0.05; j.elR.rotation.x = -0.95; if (j.shL) { j.shL.rotation.x = -0.6; j.shL.rotation.z = 0.45; j.elL.rotation.x = -1.1; } if (c.brGun) c.brGun.rotation.y = 0; }
+          else { j.shR.rotation.x = -1.45 - pitch * 0.85 + kick * 0.3; j.shR.rotation.z = -0.05; j.elR.rotation.x = -0.12 - kick * 0.2; if (j.shL && j.elL) { j.shL.rotation.x = -1.25 - pitch * 0.7 + kick * 0.2; j.shL.rotation.z = 0.55; j.elL.rotation.x = -0.75; } if (c.brGun) c.brGun.rotation.y = 0; }
+        }
       }
+      // eliminated: fall backwards, lie there a moment, sink away
+      if (p.st === 'dead' && c.deadAt != null) {
+        const f = (this.g.t - c.deadAt); root.rotation.order = 'YXZ';
+        root.rotation.x = -(Math.min(1, f / 0.45) ** 2) * Math.PI / 2;
+        if (f > 1.6) root.position.y -= (f - 1.6) * 0.6;
+      } else if (root.rotation.x) root.rotation.x = 0;
       // jumping
       const hop = p.id === this.g.myId ? (p.hop ? p.hop.t / p.hop.d : 0) : (p.hopF || 0);
       if (hop > 0 && hop < 1) c.rig.root.position.y += Math.sin(hop * Math.PI) * 0.75;
       c.rig.root.position.y += terrainH(this.M, c.x, c.z);
+      const cam = this.g.camera.position; if (c.rig.root.visible && Math.hypot(c.x - cam.x, c.z - cam.z) > 95) c.rig.root.visible = false;
     }
   }
   tracer(x0, y0, z0, x1, y1, z1) {
@@ -254,7 +291,8 @@ export class BRView {
   muzzle(p) {
     const c = this.g.chars.get(p.id); if (!c) return null;
     let pos;
-    if (c.brGun) { pos = new THREE.Vector3(0, 0.03, 0.45); c.brGun.localToWorld(pos); }
+    if (p.id === this.g.myId && this.fp && this.vmGun && this.vm.visible) { pos = new THREE.Vector3(0, 0.03, 0.45); this.vmGun.localToWorld(pos); }
+    else if (c.brGun) { pos = new THREE.Vector3(0, 0.03, 0.45); c.brGun.localToWorld(pos); }
     else pos = new THREE.Vector3(c.x + Math.sin(c.yaw) * 0.5, EYE + terrainH(this.M, c.x, c.z), c.z + Math.cos(c.yaw) * 0.5);
     const F = this.flashes.find(f => f.t >= 1) || this.flashes[0];
     F.s.position.copy(pos); F.s.visible = true; F.t = 0; F.s.material.rotation = Math.random() * 6;
@@ -274,6 +312,7 @@ export class BRView {
   onKey(code, down) {
     const me = this.me(); if (!me) return false;
     if (code === 'KeyM') { if (down) { this.mapBig = !this.mapBig; this.mapEl.style.display = this.mapBig ? 'block' : 'none'; } return true; }
+    if (code === 'KeyV') { if (down) { this.fp = !this.fp; this.g.settings.fnFP = this.fp; window.dispatchEvent(new Event('nb-cam')); this.toast(this.fp ? 'First person' : 'Third person', '#d0c8ff'); } return true; }
     if (!down || me.st !== 'ok') return false;
     const d = /^Digit([1-5])$/.exec(code);
     if (d) { this.slot(+d[1] - 1); return true; }
@@ -315,7 +354,7 @@ export class BRView {
     if (mp) this.tracer(mp.x, mp.y, mp.z, A.x, A.y, A.z);
     sound.play(W.sound, me.x, me.z);
     const kick = (W.pellets ? 0.05 : it.id === 'hunting' ? 0.07 : W.auto ? 0.012 : 0.028) * (this.ads ? 0.6 : 1);
-    me.pitch = Math.min(1.2, me.pitch + kick); this.g.shake = Math.max(this.g.shake, W.pellets || it.id === 'hunting' ? 0.5 : 0.15);
+    me.pitch = Math.min(1.2, me.pitch + kick); this.g.shake = Math.max(this.g.shake, W.pellets || it.id === 'hunting' ? 0.5 : 0.15); this.vmKick = 1;
     if (!this.g.isHost) me.mg = Math.max(0, me.mg - 1);
   }
 
@@ -330,14 +369,14 @@ export class BRView {
     // chests
     this.M.br.chests.forEach((c, i) => {
       const C = this.chests[i], open = (S.copen || []).includes(i);
-      C.g.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < 70;
+      C.g.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < 55;
       C.open += ((open ? 1 : 0) - C.open) * Math.min(1, dt * 5);
       C.lid.rotation.x = -C.open * 1.9;
       C.glow.material.opacity = open ? 0.05 : 0.22 + Math.sin(this.g.t * 2.2 + i) * 0.08;
     });
     (this.M.br.sacks || []).forEach((c, i) => {
       const K = this.sacks[i], open = (S.sopen || []).includes(i);
-      K.g.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < 55;
+      K.g.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < 40;
       K.open += ((open ? 1 : 0) - K.open) * Math.min(1, dt * 4);
       K.g.scale.set(1 + K.open * 0.15, 1 - K.open * 0.55, 1 + K.open * 0.15); // emptied: it slumps flat
     });
@@ -353,6 +392,8 @@ export class BRView {
   // over the shoulder; aiming down sights pulls in, the hunting rifle's scope goes to first person
   camera(dt, S, me) {
     const g = this.g, cam = g.camera;
+    if (this.fp && me.st === 'ok') { this.fpCamera(dt, S, me); return; }
+    if (this.vm) this.vm.visible = false;
     let T = me;
     if (me.st !== 'ok') {
       if (!this.spec || !S.players.some(p => p.id === this.spec && p.st === 'ok')) { const alive = S.players.filter(p => p.st === 'ok'); const k = this.killer && alive.find(p => p.id === this.killer); this.spec = (k || alive[0] || me).id; }
@@ -385,6 +426,48 @@ export class BRView {
     sound.listener(px, pz, yaw);
   }
 
+  // first person: your eyes, and your gun held in front of you
+  fpCamera(dt, S, me) {
+    const g = this.g, cam = g.camera, c = g.chars.get(me.id), it = this.item(me);
+    const hop = me.hop ? Math.sin(me.hop.t / me.hop.d * Math.PI) * 0.75 : 0;
+    const eye = (me.look === 'killer' ? 1.9 : 1.62) - (me.cr ? 0.55 : 0);
+    const sh = g.shake > 0 ? g.shake : 0; g.shake = Math.max(0, g.shake - dt * 2.5);
+    cam.position.set(me.x + Math.sin(me.yaw) * 0.12 + (Math.random() - 0.5) * sh * 0.04, terrainH(this.M, me.x, me.z) + eye + hop, me.z + Math.cos(me.yaw) * 0.12);
+    cam.rotation.set(me.pitch + (Math.random() - 0.5) * sh * 0.01, me.yaw + Math.PI, 0);
+    const W = it && it.k === 'w' ? WEAPONS[it.id] : null, ads = this.ads && W, scoped = ads && W.scope;
+    const fov = scoped ? 18 : ads ? 55 : (g.settings.fov || 75) + (me.mv === 2 ? 6 : 0);
+    this.fov = this.fov == null ? fov : this.fov + (fov - this.fov) * Math.min(1, dt * 14);
+    cam.fov = this.fov; cam.updateProjectionMatrix();
+    if (c) c.rig.root.visible = false;
+    sound.listener(me.x, me.z, me.yaw);
+    // the view model
+    const key = it ? it.k + it.id + (it.r || 0) : 'hands';
+    if (!this.vm) { this.vm = new THREE.Group(); cam.add(this.vm); this.vmMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.35, depthTest: false, depthWrite: false }); }
+    if (this.vmKey !== key) {
+      this.vmKey = key; this.vm.clear(); this.vmGun = null;
+      const skin = new THREE.MeshStandardMaterial({ color: 0xc89878, roughness: 0.7, depthTest: false, depthWrite: false }), sleeve = new THREE.MeshStandardMaterial({ color: 0x2a2e36, roughness: 0.8, depthTest: false, depthWrite: false });
+      const arm = (x, y, z, rx, ry, len, s = sleeve) => { const a = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.042, len * 0.55), s); a.position.set(x * 0.5, y * 0.5 - 0.02, z * 0.5 + 0.05); a.rotation.set(rx, ry, 0); this.vm.add(a); return a; };
+      if (it && it.k === 'w') {
+        const gun = gunMesh(it.id, it.r, this.vmMat); gun.rotation.y = Math.PI; gun.scale.setScalar(0.55); gun.position.set(0, 0, 0); this.vm.add(gun); this.vmGun = gun;
+        const hand = (x, y, z) => { const h = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.08), skin); h.position.set(x, y, z); this.vm.add(h); };
+        hand(0.0, -0.045, 0.03); hand(0.0, -0.03, -0.12); // a hand on the grip, one under the barrel
+      } else if (it && it.k === 'h') {
+        const h = merged('heal:' + it.id, () => healModel(it.id), this.vmMat); h.position.set(0, -0.04, -0.04); h.scale.setScalar(0.7); this.vm.add(h);
+        arm(0.1, -0.1, 0.15, 0.3, 0.2, 0.4); arm(-0.1, -0.1, 0.15, 0.3, -0.2, 0.4);
+      } else { arm(0.16, -0.12, 0.1, 0.2, 0.1, 0.4); arm(0.14, -0.09, -0.12, 0, 0, 0.1, skin); arm(-0.16, -0.12, 0.1, 0.2, -0.1, 0.4); arm(-0.14, -0.09, -0.12, 0, 0, 0.1, skin); }
+      this.vm.traverse(o => { if (o.isMesh) { o.renderOrder = 999; o.castShadow = false; } });
+    }
+    this.vm.visible = !scoped;
+    // sway, bob, kick, sprint, reload
+    const t = g.t, moving = me.mv >= 1 ? 1 : 0, sprint = me.mv === 2 && !this.ads;
+    this.vmKick = Math.max(0, (this.vmKick || 0) - dt * 7);
+    const k = this.vmKick, bob = Math.sin(t * (sprint ? 12 : 8)) * (sprint ? 0.022 : 0.012) * moving, bobY = Math.abs(Math.cos(t * (sprint ? 12 : 8))) * (sprint ? 0.018 : 0.008) * moving;
+    const tx = ads ? 0 : 0.14 + bob, ty = (ads ? -0.072 : -0.12) - bobY - (me.rel > 0 ? 0.05 : 0), tz = (ads ? -0.38 : -0.42) + k * 0.04;
+    const P = this.vm.position; P.x += (tx - P.x) * Math.min(1, dt * 16); P.y += (ty - P.y) * Math.min(1, dt * 16); P.z += (tz - P.z) * Math.min(1, dt * 22);
+    const rx = k * 0.16 + (sprint ? -0.45 : 0) + (me.rel > 0 ? -0.5 + Math.sin(t * 10) * 0.05 : 0), ry = sprint ? 0.5 : 0, rz = me.rel > 0 ? 0.35 : 0;
+    this.vm.rotation.x += (rx - this.vm.rotation.x) * Math.min(1, dt * 14); this.vm.rotation.y += (ry - this.vm.rotation.y) * Math.min(1, dt * 10); this.vm.rotation.z += (rz - this.vm.rotation.z) * Math.min(1, dt * 10);
+  }
+
   // ---------- events ----------
   onEvents(evs) {
     const S = this.g.S, me = this.me(), my = this.g.myId;
@@ -393,6 +476,7 @@ export class BRView {
       const nm = id => { const p = P(id); return p ? p.name : '?'; };
       if (e.k === 'brshot') {
         const p = P(e.id); if (!p) continue;
+        const sc = this.g.chars.get(e.id); if (sc) sc.kickAt = this.g.t;
         if (e.id !== my) { const mp = this.muzzle(p); if (mp) this.tracer(mp.x, mp.y, mp.z, e.x, e.y, e.z); sound.play(WEAPONS[e.w] ? WEAPONS[e.w].sound : 'pistol', p.x, p.z); }
         if (!e.hit && this.g.sparks) this.g.sparks.spawn(e.x, e.y, e.z, 4, 0xffd8a0, 2.5, 0.25);
       } else if (e.k === 'brdmg') {
@@ -444,6 +528,22 @@ export class BRView {
     const M = this.M, N = 1024, cv = document.createElement('canvas'); cv.width = cv.height = N;
     const x = cv.getContext('2d'), k = N / (M.half * 2), X = v => (v + M.half) * k;
     x.fillStyle = '#1b2a1a'; x.fillRect(0, 0, N, N);
+    if (M.city) {
+      const Cc = M.city, e = (M.half - 6) * k;
+      x.fillStyle = '#16263c'; x.fillRect(0, 0, N, N);                       // the sea
+      x.fillStyle = '#c2b28a'; x.fillRect(X(-M.half + 2), X(-M.half + 2), (M.half - 2) * 2 * k, (M.half - 2) * 2 * k); // beach
+      x.fillStyle = '#2c3e26'; x.fillRect(X(-M.half + 8), X(-M.half + 8), (M.half - 8) * 2 * k, (M.half - 8) * 2 * k);
+      x.fillStyle = '#3a4a30'; x.fillRect(X(-157), X(-157), 314 * k, 314 * k);
+      x.fillStyle = '#56544e'; for (const l of [...Cc.lots, ...Cc.plazas]) x.fillRect(X(l.x0), X(l.z0), (l.x1 - l.x0) * k, (l.z1 - l.z0) * k);
+      x.fillStyle = '#3e5a2e'; for (const l of [...Cc.parks, ...Cc.yards]) x.fillRect(X(l.x0), X(l.z0), (l.x1 - l.x0) * k, (l.z1 - l.z0) * k);
+      x.fillStyle = '#26282c'; for (const r of Cc.roads) { if (r.z0 === r.z1) x.fillRect(X(r.x0), X(r.z0 - 6.3), (r.x1 - r.x0) * k, 12.6 * k); else x.fillRect(X(r.x0 - 6.3), X(r.z0), 12.6 * k, (r.z1 - r.z0) * k); }
+      x.fillStyle = '#9a9488'; for (const b of Cc.buildings) x.fillRect(X(b.x - b.w / 2), X(b.z - b.d / 2), b.w * k, b.d * k);
+      x.fillStyle = '#1e2e1a'; for (const t of [...Cc.trees, ...Cc.pines]) { x.beginPath(); x.arc(X(t.x), X(t.z), 3, 0, 7); x.fill(); }
+      x.fillStyle = '#d8b060'; for (const c of M.br.chests) x.fillRect(X(c.x) - 2, X(c.z) - 2, 4, 4);
+      x.font = 'bold 20px sans-serif'; x.textAlign = 'center';
+      for (const p of M.br.places || []) { x.fillStyle = 'rgba(0,0,0,0.7)'; x.fillText(p.n.toUpperCase(), X(p.x) + 2, X(p.z) + 2); x.fillStyle = '#fff'; x.fillText(p.n.toUpperCase(), X(p.x), X(p.z)); }
+      this.island = cv; return;
+    }
     for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${40 + Math.random() * 30},${60 + Math.random() * 30},${35},0.25)`; x.beginPath(); x.arc(Math.random() * N, Math.random() * N, 6 + Math.random() * 30, 0, 7); x.fill(); }
     if (M.terrain) {
       // height shading and contour rings every 4m
@@ -564,7 +664,7 @@ export class BRView {
     let act = '';
     if (me.heal) act = `Using ${esc(HEALS[me.heal.id].name)}<div><i style="width:${Math.min(100, me.heal.t / me.heal.d * 100)}%"></i></div>`;
     else if (me.rel > 0 && W) act = `Reloading<div><i style="width:${Math.min(100, (1 - me.rel / W.reload) * 100)}%"></i></div>`;
-    q('.bh-act').innerHTML = act;
+    if (act !== this.actHTML) { this.actHTML = act; q('.bh-act').innerHTML = act; }
     // damage numbers float up
     for (let i = this.dmgEls.length - 1; i >= 0; i--) {
       const D = this.dmgEls[i]; D.t += dt;
@@ -575,7 +675,7 @@ export class BRView {
     }
     // where the shots came from
     this.dirs = this.dirs.filter(d => (d.t -= dt) > 0);
-    q('.bh-dirs').innerHTML = this.dirs.map(d => { const a = d.a - me.yaw; return `<i style="transform:rotate(${(-a * 180 / Math.PI + 90).toFixed(0)}deg) translateX(-110px);opacity:${Math.min(1, d.t).toFixed(2)}"></i>`; }).join('');
+    if (this.dirs.length || this.dirsShown) { this.dirsShown = this.dirs.length > 0; q('.bh-dirs').innerHTML = this.dirs.map(d => { const a = d.a - me.yaw; return `<i style="transform:rotate(${(-a * 180 / Math.PI + 90).toFixed(0)}deg) translateX(-110px);opacity:${Math.min(1, d.t).toFixed(2)}"></i>`; }).join(''); }
     // spectating
     const spec = me.st !== 'ok' && S.phase === 'play' ? S.players.find(p => p.id === this.spec) : null;
     const st = spec && spec.id !== me.id ? `Spectating <b>${esc(spec.name)}</b> · ${spec.kills || 0} eliminations<br><small style="opacity:.7">Click to watch someone else · Esc to leave</small>` : '';

@@ -4,6 +4,7 @@ import { HALF } from './config.js';
 import { realistic } from './gfx.js';
 import { cloneScene } from './sceneGlb.js';
 import { rng, barBox, terrainH } from './map.js';
+import { buildCityWorld, updateCityWorld } from './cityworld.js';
 import { tex } from './textures.js';
 import { photoGround } from './pbr.js';
 import { buildMeatWorld, updateMeatLights } from './meatworld.js';
@@ -30,6 +31,7 @@ const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)
 export function buildWorld(M, quality = 'medium') {
   const HF = M.half || HALF;
   if (M.indoor) return buildMeatWorld(M, quality);
+  if (M.city) return buildCityWorld(M, quality);
   const LK = M.br ? LOOK.isle : LOOK[M.map] || LOOK.woods, FOG_COLOR = LK.fog;
   const q = QUALITY[quality] || QUALITY.medium;
   setDetail(quality);
@@ -442,6 +444,7 @@ export function addInteractables(W, M) {
 
 // per-frame updates for props, driven by state
 export function updateWorld(W, M, S, t, dt, follow) {
+  if (W.city) updateCityWorld(W, follow, t, dt);
   if (W.grassT) W.grassT.value = t;
   if (follow) {
     W.fill.position.set(follow.x, 3.2, follow.z);

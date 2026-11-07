@@ -476,7 +476,7 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .co-save { font-family: var(--cond); font-weight: 600; font-size: 13px; letter-spacing: .14em; color: #fff; background: #2f7a3a; padding: 2px 8px; }
 .st-strike { text-decoration: line-through; color: #7a7066; font-size: 20px; }
 @media (max-width: 900px) { .ch-hero { grid-template-columns: 1fr; } .cs-detail { position: static; width: auto; } #store { background: rgba(6,4,5,.97); } }
-#menu.store-open .mainnav, #menu.store-open .logo, #menu.store-open .showcase, #menu.store-open .news-card, #menu.store-open .topright { display: none; }
+#menu.store-open .mainnav, #menu.store-open .subnav, #menu.store-open .logo, #menu.store-open .showcase, #menu.store-open .news-card, #menu.store-open .topright { display: none; }
 .char.locked { opacity: .55; }
 .char.locked:hover { opacity: .8; }
 .msg-banner { height: 150px; margin: -4px -4px 12px; border: 1px solid rgba(232,53,43,.4); cursor: pointer; }
@@ -825,7 +825,7 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 
 /* ---------- Fortnight event ---------- */
 :root { --fn: #b56cff; --fn2: #ffcf5a; }
-#menu.fn-open #mainnav, #menu.fn-open .logo, #menu.fn-open #showcase, #menu.fn-open #news-card, #menu.fn-open #last-updated, #menu.fn-open .fn-bar { display: none !important; }
+#menu.fn-open #mainnav, #menu.fn-open #subnav, #menu.fn-open .logo, #menu.fn-open #showcase, #menu.fn-open #news-card, #menu.fn-open #last-updated, #menu.fn-open .fn-bar { display: none !important; }
 #fn-hub { position: fixed; inset: 0; z-index: 20; pointer-events: none; color: var(--bone); }
 #fn-hub.hidden { display: none; }
 #fn-hub > div:not(.fh-shade) { pointer-events: auto; }
@@ -891,3 +891,39 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .store-fn b { font-family: var(--display); font-size: 26px; letter-spacing: .06em; color: #fff; display: block; }
 .store-fn span { font-size: 13px; color: var(--dim); }
 .fn-sum { border-color: rgba(181,108,255,.55) !important; }
+
+/* ---------- main menu v2: fewer, bigger choices; everything else tucked into a row ---------- */
+.logo { top: clamp(16px, 4vh, 40px); }
+.logo h1 { font-size: clamp(34px, 4vw, 62px); }
+.logo h1::after { height: 4px; margin-top: 6px; }
+.logo p { font-size: 11px; letter-spacing: .4em; margin-top: 8px; }
+#menu::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(180deg, rgba(4,3,6,.75), transparent); pointer-events: none; z-index: 1; }
+#menu::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 46vw; max-width: 640px; background: linear-gradient(90deg, rgba(4,3,6,.78), rgba(4,3,6,.35) 70%, transparent); pointer-events: none; z-index: 1; }
+#menu > .logo, #menu > .mainnav, #menu > .subnav, #menu > .topright, #menu > .news-card, #menu > .showcase, #menu > .last-updated { z-index: 3; }
+.mainnav.v2 { top: auto; bottom: calc(clamp(26px, 6vh, 64px) + 104px); gap: 10px; width: min(380px, 38vw); }
+.mainnav.v2 button.prim { padding: 14px 20px 12px 22px; background: linear-gradient(90deg, rgba(20,12,12,.82), rgba(20,12,12,.45)); border: 1px solid rgba(233,224,208,.08); border-left: 3px solid rgba(179,32,30,.75); }
+.mainnav.v2 button.prim span { font-size: clamp(26px, 2.6vw, 36px); }
+.mainnav.v2 button.prim small { height: auto; opacity: .75; margin-top: 3px; font-size: 12px; }
+.mainnav.v2 button.prim::before { top: 0; bottom: 0; }
+.mainnav.v2 button.prim:hover { transform: translateX(6px); border-left-color: var(--red2); }
+.subnav { position: absolute; left: clamp(20px, 5vw, 80px); bottom: clamp(26px, 6vh, 64px); width: min(380px, 38vw); display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.subnav button { position: relative; background: rgba(16,12,14,.72); border: 1px solid rgba(233,224,208,.12); color: #d8cfc2; cursor: pointer; padding: 9px 4px 8px; font-family: var(--display); letter-spacing: .08em; font-size: 15px; transition: background .15s, border-color .15s, transform .15s; }
+.subnav button span { display: block; }
+.subnav button small { position: absolute; top: -8px; right: 4px; font-family: var(--cond); font-weight: 700; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; background: var(--red2); color: #fff; padding: 1px 5px; }
+.subnav button:hover { background: rgba(120,20,16,.6); border-color: rgba(232,53,43,.6); transform: translateY(-2px); }
+.subnav button.fn-nav { grid-column: span 2; background: linear-gradient(90deg, rgba(110,40,180,.55), rgba(40,14,60,.75)); border-color: rgba(181,108,255,.6); color: #fff; }
+.subnav button.fn-nav small { background: var(--fn2); color: #1a0e02; }
+.subnav button.fn-nav.hidden { display: none; }
+/* the featured card (the event) */
+.news-card.fn { top: clamp(84px, 13vh, 130px); width: min(420px, 34vw); border-width: 1px; }
+.news-card.fn .fn-art { height: clamp(150px, 20vh, 210px); }
+.news-card.fn .nc-txt { padding: 12px 16px 14px; background: linear-gradient(180deg, #120a1c, #08050c); }
+.news-card.fn .nc-txt b { display: block; font-family: var(--display); font-size: 40px; letter-spacing: .04em; line-height: 1; color: #fff; margin-top: 4px; }
+.news-card.fn .nc-txt em { display: block; font-style: normal; font-size: 13px; color: #cfc4dc; margin-top: 6px; letter-spacing: 0; text-transform: none; font-family: inherit; }
+.news-card.fn .nc-txt em strong { color: var(--fn2); }
+.news-card.fn .nc-go { display: inline-block; margin-top: 10px; font-style: normal; font-family: var(--display); font-size: 18px; letter-spacing: .1em; color: #1a0e02; background: linear-gradient(180deg, #ffd96e, #e8a92a); padding: 6px 16px; }
+.showcase { max-width: 360px; }
+.showcase .lore { font-size: 13px; }
+@media (max-height: 700px) { .mainnav.v2 button.prim { padding: 9px 16px 8px 18px; } .mainnav.v2 button.prim small { display: none; } }
+
+#menu.fn-open::after, #menu.store-open::after { display: none; }

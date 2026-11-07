@@ -5,6 +5,7 @@ import { buildMeatworks } from './meatworks.js';
 import { buildGrannyHouse } from './grannyhouse.js';
 import { THEMES, BIG_MAPS, BR_MAPS } from './themes.js';
 import { rollItem } from './brdata.js';
+import { buildCity } from './city.js';
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -95,6 +96,7 @@ export function makeCtx(M, R, cx, cz, rot) {
 
 
 export function buildMap(seed, map = 'woods') {
+  if (map === 'isle') return buildCity(seed); // Fortnight: the city island (city.js)
   const M = map === 'meatworks' ? buildMeatworks(seed) : map === 'granny' ? buildGrannyHouse(seed) : buildArena(seed, map);
   if (M.br) { M.chests = []; addBRLoot(M, seed); return M; }
   addChests(M, seed);
@@ -369,7 +371,7 @@ function push(M, c) { M.circles.push(c); return c; }
 
 // ---------- terrain (Fortnight's island): a height grid built once from the map seed ----------
 const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-function buildTerrain(M, T) {
+export function buildTerrain(M, T) {
   const ext = M.half + 14, n = Math.ceil(ext * 2) + 1, grid = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = -ext + i, z = -ext + j;
@@ -517,6 +519,7 @@ export function moveCircle(M, st, x, z, dx, dz, r = 0.38, low = 0) {
       if (!bucket) continue;
       for (const o of bucket) {
         if (low > 0 && o.h < low) continue;
+        if (o.y0 > 1.6) continue; // overhead (a lintel): walk under it
         if (o.r !== undefined) {
           const ddx = p.x - o.x, ddz = p.z - o.z, d = Math.hypot(ddx, ddz), min = o.r + r;
           if (d < min && d > 1e-6) { p.x = o.x + ddx / d * min; p.z = o.z + ddz / d * min; any = true; }
@@ -558,8 +561,8 @@ export function freePoint(M, x, z, r) {
     }
   return { x, z };
 }
-function overlaps(M, x, z, r) {
-  for (const b of M.boxes) if (Math.abs(x - b.x) < b.hx + r && Math.abs(z - b.z) < b.hz + r) return true;
+export function overlaps(M, x, z, r) {
+  for (const b of M.boxes) if (!(b.y0 > 1.6) && Math.abs(x - b.x) < b.hx + r && Math.abs(z - b.z) < b.hz + r) return true;
   for (const c of M.circles) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
   return false;
 }
@@ -578,7 +581,7 @@ function segBox(x1, z1, x2, z2, b) {
 export function losBlocked(M, x1, z1, x2, z2, minH = 1.7) {
   const minx = Math.min(x1, x2), maxx = Math.max(x1, x2), minz = Math.min(z1, z2), maxz = Math.max(z1, z2);
   for (const b of M.boxes) {
-    if (b.h < minH) continue;
+    if (b.h < minH || b.y0 > minH) continue;
     if (b.x + b.hx < minx || b.x - b.hx > maxx || b.z + b.hz < minz || b.z - b.hz > maxz) continue;
     if (segBox(x1, z1, x2, z2, b)) return true;
   }
@@ -611,7 +614,7 @@ export function buildGrid(M) {
     }
     const bucket = M.hash.get(Math.floor((x + HF + 12) / 8) * 1000 + Math.floor((z + HF + 12) / 8)) || [];
     for (const b of bucket) {
-      if (b.r !== undefined) continue;
+      if (b.r !== undefined || b.y0 > 1.6) continue;
       if (Math.abs(x - b.x) < b.hx + r && Math.abs(z - b.z) < b.hz + r) {
         if (b.kind === 'sill') { if (type[k] === 0) { type[k] = 2; ref[k] = M.windows.findIndex(w => w.x === b.x && w.z === b.z); } }
         else { type[k] = 1; break; }

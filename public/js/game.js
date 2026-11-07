@@ -428,7 +428,7 @@ export class Game {
       const rt = real ? new THREE.WebGLRenderTarget(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio(), { type: THREE.HalfFloatType, samples: 4 }) : undefined;
       this.composer = new EffectComposer(r, rt);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      if (real) {
+      if (real && !this.M.city) { // (the city skips ambient occlusion: it costs too much on a map this size)
         const hi = this.settings.quality === 'high';
         this.ao = new NightAO(this.scene, this.camera, innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio(), hi ? 0.75 : 0.5);
         this.ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: hi ? 16 : 10, distanceFallOff: 1, screenSpaceRadius: false });
@@ -458,7 +458,7 @@ export class Game {
     this.role = me ? me.role : 'survivor';
     if (this.role === 'killer' && !isTpv(me)) this.setupKillerView(me);
     this.buildStaticHUD(S);
-    if (S && S.mode === 'fortnight' && this.M.br) { this.br = new BRView(this); if (this.scene.fog) this.scene.fog.density *= 0.42; }
+    if (S && S.mode === 'fortnight' && this.M.br) { this.br = new BRView(this); if (this.scene.fog && !this.M.city) this.scene.fog.density *= 0.42; }
     sound.ambience(true);
     this.onResize();
   }
@@ -885,7 +885,10 @@ export class Game {
       }
       const R = c.rig, local = p.id === this.myId;
       const execing = p.role === 'killer' && p.act && p.act.k === 'execute';
-      const hidden = p.st === 'dead' || p.st === 'out' || (p.st === 'ghost' && !local) || (local && p.role === 'killer' && !execing && !isTpv(p));
+      // Fortnight: an eliminated player falls and lies there for a couple of seconds first
+      if (p.br) { if (p.st === 'dead' && c.brSt !== 'dead') c.deadAt = this.t; c.brSt = p.st; }
+      const corpse = p.br && p.st === 'dead' && c.deadAt != null && this.t - c.deadAt < 2.6;
+      const hidden = (p.st === 'dead' && !corpse) || p.st === 'out' || (p.st === 'ghost' && !local) || (local && p.role === 'killer' && !execing && !isTpv(p));
       R.root.visible = !hidden;
       // smoothing. Other players are already interpolated between network updates (clients:
       // snapshots; host: the remote player's own position stream), so only a light filter is
