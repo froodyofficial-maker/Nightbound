@@ -3,7 +3,7 @@
 export const HALF = 56;                 // map spans -HALF..HALF on x and z
 export const TICK = 1 / 60;
 // bump when host and clients can no longer understand each other's network messages
-export const NET_PROTOCOL = 11;
+export const NET_PROTOCOL = 12;
 export const SNAP_RATE = 30;            // snapshots per second sent to clients (relay players get ~15)
 
 export const SPEED = {
@@ -449,10 +449,20 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.53.0';
+export const VERSION = '2.54.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.54.0', version: '2.54.0', date: 'Nov 2026', title: 'Online Rebuilt', tag: 'Update', email: true,
+    body: [
+      'Online matches have a brand new connection: joining a room now takes a fraction of a second instead of up to 15.',
+      'Players link straight to the host whenever their networks allow it. If a direct link isn\'t possible, or drops mid-match, the game carries on through the relay and reconnects directly by itself.',
+      'If the relay hiccups, everyone reconnects automatically instead of being kicked from the match.',
+      'Fixed: the Weekly Awards reveal could pop up while you were in a lobby and quietly take you out of the room.',
+      'Everyone in a room needs this version: refresh the page if a friend can\'t join.',
+    ],
+  },
   {
     id: 'v2.53.0', version: '2.53.0', date: 'Nov 2026', title: 'New Survivor: Steve', tag: 'Update',
     body: [

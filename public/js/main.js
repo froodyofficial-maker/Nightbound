@@ -1575,7 +1575,10 @@ function awardsHTML() {
 let awT = 0;
 awards.on('live', () => { if ($('p-pass').classList.contains('hidden') || Date.now() - awT < 1500) return; awT = Date.now(); renderPass(); });
 awards.on('reveal', (w, r) => showAwards(w, r));
+let awardsLater = null; // a reveal that arrived while in a lobby or match waits for the main menu (closing the lobby panel leaves the room)
+setInterval(() => { if (awardsLater && !lobby && !session) { const a = awardsLater; awardsLater = null; showAwards(...a); } }, 1500);
 function showAwards(w, r) {
+  if (lobby || session) { awardsLater = [w, r]; return; }
   closePanel(); sound.play('escaped');
   const card = (t, x, stat) => `<div class="aw-card"><small>${t}</small>${x ? `<b>${esc(x.n)}</b><span>${stat}</span>` : '<b>No winner</b><span>nobody qualified this week</span>'}</div>`;
   const A = $('announce');
@@ -1663,7 +1666,7 @@ function hideAnnounce() { $('announce').classList.add('hidden'); }
 $('news-card').onclick = () => { sound.init(); showTrailer(() => showAnnounce('granny'), true); };
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('announce').classList.contains('hidden')) hideAnnounce(); });
 // new chapter: everyone is greeted with its trailer once, then the announcement
-if (!profile.seen.grannyTrailer) setTimeout(() => { if (!session) { profile.seen.grannyTrailer = true; saveProfile(); showTrailer(() => showAnnounce('granny')); } }, 900);
+if (!profile.seen.grannyTrailer) setTimeout(() => { if (!session && !lobby) { profile.seen.grannyTrailer = true; saveProfile(); showTrailer(() => showAnnounce('granny')); } }, 900);
 
 startBG();
 requestAnimationFrame(loop);

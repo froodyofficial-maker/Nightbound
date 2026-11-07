@@ -1,10 +1,11 @@
 // Networking. All transports expose the same small API to the game.
 //  - "relay": WebSocket to the bundled Node server (node server.js): LAN or any hosted server.
-//  - "online": no server of your own needed. The host listens on BOTH
-//      * WebRTC (PeerJS broker + STUN/TURN), a direct, low-latency connection, and
-//      * an MQTT-over-WebSocket relay through public brokers, which works on almost any network.
-//    Joining players try WebRTC first and fall back to the relay automatically.
-const PEER_PREFIX = 'nightbound-v2-';
+//  - "online": no server of your own needed.
+//      Everyone first meets on an MQTT-over-WebSocket relay (public brokers): joining takes a second
+//      and works on almost any network. Over that same relay the two ends then set up a direct
+//      WebRTC link themselves (no third-party signalling server to fail) and switch to it, usually
+//      within a couple of seconds. If the direct link ever drops, play carries on over the relay;
+//      if the relay drops, it reconnects by itself.
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MQTT_BROKERS = (typeof window !== 'undefined' && window.__nbMqtt) || [
   'wss://broker.emqx.io:8084/mqtt',
@@ -12,21 +13,22 @@ export const MQTT_BROKERS = (typeof window !== 'undefined' && window.__nbMqtt) |
   'wss://test.mosquitto.org:8081/mqtt',
 ];
 const ICE = [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
   { urls: 'turn:us-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
   { urls: 'turn:eu-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
   { urls: 'turn:us-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
-  // Open Relay (public TURN): UDP 80, TCP 443 and TLS 443, for networks that block everything else
   { urls: 'stun:stun.relay.metered.ca:80' },
   { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
 ];
-const peerOpts = () => Object.assign({ debug: 0, config: { iceServers: ICE } }, (typeof window !== 'undefined' && window.__nbPeerServer) || {});
+const FAST_MAX_BUFFER = 64 * 1024; // skip a state update rather than queue latency behind it
+const rtcOK = () => typeof RTCPeerConnection !== 'undefined' && !(typeof window !== 'undefined' && window.__nbNoRTC);
 
 function wsURL() { return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'; }
 const rid = n => { let s = ''; for (let i = 0; i < n; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return s; };
 const timeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+const parse = t => { try { return JSON.parse(t); } catch { return null; } };
 
 export async function relayAvailable(ms = 1500) {
   if (location.protocol === 'file:') return false;
@@ -37,50 +39,6 @@ export async function relayAvailable(ms = 1500) {
     ws.onopen = () => fin(true); ws.onerror = () => fin(false);
     setTimeout(() => fin(false), ms);
   });
-}
-
-let peerLib = null;
-async function loadPeer() {
-  if (peerLib) return peerLib;
-  if (window.Peer) return (peerLib = window.Peer);
-  for (const src of ['vendor/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js']) {
-    try {
-      await new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
-      if (window.Peer) return (peerLib = window.Peer);
-    } catch {}
-  }
-  throw new Error('WebRTC library unavailable');
-}
-
-// Second WebRTC data channel for high-frequency state (snapshots, positions): unordered and
-// never retransmitted. On the default reliable+ordered channel one lost packet stalls every
-// later message until it is resent (head-of-line blocking), which is what made online matches
-// freeze and then jump. A lost snapshot here is simply replaced by the next one.
-// "negotiated" channels need no extra signalling: both ends open id FAST_ID on the same connection.
-const FAST_ID = 42;
-const FAST_MAX_BUFFER = 64 * 1024; // skip a state update rather than queue latency behind it
-function openFast(conn, onMsg) {
-  try {
-    const pc = conn.peerConnection;
-    if (!pc || !pc.createDataChannel) return null;
-    const ch = pc.createDataChannel('nb-fast', { negotiated: true, id: FAST_ID, ordered: false, maxRetransmits: 0 });
-    // `heard`: the other end has this channel too (an older host doesn't; clients wait for it)
-    ch.heard = false;
-    ch.onmessage = e => { ch.heard = true; let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
-    ch.onerror = () => {};
-    return ch;
-  } catch (e) { console.warn('Fast channel unavailable', e); return null; }
-}
-// returns true when the message went out (or was deliberately dropped because the link is backed up)
-function sendFast(ch, str, needHeard) {
-  if (!ch || ch.readyState !== 'open' || (needHeard && !ch.heard)) return false;
-  if (ch.bufferedAmount < FAST_MAX_BUFFER) { try { ch.send(str); } catch { return false; } }
-  return true;
-}
-// reliable PeerJS connection: drop state updates while it is backed up instead of piling them up
-function relBacked(conn) {
-  const dc = conn.dataChannel;
-  return (dc && dc.bufferedAmount > FAST_MAX_BUFFER) || (conn.bufferSize || 0) > 8;
 }
 
 class Emitter {
@@ -139,16 +97,74 @@ export class Mqtt extends Emitter {
   }
   close() { try { this.raw([0xe0, 0]); this.ws.close(); } catch {} }
 }
-async function connectAnyBroker(preferred) {
+
+// ---------------- the relay connection: reconnects and resubscribes by itself ----------------
+// 'down' / 'up' while it recovers; 'closed' only if it can't get back within 30s.
+class Relay extends Emitter {
+  constructor(index) { super(); this.index = index; this.subs = new Set(); this.alive = true; this.m = null; this.backoff = 400; }
+  async open() { this.m = await this.make(); return this; }
+  async make() {
+    const m = new Mqtt(MQTT_BROKERS[this.index]); await m.connect();
+    m.on('message', (t, x) => this.emit('message', t, x));
+    m.on('closed', () => { if (this.alive && this.m === m) { this.m = null; this.retry(); } });
+    for (const t of this.subs) m.subscribe(t);
+    return m;
+  }
+  async retry() {
+    const since = Date.now(); this.emit('down');
+    while (this.alive) {
+      await new Promise(r => setTimeout(r, this.backoff)); this.backoff = Math.min(4000, this.backoff * 1.6);
+      if (!this.alive) return;
+      try { this.m = await this.make(); this.backoff = 400; this.emit('up'); return; } catch {}
+      if (Date.now() - since > 30000) { this.alive = false; this.emit('closed'); return; }
+    }
+  }
+  get up() { return !!this.m; }
+  subscribe(t) { this.subs.add(t); if (this.m) this.m.subscribe(t); }
+  publish(t, s, fast) { if (this.m) this.m.publish(t, s, fast); }
+  close() { this.alive = false; try { this.m && this.m.close(); } catch {} this.m = null; }
+}
+async function openRelay(preferred) {
   const order = preferred != null ? [preferred, ...MQTT_BROKERS.keys()].filter((v, i, a) => a.indexOf(v) === i) : [...MQTT_BROKERS.keys()];
   let lastErr;
   for (const i of order) {
     if (!MQTT_BROKERS[i]) continue;
-    try { const m = new Mqtt(MQTT_BROKERS[i]); await m.connect(); m.index = i; return m; } catch (e) { lastErr = e; }
+    try { return await new Relay(i).open(); } catch (e) { lastErr = e; }
   }
   throw lastErr || new Error('No relay reachable');
 }
-const topicBase = code => 'nightbound/v2/' + code + '/';
+const topicBase = code => 'nightbound/v3/' + code + '/';
+
+// ---------------- the direct link: one RTCPeerConnection, two channels ----------------
+// 'rel': reliable and ordered (lobby, events, chat). 'fast': unordered, never retransmitted
+// (snapshots, positions): a lost update is simply replaced by the next one, so one dropped packet
+// never stalls the rest (head-of-line blocking is what made online matches freeze, then jump).
+function makeLink(signal, onMsg) {
+  const pc = new RTCPeerConnection({ iceServers: ICE, iceCandidatePoolSize: 2 });
+  const rel = pc.createDataChannel('rel', { negotiated: true, id: 1, ordered: true });
+  const fast = pc.createDataChannel('fast', { negotiated: true, id: 2, ordered: false, maxRetransmits: 0 });
+  const L = new Emitter(); Object.assign(L, { pc, rel, fast, open: false, q: [] });
+  const recv = e => { const d = parse(e.data); if (d) onMsg(d); };
+  rel.onmessage = recv; fast.onmessage = recv;
+  pc.onicecandidate = e => { if (e.candidate) signal({ ice: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
+  rel.onopen = () => { L.open = true; L.emit('open'); };
+  let gone = false;
+  const down = () => { if (gone) return; gone = true; L.open = false; try { pc.close(); } catch {} L.emit('down'); };
+  rel.onclose = down;
+  pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') down(); };
+  L.send = (str, isFast) => {
+    if (!L.open) return false;
+    if (isFast) { if (fast.readyState === 'open') { if (fast.bufferedAmount < FAST_MAX_BUFFER) try { fast.send(str); } catch { return false; } return true; } }
+    if (rel.readyState !== 'open') return false;
+    if (isFast && rel.bufferedAmount > FAST_MAX_BUFFER) return true; // backed up: drop this state update
+    try { rel.send(str); } catch { return false; }
+    return true;
+  };
+  L.addIce = async c => { if (L.q) L.q.push(c); else try { await pc.addIceCandidate(c); } catch {} };
+  L.flushIce = async () => { const q = L.q || []; L.q = null; for (const c of q) try { await pc.addIceCandidate(c); } catch {} };
+  L.close = down;
+  return L;
+}
 
 // ---------------- HOST ----------------
 export async function hostRoom(mode) {
@@ -177,90 +193,88 @@ export async function hostRoom(mode) {
     return H;
   }
 
-  // "online": WebRTC + MQTT relay, at the same time
-  const route = new Map(); // peerId -> 'rtc' | 'mq'
-  const conns = new Map();
-  const fast = new Map();  // peerId -> unreliable RTCDataChannel
-  let mq = null, peer = null;
-  try { mq = await connectAnyBroker(); } catch (e) { console.warn('MQTT relay unavailable', e); }
-  // the last code character tells joiners which relay broker the host is on
-  const code = rid(4) + (mq ? CODE_CHARS[24 + mq.index] : CODE_CHARS[31]);
+  // "online": everyone joins over the relay, then moves to a direct link
+  const mq = await openRelay().catch(() => null);
+  if (!mq) throw new Error('Could not open an online room. Check your internet connection (or run node server.js for LAN play).');
+  const code = rid(4) + CODE_CHARS[24 + mq.index]; // the last character tells joiners which relay broker the host is on
+  const base = topicBase(code);
   H.code = code;
-  try {
-    const Peer = await loadPeer();
-    peer = new Peer(PEER_PREFIX + code, peerOpts());
-    await timeout(new Promise((res, rej) => { peer.on('open', res); peer.on('error', rej); }), 8000, 'WebRTC broker timed out');
-    peer.on('connection', conn => {
-      // a player already in through the relay who has now managed a direct link keeps their id
-      const mig = conn.metadata && typeof conn.metadata.mq === 'string' ? 'mq:' + conn.metadata.mq : null;
-      const id = mig || conn.peer;
-      conn.on('open', () => {
-        if (mig) { if (route.get(id) !== 'mq') { try { conn.close(); } catch {} return; } }
-        else if (route.get(id) === 'mq') return;
-        conns.set(id, conn); route.set(id, 'rtc');
-        const ch = openFast(conn, m => { if (conns.get(id) === conn) H.emit('msg', id, m); });
-        if (ch) fast.set(id, ch);
-        if (!mig) H.emit('join', id);
-        else conn.send({ t: 'net-upgraded' });
-      });
-      conn.on('data', d => { if (conns.get(id) === conn) H.emit('msg', id, d); });
-      conn.on('close', () => {
-        if (conns.get(id) !== conn) return;
-        conns.delete(id);
-        const ch = fast.get(id); fast.delete(id); try { ch && ch.close(); } catch {}
-        if (route.get(id) === 'rtc') { route.delete(id); H.emit('leave', id); }
-      });
-      conn.on('error', () => {});
-    });
-    peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
-    peer.on('error', () => {});
-  } catch (e) { console.warn('WebRTC hosting unavailable', e); try { peer && peer.destroy(); } catch {} peer = null; }
-  if (!mq && !peer) throw new Error('Could not open an online room. Check your internet connection (or run node server.js for LAN play).');
-
-  if (mq) {
-    const base = topicBase(code), seen = new Map();
-    mq.subscribe(base + 'h');
-    mq.on('message', (topic, text) => {
-      if (topic !== base + 'h') return;
-      let m; try { m = JSON.parse(text); } catch { return; }
-      const id = 'mq:' + m.f;
-      if (m.op === 'join') { if (!route.has(id)) { route.set(id, 'mq'); seen.set(id, Date.now()); mq.publish(base + 'c/' + m.f, JSON.stringify({ op: 'welcome' })); H.emit('join', id); } return; }
-      if (m.op === 'leave') { if (route.delete(id)) H.emit('leave', id); return; }
-      if (route.get(id) !== 'mq') return;
-      seen.set(id, Date.now());
-      if (m.op === 'd') H.emit('msg', id, m.d);
-    });
-    H.mqTimer = setInterval(() => { const now = Date.now(); for (const [id, t] of seen) if (now - t > 15000 && route.get(id) === 'mq') { seen.delete(id); route.delete(id); H.emit('leave', id); } }, 3000);
-    mq.on('closed', () => H.emit('closed', 'Lost the connection to the online relay'));
+  const route = new Map(); // player id -> 'mq' | 'rtc'
+  const links = new Map(); // player id -> direct link
+  const seen = new Map();  // player id -> last time we heard from them on the relay
+  mq.subscribe(base + 'h'); mq.subscribe(base + 'sig/h');
+  const dropLink = id => { const L = links.get(id); if (L) { links.delete(id); L.close(); } };
+  const toRelay = id => { if (route.get(id) === 'rtc') route.set(id, 'mq'); seen.set(id, Date.now()); };
+  const signalTo = f => d => mq.publish(base + 'sig/c/' + f, JSON.stringify(d));
+  async function onSignal(m) {
+    if (!m || typeof m.f !== 'string' || !rtcOK()) return;
+    const id = 'mq:' + m.f;
+    if (!route.has(id)) return; // only players who joined through the relay
+    if (m.sdp && m.sdp.type === 'offer') {
+      dropLink(id);
+      const L = makeLink(signalTo(m.f), d => { if (links.get(id) === L && d.t !== 'net-hello') H.emit('msg', id, d); });
+      links.set(id, L);
+      L.on('open', () => { if (links.get(id) === L && route.has(id)) { route.set(id, 'rtc'); L.send(JSON.stringify({ t: 'net-upgraded' })); } });
+      L.on('down', () => { if (links.get(id) === L) { links.delete(id); toRelay(id); } });
+      try {
+        await L.pc.setRemoteDescription(m.sdp); await L.flushIce();
+        await L.pc.setLocalDescription(await L.pc.createAnswer());
+        signalTo(m.f)({ sdp: L.pc.localDescription.toJSON ? L.pc.localDescription.toJSON() : L.pc.localDescription });
+      } catch (e) { console.warn('direct link setup failed', e); dropLink(id); }
+    } else if (m.ice) { const L = links.get(id); if (L) L.addIce(m.ice); }
   }
-  // fast = true: high-frequency state that may be dropped (newer data follows right behind)
-  const rtcSend = (id, c, d, str, isFast) => {
-    if (!c || !c.open) return;
-    if (isFast) {
-      if (sendFast(fast.get(id), str || (str = JSON.stringify(d)))) return;
-      if (relBacked(c)) return;
+  mq.on('message', (topic, text) => {
+    const m = parse(text); if (!m) return;
+    if (topic === base + 'sig/h') { onSignal(m); return; }
+    if (topic !== base + 'h' || typeof m.f !== 'string') return;
+    const id = 'mq:' + m.f;
+    if (m.op === 'join') {
+      mq.publish(base + 'c/' + m.f, JSON.stringify({ op: 'welcome' })); // (again, if our first welcome was lost)
+      if (!route.has(id)) { route.set(id, 'mq'); seen.set(id, Date.now()); H.emit('join', id); }
+      return;
     }
-    c.send(d);
-  };
+    if (m.op === 'leave') { dropLink(id); if (route.delete(id)) { seen.delete(id); H.emit('leave', id); } return; }
+    if (!route.has(id)) return;
+    seen.set(id, Date.now());
+    if (m.op === 'd' && route.get(id) === 'mq' && m.d && m.d.t !== 'ping-relay') H.emit('msg', id, m.d);
+  });
+  // players heard from nowhere for 15s are gone (a live direct link counts as hearing from them)
+  H.timer = setInterval(() => {
+    const now = Date.now();
+    for (const [id, r] of route) {
+      if (r === 'rtc' && links.get(id) && links.get(id).open) { seen.set(id, now); continue; }
+      if (now - (seen.get(id) || 0) > 15000) { dropLink(id); route.delete(id); seen.delete(id); H.emit('leave', id); }
+    }
+  }, 3000);
+  mq.on('closed', () => { if (![...links.values()].some(L => L.open)) H.emit('closed', 'Lost the connection to the online relay'); });
+  // fast = true: high-frequency state that may be dropped (newer data follows right behind)
+  let mqLast = 0;
+  const viaRelay = (id, d, str, isFast) => mq.publish(base + 'c/' + id.slice(3), str ? '{"op":"d","d":' + str + '}' : JSON.stringify({ op: 'd', d }), isFast);
   H.send = (to, d, isFast) => {
     if (to === '*') { H.broadcast(d, isFast); return; }
-    if (route.get(to) === 'rtc') rtcSend(to, conns.get(to), d, null, isFast);
-    else if (route.get(to) === 'mq' && mq) mq.publish(topicBase(code) + 'c/' + to.slice(3), JSON.stringify({ op: 'd', d }), isFast);
+    if (!route.has(to)) return;
+    const L = links.get(to), str = JSON.stringify(d);
+    if (route.get(to) === 'rtc' && L && L.send(str, isFast)) return;
+    viaRelay(to, d, str, isFast);
   };
-  let mqLast = 0;
   H.broadcast = (d, isFast) => {
-    const str = isFast ? JSON.stringify(d) : null;
-    for (const [id, c] of conns) rtcSend(id, c, d, str, isFast);
-    if (mq && [...route.values()].includes('mq')) {
-      // the public relay adds latency per message and may throttle: cap state updates at ~15/s
-      const now = performance.now();
-      if (isFast && now - mqLast < 60 && !(d.s && d.s.kf)) return;
-      if (isFast) mqLast = now;
-      mq.publish(topicBase(code) + 'all', str || JSON.stringify(d), isFast);
+    const str = JSON.stringify(d);
+    let relayNeeded = false;
+    for (const [id, r] of route) {
+      const L = links.get(id);
+      if (r === 'rtc' && L && L.send(str, isFast)) continue;
+      relayNeeded = true;
     }
+    if (!relayNeeded) return;
+    // the public relay adds latency per message and may throttle: cap state updates at ~15/s
+    const now = performance.now();
+    if (isFast && now - mqLast < 60 && !(d.s && d.s.kf)) return;
+    if (isFast) mqLast = now;
+    mq.publish(base + 'all', str, isFast);
   };
-  H.close = () => { clearInterval(H.mqTimer); for (const ch of fast.values()) try { ch.close(); } catch {} try { peer && peer.destroy(); } catch {} try { mq && mq.close(); } catch {} };
-  H.mode = 'online'; H.label = (peer ? 'direct (WebRTC)' : '') + (peer && mq ? ' + ' : '') + (mq ? 'relay' : '');
+  H.close = () => { clearInterval(H.timer); for (const id of [...links.keys()]) dropLink(id); mq.close(); };
+  H.mode = 'online';
+  Object.defineProperty(H, 'label', { get: () => { const n = [...route.values()]; const d = n.filter(r => r === 'rtc').length; return n.length ? (d === n.length ? 'direct (WebRTC)' : d ? 'direct + relay' : 'relay') : 'direct (WebRTC) + relay'; } });
   return H;
 }
 
@@ -290,115 +304,71 @@ export async function joinRoom(mode, code) {
     C.mode = 'relay';
     return C;
   }
-  // 1) try a direct WebRTC connection
-  // (a direct or TURN-relayed WebRTC link is far quicker than the MQTT relay: give it time)
-  try { return await timeout(joinRTC(code, C), 15000, 'WebRTC timed out'); }
-  catch (e) { console.warn('WebRTC join failed, using relay:', e.message); C.whyErr = e; try { C.peer && C.peer.destroy(); } catch {} }
-  // 2) fall back to the MQTT relay, and keep trying for a direct link in the background
-  const why = C.why = String((C.whyErr && C.whyErr.message) || 'WebRTC failed');
-  const R = await joinMQ(code, new Emitter());
-  R.why = why;
-  upgradeLater(code, R);
-  return R;
-}
-
-// A player on the relay keeps trying to reach the host directly (networks often allow it on a
-// second try, once a TURN server answers). On success every message switches over, the player keeps
-// their id and the relay is dropped without a goodbye.
-function upgradeLater(code, C) {
-  let tries = 0, stop = false;
-  const prevClose = C.close;
-  C.close = () => { stop = true; prevClose(); };
-  const attempt = async () => {
-    if (stop || C.mode !== 'online' || !C.mqId) return;
-    tries++;
-    let peer = null;
-    try {
-      const Peer = await loadPeer();
-      peer = new Peer(peerOpts());
-      await timeout(new Promise((res, rej) => { peer.on('open', res); peer.on('error', e => rej(new Error('P2P: ' + (e.type || e)))); }), 10000, 'broker timeout');
-      const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json', metadata: { mq: C.mqId } });
-      await timeout(new Promise((res, rej) => { conn.on('open', res); peer.on('error', e => rej(new Error('P2P: ' + (e.type || e)))); }), 20000, 'ICE timeout');
-      // the host confirms it moved us over
-      await timeout(new Promise(res => conn.on('data', d => { if (d && d.t === 'net-upgraded') res(); })), 5000, 'host did not confirm');
-      if (stop) { peer.destroy(); return; }
-      const ch = openFast(conn, m => C.emit('msg', m));
-      conn.on('data', d => { if (!(d && d.t === 'net-upgraded')) C.emit('msg', d); });
-      let closed = false;
-      conn.on('close', () => { if (!closed) { closed = true; C.emit('closed', 'The host left the game'); } });
-      C.dropRelay && C.dropRelay();
-      C.send = (d, fast) => {
-        if (!conn.open) return;
-        if (fast) { if (sendFast(ch, JSON.stringify(d), true)) return; if (relBacked(conn)) return; }
-        conn.send(d);
-      };
-      C.close = () => { closed = true; stop = true; try { ch && ch.close(); } catch {} try { peer.destroy(); } catch {} };
-      C.label = 'direct (WebRTC)'; C.why = '';
-      C.emit('upgraded');
-    } catch (e) {
-      try { peer && peer.destroy(); } catch {}
-      if (!stop && tries < 6) setTimeout(attempt, 8000 + tries * 4000);
-    }
-  };
-  setTimeout(attempt, 3000);
-}
-
-async function joinRTC(code, C) {
-  const Peer = await loadPeer();
-  const peer = C.peer = new Peer(peerOpts());
-  await new Promise((res, rej) => { peer.on('open', res); peer.on('error', e => rej(new Error('P2P: ' + (e.type || e)))); });
-  const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
-  await new Promise((res, rej) => {
-    conn.on('open', res);
-    peer.on('error', e => rej(new Error(e.type === 'peer-unavailable' ? 'Room not found' : 'P2P: ' + (e.type || e))));
-  });
-  C.id = peer.id;
-  let closed = false;
-  const ch = openFast(conn, m => C.emit('msg', m));
-  conn.on('data', d => C.emit('msg', d));
-  conn.on('close', () => { if (!closed) { closed = true; C.emit('closed', 'The host left the game'); } });
-  C.send = (d, fast) => {
-    if (!conn.open) return;
-    if (fast) { if (sendFast(ch, JSON.stringify(d), true)) return; if (relBacked(conn)) return; }
-    conn.send(d);
-  };
-  C.close = () => { closed = true; try { ch && ch.close(); } catch {} try { peer.destroy(); } catch {} };
-  C.mode = 'online'; C.label = 'direct (WebRTC)';
-  return C;
-}
-
-async function joinMQ(code, C) {
+  if (code.length !== 5) throw new Error('Room codes are 5 letters.');
   const bi = CODE_CHARS.indexOf(code[4]) - 24;
-  if (bi === 31 - 24) throw new Error('Could not connect to the host. They may be behind a strict firewall: try the game server option instead.');
-  const mq = await connectAnyBroker(bi >= 0 && bi < MQTT_BROKERS.length ? bi : 0).catch(() => { throw new Error('Could not reach the online relay. Check your internet connection.'); });
+  const mq = await openRelay(bi >= 0 && bi < MQTT_BROKERS.length ? bi : 0).catch(() => { throw new Error('Could not reach the online relay. Check your internet connection.'); });
   const me = rid(10), base = topicBase(code);
-  mq.subscribe(base + 'c/' + me); mq.subscribe(base + 'all');
+  mq.subscribe(base + 'c/' + me); mq.subscribe(base + 'all'); mq.subscribe(base + 'sig/c/' + me);
+  let link = null, closed = false;
+  const direct = () => !!(link && link.open);
   const welcomed = new Promise((res, rej) => {
-    const t = setTimeout(() => rej(new Error('Room not found (or the host is offline)')), 8000);
-    mq.on('message', (topic, text) => { if (topic === base + 'c/' + me) { try { if (JSON.parse(text).op === 'welcome') { clearTimeout(t); res(); } } catch {} } });
+    const t = setTimeout(() => rej(new Error('Room not found (or the host is offline)')), 9000);
+    mq.on('message', (topic, text) => { if (topic === base + 'c/' + me && (parse(text) || {}).op === 'welcome') { clearTimeout(t); res(); } });
   });
-  // resend the join request until the host answers (subscriptions may take a moment)
+  // send the join request until the host answers (subscriptions may take a moment)
   const hello = () => mq.publish(base + 'h', JSON.stringify({ op: 'join', f: me }));
-  hello(); const iv = setInterval(hello, 1200);
-  try { await welcomed; } finally { clearInterval(iv); }
-  let closed = false;
+  hello(); const iv = setInterval(hello, 1000);
+  try { await welcomed; } catch (e) { clearInterval(iv); mq.close(); throw e; } finally { clearInterval(iv); }
+  const finish = why => { if (closed) return; closed = true; clearInterval(keep); try { link && link.close(); } catch {} mq.close(); C.emit('closed', why); };
   mq.on('message', (topic, text) => {
-    if (C.mqDropped) return;
-    if (topic !== base + 'all' && topic !== base + 'c/' + me) return;
-    let m; try { m = JSON.parse(text); } catch { return; }
-    if (topic === base + 'all') C.emit('msg', m); else if (m.op === 'd') C.emit('msg', m.d);
+    if (topic === base + 'sig/c/' + me) { onSignal(parse(text)); return; }
+    if (direct()) return; // the direct link is carrying everything
+    const m = parse(text); if (!m) return;
+    if (topic === base + 'all') C.emit('msg', m);
+    else if (topic === base + 'c/' + me && m.op === 'd') C.emit('msg', m.d);
   });
-  const keep = setInterval(() => mq.publish(base + 'h', JSON.stringify({ op: 'd', f: me, d: { t: 'ping' } })), 4000);
-  mq.on('closed', () => { if (!closed) { closed = true; clearInterval(keep); C.emit('closed', 'Lost the connection to the online relay'); } });
-  C.id = 'mq:' + me; C.mqId = me;
-  // switched to a direct link: stop listening to the relay (no 'leave': the host keeps us)
-  C.dropRelay = () => { closed = true; clearInterval(keep); C.mqDropped = true; setTimeout(() => { try { mq.close(); } catch {} }, 1500); };
+  // tell the host we're still here (also while on the direct link: the relay is our fallback)
+  const keep = setInterval(() => mq.publish(base + 'h', JSON.stringify({ op: 'd', f: me, d: { t: 'ping-relay' } })), 4000);
+  mq.on('closed', () => { if (!direct()) finish('Lost the connection to the online relay'); });
+  C.id = 'mq:' + me; C.mqId = me; C.mode = 'online';
+  Object.defineProperty(C, 'label', { get: () => direct() ? 'direct (WebRTC)' : 'relay' });
   let last = 0;
   C.send = (d, fast) => {
+    const str = JSON.stringify(d);
+    if (direct() && link.send(str, fast)) return;
     if (fast) { const now = performance.now(); if (now - last < 60) return; last = now; }
-    mq.publish(base + 'h', JSON.stringify({ op: 'd', f: me, d }), fast);
+    mq.publish(base + 'h', '{"op":"d","f":"' + me + '","d":' + str + '}', fast);
   };
-  C.close = () => { closed = true; clearInterval(keep); mq.publish(base + 'h', JSON.stringify({ op: 'leave', f: me })); setTimeout(() => mq.close(), 100); };
-  C.mode = 'online'; C.label = 'relay';
+  C.close = () => { if (closed) return; closed = true; clearInterval(keep); mq.publish(base + 'h', JSON.stringify({ op: 'leave', f: me })); try { link && link.close(); } catch {} setTimeout(() => mq.close(), 150); };
+
+  // the direct link: set up over the relay; retried if it fails or drops
+  let tries = 0;
+  async function onSignal(m) {
+    if (!m || !link) return;
+    if (m.sdp && m.sdp.type === 'answer') { try { await link.pc.setRemoteDescription(m.sdp); await link.flushIce(); } catch (e) { console.warn(e); } }
+    else if (m.ice) link.addIce(m.ice);
+  }
+  function tryDirect() {
+    if (closed || !rtcOK() || direct()) return;
+    tries++;
+    const L = link = makeLink(d => mq.publish(base + 'sig/h', JSON.stringify({ f: me, ...d })), d => { if (link === L && d.t !== 'net-upgraded') C.emit('msg', d); });
+    const giveUp = setTimeout(() => { if (link === L && !L.open) { L.close(); } }, 12000);
+    L.on('open', () => { clearTimeout(giveUp); tries = 0; C.why = ''; C.emit('upgraded'); });
+    L.on('down', () => {
+      clearTimeout(giveUp);
+      if (link !== L) return;
+      link = null;
+      if (!closed && !mq.up) { finish('Lost the connection to the host'); return; }
+      if (!closed && tries < 8) setTimeout(tryDirect, Math.min(20000, 2000 * tries));
+    });
+    (async () => {
+      try { await L.pc.setLocalDescription(await L.pc.createOffer()); mq.publish(base + 'sig/h', JSON.stringify({ f: me, sdp: L.pc.localDescription.toJSON ? L.pc.localDescription.toJSON() : L.pc.localDescription })); }
+      catch (e) { console.warn('direct link offer failed', e); L.close(); }
+    })();
+  }
+  tryDirect();
+  C._dropDirect = () => { if (link) link.close(); }; // (tests: cut the direct link)
+  // a short wait for the direct link, so most players start the lobby already on it
+  if (rtcOK()) await Promise.race([new Promise(r => C.on('upgraded', r)), new Promise(r => setTimeout(r, 3000))]);
   return C;
 }
