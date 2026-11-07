@@ -451,10 +451,19 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.56.0';
+export const VERSION = '2.56.1';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.56.1', version: '2.56.1', date: 'Nov 2026', title: 'Fortnight: play with friends', tag: 'Update',
+    body: [
+      'The Fortnight event screen has a Friends box: press Invite next to any online friend and you both drop in together (it opens a lobby for you if you are not in one yet).',
+      'Your friends get an invite card wherever they are in the menus; one press puts them in your lobby.',
+      'Friends already in a Fortnight lobby show a Join button, on the event screen and in the Friends panel.',
+      'Inviting someone holds the drop for at least 30 seconds so they have time to get in.',
+    ],
+  },
   {
     id: 'v2.56.0', version: '2.56.0', date: 'Nov 2026', title: 'Fortnight moves to Nightfall City (+ first person, new menu)', tag: 'Event', email: true, banner: 'fn', image: 'public/img/fortnight-email.jpg',
     body: [

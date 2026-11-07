@@ -91,7 +91,7 @@ export class Friends {
       this.log(m.from, { me: false, text: `🎁 sent you ${amount.toLocaleString()} Embers`, t: Date.now() });
       this.emit('gift', m.from, String(m.name || 'A friend').slice(0, 24), amount);
     } else if (topic === me + '/inv') {
-      if (m && m.from && m.code && this.p.friends.some(f => f.id === m.from)) this.emit('invite', m.from, m.name, m.code);
+      if (m && m.from && m.code && this.p.friends.some(f => f.id === m.from)) this.emit('invite', m.from, m.name, m.code, m.kind || '');
     } else if (topic === me + '/msg') {
       if (!m || !m.from || !this.p.friends.some(f => f.id === m.from)) return;
       this.log(m.from, { me: false, text: String(m.text || '').slice(0, 300), t: Date.now() });
@@ -147,5 +147,5 @@ export class Friends {
     this.log(id, { me: true, text: `🎁 gifted ${amount.toLocaleString()} Embers`, t: Date.now() }); this.emit('change');
     return '';
   }
-  invite(id, code) { this.publish(T(id) + '/inv', JSON.stringify({ from: this.id, name: this.getName(), code })); }
+  invite(id, code, kind = '') { this.publish(T(id) + '/inv', JSON.stringify({ from: this.id, name: this.getName(), code, kind })); }
 }

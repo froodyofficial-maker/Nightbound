@@ -1551,7 +1551,7 @@ function renderPass() {
 
 // ---------- friends ----------
 const friends = new Friends(profile, saveProfile, () => settings.name);
-friends.stateFn = () => session ? { state: 'match' } : lobby ? { state: 'lobby', code: lobby.inGame ? null : lobby.code } : { state: 'menu' };
+friends.stateFn = () => session ? { state: 'match' } : lobby ? { state: lobby.fn ? 'fortnight' : 'lobby', code: lobby.inGame ? null : lobby.code } : { state: 'menu' };
 let chatWith = null, chatFocus = false;
 function chatHTML(f) {
   const msgs = friends.chats.get(f.id) || [];
@@ -1561,7 +1561,7 @@ function renderFriendsBadge() { const n = friends.onlineCount(), r = friends.req
 function renderFriends() {
   if ($('p-friends').classList.contains('hidden')) return;
   const ae = document.activeElement; chatFocus = !!(ae && ae.id === 'fr-chat-in'); const draft = ae && ae.id === 'fr-chat-in' ? ae.value : (document.getElementById('fr-chat-in') || {}).value;
-  const st = id => { const s = friends.status.get(id); if (!friends.online(id)) return { on: false, txt: 'Offline' }; return { on: true, txt: s.state === 'match' ? 'In a match' : s.state === 'lobby' ? 'In a lobby' : 'In the menu', code: s.state === 'lobby' ? s.code : null }; };
+  const st = id => { const s = friends.status.get(id); if (!friends.online(id)) return { on: false, txt: 'Offline' }; return { on: true, txt: s.state === 'match' ? 'In a match' : s.state === 'lobby' ? 'In a lobby' : s.state === 'fortnight' ? 'In a Fortnight lobby' : 'In the menu', code: s.state === 'lobby' || s.state === 'fortnight' ? s.code : null, fn: s.state === 'fortnight' }; };
   const list = profile.friends.slice().sort((a, b) => (friends.online(b.id) ? 1 : 0) - (friends.online(a.id) ? 1 : 0));
   const canInvite = !!(lobby && lobby.code && !lobby.inGame);
   $('friends-body').innerHTML = `
@@ -1570,7 +1570,7 @@ function renderFriends() {
     ${friends.requests.size ? `<div class="lo-sub"><span>Friend requests</span></div>${[...friends.requests].map(([id, nm]) => `<div class="fr-row"><span class="dot on"></span><b>${esc(nm)}</b><small>${fmtCode(id)}</small><button class="btn primary" data-acc="${id}">Accept</button><button class="btn" data-dec="${id}">Decline</button></div>`).join('')}` : ''}
     ${profile.outgoing.length ? `<div class="lo-sub"><span>Sent requests</span></div>${profile.outgoing.map(o => `<div class="fr-row"><span class="dot"></span><b>${fmtCode(o.id)}</b><small>waiting for them to accept</small><button class="btn" data-cancel="${o.id}">Cancel</button></div>`).join('')}` : ''}
     <div class="lo-sub"><span>Friends</span><span>${friends.onlineCount()} online</span></div>
-    ${list.length ? list.map(f => { const s = st(f.id); return `<div class="fr-row"><span class="dot ${s.on ? 'on' : ''}"></span><b>${esc(f.name)}</b><small>${s.txt}</small>${s.code ? `<button class="btn" data-join="${s.code}">Join</button>` : ''}${s.on && canInvite ? `<button class="btn primary" data-inv="${f.id}">Invite</button>` : ''}<button class="btn" data-gift="${f.id}" title="Gift Embers">${icon('gift')} Gift</button><button class="btn" data-chat="${f.id}">Chat${friends.unread.get(f.id) ? ` <span class="newtag">${friends.unread.get(f.id)}</span>` : ''}</button><button class="btn x" data-rm="${f.id}" title="Remove friend">×</button></div>${chatWith === f.id ? chatHTML(f) : ''}`; }).join('') : '<p class="hint">No friends yet. Send them your code, or add theirs above.</p>'}
+    ${list.length ? list.map(f => { const s = st(f.id); return `<div class="fr-row"><span class="dot ${s.on ? 'on' : ''}"></span><b>${esc(f.name)}</b><small>${s.txt}</small>${s.code ? `<button class="btn" data-join="${s.code}" ${s.fn ? 'data-fn="1"' : ''}>Join</button>` : ''}${s.on && canInvite ? `<button class="btn primary" data-inv="${f.id}">Invite</button>` : ''}<button class="btn" data-gift="${f.id}" title="Gift Embers">${icon('gift')} Gift</button><button class="btn" data-chat="${f.id}">Chat${friends.unread.get(f.id) ? ` <span class="newtag">${friends.unread.get(f.id)}</span>` : ''}</button><button class="btn x" data-rm="${f.id}" title="Remove friend">×</button></div>${chatWith === f.id ? chatHTML(f) : ''}`; }).join('') : '<p class="hint">No friends yet. Send them your code, or add theirs above.</p>'}
     <p class="hint">${canInvite ? 'You are in a lobby: invite online friends straight in.' : 'Host or join an Online Match to invite friends into your lobby. Friends in a lobby can be joined directly.'}</p>`;
   const B = $('friends-body');
   $('fr-copy').onclick = async () => { try { await navigator.clipboard.writeText(fmtCode(friends.id)); toast('Friend code copied'); } catch { toast(fmtCode(friends.id)); } };
@@ -1579,8 +1579,8 @@ function renderFriends() {
   B.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => friends.decline(b.dataset.dec));
   B.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => friends.cancel(b.dataset.cancel));
   B.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => friends.remove(b.dataset.rm));
-  B.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => { friends.invite(b.dataset.inv, lobby.code); toast('Invite sent'); sound.play('click'); });
-  B.querySelectorAll('[data-join]').forEach(b => b.onclick = () => { closePanel(); doJoin(b.dataset.join); });
+  B.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => { if (lobby && !lobby.fn) { friends.invite(b.dataset.inv, lobby.code); toast('Invite sent'); sound.play('click'); } else fnInvite(b.dataset.inv); });
+  B.querySelectorAll('[data-join]').forEach(b => b.onclick = () => { closePanel(); if (b.dataset.fn) fnJoinFriend(b.dataset.join); else doJoin(b.dataset.join); });
   B.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => giftDialog(b.dataset.gift));
   B.querySelectorAll('[data-chat]').forEach(b => b.onclick = () => { chatWith = chatWith === b.dataset.chat ? null : b.dataset.chat; friends.unread.delete(chatWith); renderFriends(); renderFriendsBadge(); });
   const ci = $('fr-chat-in');
@@ -1622,12 +1622,12 @@ friends.on('gift', (id, name, amount) => {
 friends.on('chat', (id, name, text) => { if (chatWith === id && !$('p-friends').classList.contains('hidden')) { friends.unread.delete(id); return; } toast(`${name || 'Friend'}: ${String(text).slice(0, 80)}`, 5000); sound.play('click'); });
 friends.on('request', (id, name) => toast(`${name || 'Someone'} sent you a friend request`, 5000));
 friends.on('accepted', (id, name) => toast(`${name || 'A player'} accepted your friend request`, 5000));
-friends.on('invite', (id, name, code) => {
+friends.on('invite', (id, name, code, kind) => {
   const c = $('invite-card');
-  c.innerHTML = `<b>${esc(name || 'A friend')}</b> invited you to their lobby<div><button class="btn primary" id="inv-join">Join</button><button class="btn" id="inv-no">Not now</button></div>`;
+  c.innerHTML = `<b>${esc(name || 'A friend')}</b> invited you to ${kind === 'fn' ? 'drop into <b>Fortnight</b> with them' : 'their lobby'}<div><button class="btn primary" id="inv-join">Join</button><button class="btn" id="inv-no">Not now</button></div>`;
   c.classList.remove('hidden'); sound.play('click');
   $('inv-no').onclick = () => c.classList.add('hidden');
-  $('inv-join').onclick = () => { c.classList.add('hidden'); if (session) { toast('Finish or leave your match first.'); return; } if (lobby) leaveOnline(true); doJoin(code); };
+  $('inv-join').onclick = () => { c.classList.add('hidden'); if (session) { toast('Finish or leave your match first.'); return; } if (lobby) leaveOnline(true); if (kind === 'fn') fnJoinFriend(code); else doJoin(code); };
   clearTimeout(c.hideT); c.hideT = setTimeout(() => c.classList.add('hidden'), 30000);
 });
 $('friends-btn').onclick = () => { sound.init(); sound.play('click'); openPanel('p-friends', 'Friends'); };
@@ -1653,7 +1653,8 @@ function fnBuildHub() {
     </div>
     <div class="fh-right"><div class="fh-h">Leaderboard</div><div id="fh-board"></div></div>
     <div class="fh-bottom">
-      <div class="fh-look"><div class="fh-h">Your character</div><div id="fh-looks"></div></div>
+      <div class="fh-look"><div class="fh-h">Your character</div><div id="fh-looks"></div>
+        <div class="fh-h" style="margin-top:12px">Friends</div><div id="fh-friends"></div></div>
       <div class="fh-play">
         <div id="fh-queue"></div>
         <div class="fh-diff"><span>Bots</span><div class="seg" id="fh-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div></div>
@@ -1688,6 +1689,13 @@ function fnRender() {
     (rows.length ? rows.map((r, i) => `<div class="fh-row ${r.fid === friends.id ? 'me' : ''}"><i>${i + 1}</i><span>${esc(r.n)}</span><b>${r.w}</b><small>${r.k} elims</small></div>`).join('') : '<div class="fh-empty">No wins yet. Be the first on the board.</div>') +
     (rank > 10 ? `<div class="fh-row me"><i>${rank}</i><span>${esc(settings.name)} (you)</span><b>${me.w}</b><small>${me.k} elims</small></div>` : '') +
     `<div class="fh-note">${friends.mq ? 'Live from every Nightbound player' : 'Offline: the leaderboard updates when you reconnect'}</div>`;
+  // friends: invite them in, or join the lobby they're in
+  const fl = profile.friends.filter(f => friends.online(f.id)), stOf = id => friends.status.get(id) || {};
+  $('fh-friends').innerHTML = fl.length ? fl.map(f => { const st = stOf(f.id), inFn = st.state === 'fortnight' && st.code && !(lobby && lobby.code === st.code);
+    return `<div class="fh-fr"><span class="dot on"></span><b>${esc(f.name)}</b><small>${st.state === 'fortnight' ? (lobby && lobby.code === st.code ? 'In your lobby' : 'In a Fortnight lobby') : st.state === 'match' ? 'In a match' : st.state === 'lobby' ? 'In a lobby' : 'In the menu'}</small>${inFn ? `<button class="btn small" data-fj="${st.code}">Join</button>` : ''}${st.state !== 'match' && !(lobby && lobby.code === st.code) ? `<button class="btn small primary" data-fi="${f.id}">Invite</button>` : ''}</div>`; }).join('')
+    : `<div class="fh-sub">${profile.friends.length ? 'None of your friends are online right now.' : 'No friends yet: add them from the Friends button (top right) with their friend code.'}</div>`;
+  $('fh-friends').querySelectorAll('[data-fi]').forEach(b => b.onclick = () => fnInvite(b.dataset.fi));
+  $('fh-friends').querySelectorAll('[data-fj]').forEach(b => b.onclick = () => fnJoinFriend(b.dataset.fj));
   const L = fnLook();
   $('fh-looks').innerHTML = fnLookList().map(([role, c]) => `<button class="fh-ch ${role} ${L.char === c && L.role === role ? 'on' : ''}" data-r="${role}" data-c="${c}">${esc((role === 'killer' ? KILLERS : SURVIVORS)[c].name)}</button>`).join('');
   $('fh-looks').querySelectorAll('button').forEach(b => b.onclick = () => { if (fnState !== 'idle') { toast('Pick your character before you queue.'); return; } sound.play('click'); profile.fnLook = { role: b.dataset.r, char: b.dataset.c }; saveProfile(); fnShowLook(); fnRender(); });
@@ -1753,7 +1761,7 @@ async function fnHostLobby() {
     net.on('closed', r => { toast(r); leaveOnline(true); });
     const ad = () => { if (lobby && lobby.fn && !lobby.inGame) fnEvent.advertise({ code: lobby.code, h: settings.name, n: lobby.players.length, at: lobby.fn.at, v: NET_PROTOCOL }); };
     ad(); clearInterval(fnAdTimer); fnAdTimer = setInterval(ad, 4000);
-    fnState = 'lobby'; fnRender();
+    fnState = 'lobby'; fnRender(); friends.heartbeat();
   } catch (e) { console.error(e); toast('Could not open a lobby (' + (e.message || e) + '). Starting a match with bots.'); fnState = 'idle'; closeFortnight(); startFortnightSolo(fnCfg.diff); }
 }
 async function fnJoinLobby(code) {
@@ -1767,7 +1775,7 @@ async function fnJoinLobby(code) {
     net.send({ t: 'hello', name: settings.name, role: L.role, fn: { role: L.role, char: L.char, skin: skinId(L.char) }, proto: NET_PROTOCOL, ver: VERSION });
     await new Promise(r => setTimeout(r, 1500));
     if (rejected || !lobby) { try { net.close(); } catch {} lobby = null; return false; }
-    fnState = 'lobby'; fnRender();
+    fnState = 'lobby'; fnRender(); friends.heartbeat();
     return true;
   } catch (e) { console.warn('join failed', e); lobby = null; return false; }
 }
@@ -1779,6 +1787,31 @@ function fnStartLobby() {
   const humans = lobby.players.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: [], pet: '', bot: false }));
   closeFortnight();
   startHostMatch(fnRoster(humans), { myId: 'host', difficulty: fnCfg.diff, net: lobby.net, kind: 'online', map: 'isle', mode: 'fortnight' });
+}
+// friends: invite into your lobby (opening one if you're not in one yet), or join theirs
+async function fnInvite(fid) {
+  sound.play('click');
+  if (!fnActive()) { toast('The Fortnight event is not running right now.'); return; }
+  if (!friends.mq) { toast('Not connected to the online relay yet.'); return; }
+  if (!(lobby && lobby.fn)) {
+    if (lobby) leaveOnline(true);
+    openFortnightHub(); fnState = 'search'; fnRender();
+    await fnHostLobby();
+  }
+  if (!(lobby && lobby.fn && !lobby.inGame)) return;
+  friends.invite(fid, lobby.code, 'fn');
+  // give them time to get in before the drop
+  if (lobby.isHost) { lobby.fn.at = Math.max(lobby.fn.at, Date.now() + 30000); broadcastLobby(); }
+  toast('Invite sent'); fnRender();
+}
+async function fnJoinFriend(code) {
+  if (!fnActive()) { toast('The Fortnight event is not running right now.'); return; }
+  if (session) { toast('Finish or leave your match first.'); return; }
+  if (lobby) leaveOnline(true);
+  openFortnightHub(); fnState = 'search'; fnRender();
+  if (!friends.mq) friends.connect();
+  const ok = await fnJoinLobby(String(code).toUpperCase());
+  if (!ok) { fnState = 'idle'; fnRender(); toast('That lobby has already dropped in (or closed). Press Play to queue, or ask them to invite you again.'); }
 }
 // the event's last day: the champion is announced to everyone, and paid
 fnEvent.on('reveal', (res, mine) => {

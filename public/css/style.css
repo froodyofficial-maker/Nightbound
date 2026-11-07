@@ -927,3 +927,9 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 @media (max-height: 700px) { .mainnav.v2 button.prim { padding: 9px 16px 8px 18px; } .mainnav.v2 button.prim small { display: none; } }
 
 #menu.fn-open::after, #menu.store-open::after { display: none; }
+
+#fn-hub #fh-friends { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow: auto; max-width: 520px; }
+#fn-hub .fh-fr { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: rgba(255,255,255,.04); border: 1px solid var(--line); font-size: 13px; }
+#fn-hub .fh-fr b { font-weight: 600; } #fn-hub .fh-fr small { color: var(--dim); flex: 1; }
+#fn-hub .fh-fr .dot { width: 8px; height: 8px; border-radius: 50%; background: #5a5; }
+#fn-hub .fh-fr .btn.small { padding: 3px 10px; font-size: 12px; }
