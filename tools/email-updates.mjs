@@ -22,6 +22,7 @@ const strip = s => String(s).replace(/<[^>]+>/g, '');
 for (const m of due) {
   const subject = `${TEST ? '[Test] ' : ''}Nightbound ${m.version}: ${strip(m.title)}`;
   const body = [
+    m.image ? `![${strip(m.title)}](${PLAY}${m.image})\n` : '',
     `## ${strip(m.title)}`, '',
     ...(m.body || []).map(line => `- ${strip(line)}`), '',
     m.gift ? `**Free gift in your in-game Inbox:** ${strip(m.gift.label)}\n` : '',

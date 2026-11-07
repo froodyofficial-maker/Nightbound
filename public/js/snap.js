@@ -12,7 +12,8 @@
 // bunched-up packets no longer make anyone stutter or teleport.
 import { SPEED } from './config.js';
 
-const STATIC = ['name', 'role', 'char', 'skin', 'perks', 'diffMul', 'item', 'pet'];
+// (inv and ammo: Fortnight's backpack, which changes now and then, never every tick)
+const STATIC = ['name', 'role', 'char', 'skin', 'perks', 'diffMul', 'item', 'pet', 'look', 'br', 'inv', 'ammo'];
 // default of every per-player field that changes during play; omitted while equal
 const PDEF = {
   pitch: 0, mv: 0, cr: 0, tp: 0, st: 'ok', hp: 2, act: null, prog: 0, healP: 0, bleed: 0, cage: -1, stage: 0, cageT: 0,
@@ -21,6 +22,7 @@ const PDEF = {
   ammoT: 0, ambush: 0, atkAmbush: false, tele: null, teleCd: 0, ab2Cd: 0, reel: null, pull: null, soundT: 0, outcome: '',
   bump: false, bot: false, flash: 0, flashOn: false, glare: 0, blind: 0, blindImm: 0, traps: 0, slimed: 0, phase: 0,
   haste: 0, turn: 0, card: 0, leap: null, hopF: 0, hop: null, emote: 0, snare: 0, tasers: 0, zap: 0, spied: 0, fl: 0, sp: 0, heard: 0, webbed: 0, dash: null, swapCd: 0,
+  life: 100, ward: 0, slot: 0, mg: 0, rel: 0, heal: null, kills: 0, place: 0, ads: false, dmg: 0,
   shp: 100, webs: 0, webK: 0, possT: 0, knows: null, reach: 0, og: false, swing: null, swingCd: 0, perchT: 0, perchY: 0, perchFrom: null, possCd: 0, disguise: false, harmless: false, pdowns: 0, pcages: 0, noCage: false, split: false, exposed: 0,
 };
 

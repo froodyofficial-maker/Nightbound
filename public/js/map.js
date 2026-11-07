@@ -3,7 +3,8 @@
 import { HALF } from './config.js';
 import { buildMeatworks } from './meatworks.js';
 import { buildGrannyHouse } from './grannyhouse.js';
-import { THEMES, BIG_MAPS } from './themes.js';
+import { THEMES, BIG_MAPS, BR_MAPS } from './themes.js';
+import { rollItem } from './brdata.js';
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -95,6 +96,7 @@ export function makeCtx(M, R, cx, cz, rot) {
 
 export function buildMap(seed, map = 'woods') {
   const M = map === 'meatworks' ? buildMeatworks(seed) : map === 'granny' ? buildGrannyHouse(seed) : buildArena(seed, map);
+  if (M.br) { M.chests = []; addBRLoot(M, seed); return M; }
   addChests(M, seed);
   return M;
 }
@@ -124,13 +126,14 @@ function addChests(M, seed) {
 }
 function buildArena(seed, map) {
   const R = rng(seed);
-  const BIG = BIG_MAPS[map] || null; // Infection maps reuse a theme on a bigger grid
+  const BIG = BIG_MAPS[map] || BR_MAPS[map] || null; // Infection maps reuse a theme on a bigger grid
+  const BR = !!(BIG && BIG.br); // Fortnight's island
   const base = BIG ? BIG.base : map;
   const TH = THEMES[base] || null; // outdoor themes (marsh, carnival, snow); woods when null
   const N = BIG ? BIG.N : 5, half = N * 10 + 6, off = (N - 1) * 10, mid = (N - 1) / 2;
   const M = {
     seed, map: TH ? base : 'woods', mapId: map, half, props: [], pools: [], lights: [], boxes: [], circles: [], windows: [], bars: [], gens: [], cages: [], gates: [],
-    visual: [], trees: [], rocks: [], spawns: { survivors: [], killer: null },
+    visual: [], trees: [], rocks: [], spawns: { survivors: [], killer: null }, br: BR,
   };
   const theme = TH ? TH.style : R.pick(['brick', 'wood', 'stone']);
 
@@ -208,7 +211,7 @@ function buildArena(seed, map) {
 
   // ---------- place cells ----------
   const cells = [];
-  const tnames = TH ? TH.names : ['shack', 'lwall', 'jungle', 'stones', 'barn', 'grove', 'open', 'shack', 'lwall', 'jungle', 'stones', 'grove'];
+  const tnames = TH ? TH.names : BR ? ['shack', 'shack', 'barn', 'barn', 'chapel', 'lwall', 'jungle', 'stones', 'grove', 'grove', 'open', 'open'] : ['shack', 'lwall', 'jungle', 'stones', 'barn', 'grove', 'open', 'shack', 'lwall', 'jungle', 'stones', 'grove'];
   const centre = TH ? TH.center : 'chapel';
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
     const cx = -off + i * 20, cz = -off + j * 20;
@@ -220,6 +223,19 @@ function buildArena(seed, map) {
   const corners = [[0, 0], [N - 1, N - 1], [N - 1, 0], [0, N - 1]];
   const sc = corners[corner], kc = corners[corner ^ 1];
   for (const c of cells) if ((c.i === sc[0] && c.j === sc[1]) || (c.i === kc[0] && c.j === kc[1])) c.t = 'open';
+  // Fortnight: a few mountains (each takes a 3x3 block of cells: woods and rock, no buildings), some hills
+  const mts = [], hills = [];
+  if (BR) {
+    const pickable = R.shuffle(cells.filter(c => c.i >= 1 && c.j >= 1 && c.i <= N - 2 && c.j <= N - 2 && Math.max(Math.abs(c.i - mid), Math.abs(c.j - mid)) >= 2));
+    for (const c of pickable) {
+      if (mts.length >= 4) break;
+      if (mts.some(m => Math.max(Math.abs(m.i - c.i), Math.abs(m.j - c.j)) < 3)) continue;
+      const h = R.range(13, 22);
+      mts.push({ i: c.i, j: c.j, x: c.cx, z: c.cz, h, r: R.range(27, 33) });
+      for (const o of cells) if (Math.abs(o.i - c.i) <= 1 && Math.abs(o.j - c.j) <= 1) { o.t = o === c ? 'open' : R() < 0.6 ? 'grove' : 'stones'; o.mtn = true; }
+    }
+    for (const c of R.shuffle(cells.filter(c => !c.mtn && (c.t === 'open' || c.t === 'grove')))) { if (hills.length >= 9) break; hills.push({ x: c.cx + R.range(-4, 4), z: c.cz + R.range(-4, 4), h: R.range(3, 6.5), r: R.range(11, 16) }); }
+  }
 
   const slots = [];
   for (const c of cells) {
@@ -233,7 +249,7 @@ function buildArena(seed, map) {
 
   // generators: chapel + 6 spread-out cells
   const chapel = cells.find(c => c.t === centre);
-  const genCells = [chapel];
+  const genCells = BR ? [] : [chapel];
   const isCorner = c => (c.i === sc[0] && c.j === sc[1]) || (c.i === kc[0] && c.j === kc[1]);
   const pool = R.shuffle(cells.filter(c => c !== chapel && !isCorner(c)));
   const nGens = BIG ? BIG.gens : 7, nCages = BIG ? BIG.cages : 7;
@@ -270,11 +286,13 @@ function buildArena(seed, map) {
   const gateDefs = [{ x: gx1, z: -HALF, dir: -1 }, { x: gx2, z: HALF, dir: 1 }];
   const BW = 0.5, BH = 4.2;
   const bound = (x1, x2, z) => { if (x2 - x1 > 0.1) M.boxes.push({ x: (x1 + x2) / 2, z, hx: (x2 - x1) / 2, hz: BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' }); };
+  if (BR) { bound(-HALF - BW, HALF + BW, -HALF); bound(-HALF - BW, HALF + BW, HALF); } else {
   bound(-HALF - BW, gx1 - 2.4, -HALF); bound(gx1 + 2.4, HALF + BW, -HALF);
-  bound(-HALF - BW, gx2 - 2.4, HALF); bound(gx2 + 2.4, HALF + BW, HALF);
+  bound(-HALF - BW, gx2 - 2.4, HALF); bound(gx2 + 2.4, HALF + BW, HALF); }
   M.boxes.push({ x: -HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' });
   M.boxes.push({ x: HALF, z: 0, hx: BW, hz: HALF + BW, h: BH, kind: 'boundary', style: TH ? TH.boundary : 'stone' });
-  addGates(M, gateDefs, TH ? TH.boundary : 'stone');
+  if (!BR) addGates(M, gateDefs, TH ? TH.boundary : 'stone');
+  if (BR) M.brCells = cells.map(c => ({ t: c.t, cx: c.cx, cz: c.cz, i: c.i, j: c.j, G: c.G, C: c.C }));
 
   // ---------- spawns ----------
   const ccx = -off + sc[0] * 20, ccz = -off + sc[1] * 20;
@@ -290,6 +308,30 @@ function buildArena(seed, map) {
   M.spawns.killerYaw = Math.atan2(-(ccx - kcx), -(ccz - kcz));
   M.spawns.survivorYaw = Math.atan2(-(kcx - ccx), -(kcz - ccz));
 
+  // ---------- Fortnight: small cabins and sheds dotted around, each with loot of its own ----------
+  M.brHuts = [];
+  if (BR) {
+    const flatCells = new Set(cells.filter(c => ['shack', 'barn', 'chapel', 'lwall', 'jungle'].includes(c.t)).map(c => c));
+    const clearAt = (x, z, r) => !M.boxes.some(b => Math.abs(x - b.x) < b.hx + r && Math.abs(z - b.z) < b.hz + r) && !M.circles.some(c => c.kind !== 'tree' && c.kind !== 'rock' && Math.hypot(x - c.x, z - c.z) < c.r + r);
+    for (let t = 0; t < 900 && M.brHuts.length < 30; t++) {
+      const x = R.range(-HALF + 9, HALF - 9), z = R.range(-HALF + 9, HALF - 9);
+      if (mts.some(m => Math.hypot(x - m.x, z - m.z) < m.r * 0.8)) continue;
+      if ([...flatCells].some(c => Math.max(Math.abs(x - c.cx), Math.abs(z - c.cz)) < 12)) continue;
+      if (M.brHuts.some(h => Math.hypot(h.x - x, h.z - z) < 17) || !clearAt(x, z, 4.5)) continue;
+      // clear the plot of trees and rocks
+      const gone = c => (c.kind === 'tree' || c.kind === 'rock') && Math.hypot(x - c.x, z - c.z) < c.r + 4;
+      M.circles = M.circles.filter(c => !gone(c)); M.trees = M.trees.filter(c => !gone(c)); M.rocks = M.rocks.filter(c => !gone(c));
+      const rot = R.int(0, 3), C = makeCtx(M, R, x, z, rot), st = R.pick(['wood', 'wood', 'brick', 'stone']), kind = R() < 0.6 ? 'cabin' : 'shed';
+      if (kind === 'cabin') {
+        C.doorWall(-2.4, -2.1, 2.4, -2.1, st, 0.5, 1.7); C.windowWall(2.4, -2.1, 2.4, 2.1, st, 0.5, 1.0); C.seg(2.4, 2.1, -2.4, 2.1, st, 2.8); C.seg(-2.4, 2.1, -2.4, -2.1, st, 2.8);
+        C.box(-1.7, 1.45, 0.45, 0.4, 0.8, 'crate', 'wood');
+      } else {
+        C.doorWall(-1.7, -1.6, 1.7, -1.6, st, 0.5, 1.6, false, 2.5); C.seg(1.7, -1.6, 1.7, 1.6, st, 2.5); C.seg(1.7, 1.6, -1.7, 1.6, st, 2.5); C.windowWall(-1.7, 1.6, -1.7, -1.6, st, 0.5, 0.9, 2.5);
+      }
+      const [lx, lz] = C.rp(0.5, 0.5);
+      M.brHuts.push({ x, z, rot, kind, loot: { x: lx, z: lz } });
+    }
+  }
   // ---------- scatter trees ----------
   const near = (x, z, pad) => {
     for (const b of M.boxes) if (Math.abs(x - b.x) < b.hx + pad && Math.abs(z - b.z) < b.hz + pad) return true;
@@ -312,12 +354,107 @@ function buildArena(seed, map) {
     placed++;
   }
   if (TH && TH.extra) TH.extra(M, R, cells, near);
+  if (BR) {
+    // flat ground under every building, the terrain rises everywhere else
+    const flats = cells.filter(c => !c.mtn && ['shack', 'barn', 'chapel', 'lwall', 'jungle'].includes(c.t)).map(c => ({ x: c.cx, z: c.cz, half: 9.5 }));
+    for (const h of M.brHuts) flats.push({ x: h.x, z: h.z, half: 3.6 });
+    buildTerrain(M, { mts: mts.map(({ x, z, h, r }) => ({ x, z, h, r })), hills, flats, p: [R.range(0, 6), R.range(0, 6), R.range(0, 6)] });
+  }
 
   buildGrid(M);
   return M;
 }
 
 function push(M, c) { M.circles.push(c); return c; }
+
+// ---------- terrain (Fortnight's island): a height grid built once from the map seed ----------
+const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function buildTerrain(M, T) {
+  const ext = M.half + 14, n = Math.ceil(ext * 2) + 1, grid = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x = -ext + i, z = -ext + j;
+    let h = 0;
+    for (const m of T.mts) { const d = Math.hypot(x - m.x, z - m.z); if (d < m.r) { const k = 0.5 + 0.5 * Math.cos(Math.PI * d / m.r); h += m.h * k * (0.86 + 0.14 * Math.sin(x * 0.31 + z * 0.23)); } }
+    for (const m of T.hills) { const d = Math.hypot(x - m.x, z - m.z); if (d < m.r) h += m.h * (0.5 + 0.5 * Math.cos(Math.PI * d / m.r)); }
+    h += 0.9 * (1 + Math.sin(x * 0.043 + T.p[0]) * Math.cos(z * 0.051 + T.p[1])) + 0.45 * (1 + Math.sin(x * 0.11 + z * 0.083 + T.p[2]));
+    let mask = 1;
+    for (const f of T.flats) { const d = Math.max(Math.abs(x - f.x), Math.abs(z - f.z)) - f.half; if (d < 9) mask = Math.min(mask, sst(0, 9, d)); }
+    if (Math.abs(x) > M.half - 3 || Math.abs(z) > M.half - 3) mask *= 1 - sst(M.half - 3, M.half + 2, Math.max(Math.abs(x), Math.abs(z))) * 0.7;
+    grid[j * n + i] = h * mask;
+  }
+  M.terrain = { ...T, ext, n, grid };
+}
+// ground height at (x, z): 0 on every map but the island
+export function terrainH(M, x, z) {
+  const T = M && M.terrain; if (!T) return 0;
+  const fx = Math.max(0, Math.min(T.n - 1.001, x + T.ext)), fz = Math.max(0, Math.min(T.n - 1.001, z + T.ext));
+  const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, n = T.n, g = T.grid;
+  return (g[j * n + i] * (1 - u) + g[j * n + i + 1] * u) * (1 - v) + (g[(j + 1) * n + i] * (1 - u) + g[(j + 1) * n + i + 1] * u) * v;
+}
+
+// ---------- Fortnight: chests, floor loot, drop points and place names ----------
+const BR_NAMES = ['Gravemoor Chapel', 'Hollow Farm', "Crow's Rest", 'Ashen Pines', 'Mire End', 'Lantern Row', 'Blackwater', 'Rotting Mill', "Widow's Hill", 'Saltmarsh', 'Bonefield', 'Cold Hearth'];
+function addBRLoot(M, seed) {
+  const R = rng(seed * 53 + 11), g = M.grid, N = g.N;
+  // everything is placed only where you can walk to from the middle of the island
+  const reach = new Uint8Array(N * N), q = [];
+  let s0 = cellOf(M, 0, 0); for (let r = 0; g.type[s0] === 1 && r < 400; r++) s0 = cellOf(M, (R() - 0.5) * 20, (R() - 0.5) * 20);
+  reach[s0] = 1; q.push(s0);
+  while (q.length) { const k = q.pop(), i = k % N, j = (k / N) | 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= N || nj >= N) continue; const nk = nj * N + ni; if (!reach[nk] && g.type[nk] !== 1) { reach[nk] = 1; q.push(nk); } } }
+  M.brReach = reach;
+  const ok = (x, z, r = 0.6) => { if (Math.abs(x) > M.half - 2 || Math.abs(z) > M.half - 2) return false; const k = cellOf(M, x, z); return reach[k] && g.type[k] === 0 && !overlaps(M, x, z, r); };
+  const spot = (x, z, r) => { const p = freePoint(M, x, z, r); return ok(p.x, p.z, r) ? p : null; };
+  const chests = [], loot = [];
+  const used = (x, z, d) => chests.some(c => Math.hypot(c.x - x, c.z - z) < d) || loot.some(c => Math.hypot(c.x - x, c.z - z) < d);
+  const indoor = new Set(['shack', 'barn', 'chapel', 'lwall', 'jungle']);
+  for (const c of M.brCells) {
+    // a chest in most buildings (where the generator would have stood), loot by the walls outside
+    if (c.G && indoor.has(c.t) && R() < 0.8) { const p = spot(c.G[0], c.G[1], 0.7); if (p && !used(p.x, p.z, 4)) chests.push({ id: chests.length, x: p.x, z: p.z, rot: R.int(0, 3) * Math.PI / 2 }); }
+    if (c.t === 'chapel' || c.t === 'barn') { const p = spot(c.cx + R.range(-4, 4), c.cz + R.range(-3, 3), 0.7); if (p && !used(p.x, p.z, 4)) chests.push({ id: chests.length, x: p.x, z: p.z, rot: R() * 6.28 }); }
+    const nFloor = indoor.has(c.t) ? 3 : 1;
+    for (let n = 0, tries = 0; n < nFloor && tries < 12; tries++) {
+      const base = n === 0 && c.C ? c.C : [c.cx + R.range(-7, 7), c.cz + R.range(-7, 7)];
+      const p = spot(base[0], base[1], 0.45); if (!p || used(p.x, p.z, 2.5)) continue;
+      const r = R(), it = rollItem(R, r < 0.42 ? 'w' : r < 0.68 ? 'h' : 'a');
+      loot.push({ id: loot.length, x: +p.x.toFixed(2), z: +p.z.toFixed(2), ...it }); n++;
+    }
+  }
+  // the cabins: a weapon in each, and now and then a heal by the door
+  for (const h of M.brHuts || []) {
+    const lp = spot(h.loot.x, h.loot.z, 0.35); if (!lp) continue;
+    const it = rollItem(R, 'w', 0.3); loot.push({ id: loot.length, x: +lp.x.toFixed(2), z: +lp.z.toFixed(2), ...it });
+    if (R() < 0.5) { const p = spot(h.x + R.range(-1, 1), h.z + R.range(-1, 1), 0.35); if (p && !used(p.x, p.z, 1)) loot.push({ id: loot.length, x: +p.x.toFixed(2), z: +p.z.toFixed(2), ...rollItem(R, 'h') }); }
+  }
+  // sacks and rucksacks: small stashes everywhere, searched like chests but with less inside
+  const sacks = [];
+  const nearSomething = (x, z) => M.circles.some(c => (c.kind === 'tree' || c.kind === 'rock') && Math.hypot(x - c.x, z - c.z) < c.r + 1.6) || M.boxes.some(b => b.kind === 'wall' && Math.abs(x - b.x) < b.hx + 1.4 && Math.abs(z - b.z) < b.hz + 1.4);
+  for (let t = 0; t < 4000 && sacks.length < 120; t++) {
+    const x = R.range(-M.half + 3, M.half - 3), z = R.range(-M.half + 3, M.half - 3);
+    if (!ok(x, z, 0.4) || !nearSomething(x, z) || sacks.some(s => Math.hypot(s.x - x, s.z - z) < 9) || used(x, z, 3)) continue;
+    sacks.push({ id: sacks.length, x: +x.toFixed(2), z: +z.toFixed(2), rot: +(R() * 6.28).toFixed(2), kind: R() < 0.55 ? 'sack' : 'pack' });
+  }
+  for (const h of M.brHuts || []) if (R() < 0.45) { const [x, z] = [h.x + Math.cos(h.rot) * 1.2, h.z - Math.sin(h.rot) * 1.2]; if (ok(x, z, 0.35)) sacks.push({ id: sacks.length, x: +x.toFixed(2), z: +z.toFixed(2), rot: +(R() * 6.28).toFixed(2), kind: 'pack' }); }
+  M.br = { chests, loot, sacks };
+  // drop points: spread out across the island (farthest-point sampling)
+  const cand = [];
+  for (let t = 0; t < 1500 && cand.length < 500; t++) { const x = R.range(-M.half + 6, M.half - 6), z = R.range(-M.half + 6, M.half - 6); if (ok(x, z, 0.8)) cand.push({ x, z }); }
+  const sp = [cand[0]];
+  while (sp.length < 24 && sp.length < cand.length) {
+    let best = null, bd = -1;
+    for (const c of cand) { const d = Math.min(...sp.map(s => Math.hypot(s.x - c.x, s.z - c.z))); if (d > bd) { bd = d; best = c; } }
+    sp.push(best);
+  }
+  M.spawns.survivors = sp.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) }));
+  M.spawns.killer = M.spawns.survivors[0];
+  // place names for the map, on the cells with the biggest buildings
+  const named = M.brCells.filter(c => c.t === 'chapel' || c.t === 'barn').sort((a, b) => (a.i * 7 + a.j * 3) % 5 - (b.i * 7 + b.j * 3) % 5);
+  const places = [];
+  for (const c of named) { if (places.length >= BR_NAMES.length - 1) break; if (places.some(p => Math.hypot(p.x - c.cx, p.z - c.cz) < 38)) continue; places.push({ x: c.cx, z: c.cz, n: '' }); }
+  const mid = places.reduce((b, p) => Math.hypot(p.x, p.z) < Math.hypot(b.x, b.z) ? p : b, places[0] || { x: 0, z: 0 });
+  let ni = seed % (BR_NAMES.length - 1);
+  places.forEach(p => { p.n = p === mid ? BR_NAMES[0] : BR_NAMES[1 + (ni++ % (BR_NAMES.length - 1))]; });
+  M.br.places = places;
+}
 
 export function addGates(M, gateDefs, style = 'stone') {
   for (const g of gateDefs) {

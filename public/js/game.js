@@ -20,6 +20,7 @@ import { foremanReady, batmanReady } from './foremanGlb.js';
 let KB_SETTINGS = null;
 const kbd = id => `<kbd>${keyLabel(KB_SETTINGS, id).replace(/[<>&]/g, '')}</kbd>`;
 import { staticReady, cloneStatic } from './glbModels.js';
+import { BRView } from './brview.js';
 import { makeSurvivor, makeKiller, animate, makeViewModel, animateView, makeSpear, makeLantern, makeChainsaw, auraMat, HOOK_Y } from './models.js';
 import { stepMover, startVault } from './movement.js';
 import { findInteraction, findSpace, findExecute, vaultDuration, killerOf, killersOf, nearestKiller, playerById, has, terrorRadius, dist, angDiff, fwd, actionTime } from './rules.js';
@@ -306,7 +307,7 @@ class BloodDecals {
 }
 
 // how a player looks to everyone else: a body possessed by Chucky still looks like its survivor
-const lookRole = p => p.disguise ? 'survivor' : p.role;
+const lookRole = p => p.look || (p.disguise ? 'survivor' : p.role); // (look: Fortnight's chosen body)
 // killers played over the shoulder: Chucky, and Chucky inside a survivor's body
 // killers drawn from a GLB model: their first-person arms are cut from it
 const GLB_KILLERS = new Set(['granny', 'foreman', 'slimer']);
@@ -457,6 +458,7 @@ export class Game {
     this.role = me ? me.role : 'survivor';
     if (this.role === 'killer' && !isTpv(me)) this.setupKillerView(me);
     this.buildStaticHUD(S);
+    if (S && S.mode === 'fortnight' && this.M.br) { this.br = new BRView(this); if (this.scene.fog) this.scene.fog.density *= 0.42; }
     sound.ambience(true);
     this.onResize();
   }
@@ -567,6 +569,7 @@ export class Game {
       this.keys.add(e.code);
       sound.init();
       if (e.code === 'Escape') { if (this.endShown) return; this.pause(!this.paused); return; }
+      if (this.br) { this.br.onKey(e.code, true); return; }
       if (e.code === 'Space') this.onSpace();
       if (e.code === 'KeyQ') this.send({ t: 'act', a: 'drop-carry' });
       if (e.code === 'KeyG' && this.mine() && this.mine().role === 'killer' && this.mine().char === 'granny') { const m = this.mine(); if (m.teleCd <= 0 && !m.tele && m.carry == null) this.creepHeld = true; else this.feed(m.tele ? 'Already creeping…' : m.carry != null ? 'Not while carrying someone.' : `Creep recharging (${Math.ceil(m.teleCd)}s)`); }
@@ -603,6 +606,7 @@ export class Game {
       if (e.code === 'KeyT') { const b = this.takeoverTarget(); if (b) this.send({ t: 'act', a: 'takeover', id: b.id }); }
     } else {
       this.keys.delete(e.code);
+      if (this.br) { this.br.onKey(e.code, false); return; }
       if (e.code === 'KeyV' && this.swapHeld) { this.swapHeld = false; this.send({ t: 'act', a: 'bodyswap' }); }
       if (e.code === 'KeyG' && this.creepHeld) { this.creepHeld = false; const t = this.creepSel; if (t) this.send({ t: 'act', a: 'creep', kind: t.kind, id: t.id }); this.clearCreep(); }
     }
@@ -613,6 +617,7 @@ export class Game {
     const me = this.mine();
     if (!me) return;
     if (down && document.pointerLockElement !== this.renderer.domElement) return;
+    if (this.br) { this.br.onMouse(e, down); return; }
     if (me.role === 'killer') {
       if (e.button === 0 && down) {
         if (!me.atk && me.carry == null && me.stun <= 0 && !me.act && !(me.char === 'wisp' && me.ab) && !(me.char === 'butcher' && me.ab === 1)) { this.pred.atk = this.t + 0.4; if (this.isHost) {} }
@@ -713,6 +718,7 @@ export class Game {
     if (me && me.role !== this.role) this.switchRole(me, S);
     this.handleLocal(dt, S, me);
     this.updateChars(dt, S, me);
+    if (this.br) this.br.frame(dt, S, me);
     this.updateSidekicks(dt, S, me);
     this.updateTorchLight();
     this.updateTraps(S);
@@ -755,9 +761,9 @@ export class Game {
   handleLocal(dt, S, me) {
     if (!me) return;
     // mouse look
-    const sens = (this.settings.sens || 1) * 0.0022;
+    const sens = (this.settings.sens || 1) * 0.0022 * (this.br && this.br.ads ? (this.br.fov < 30 ? 0.3 : 0.6) : 1);
     const inv = this.settings.invert ? -1 : 1;
-    if (me.role === 'killer') {
+    if (me.role === 'killer' || me.br) {
       let dyaw = Math.max(-0.6, Math.min(0.6, -this.mdx * sens));
       if (me.char === 'butcher' && me.ab === 1) dyaw = Math.max(-1.3 * dt, Math.min(1.3 * dt, dyaw));
       if (me.stun > 0) dyaw = 0;
@@ -774,10 +780,10 @@ export class Game {
     if (eHeld !== this.eHeld) { this.eHeld = eHeld; this.sendIn(); }
 
     // movement
-    const free = me.role === 'killer' || me.st === 'ok' || me.st === 'down';
+    const free = me.br ? me.st === 'ok' : me.role === 'killer' || me.st === 'ok' || me.st === 'down';
     if (free && !this.paused && S.phase === 'play') {
       const mi = this.moveInput();
-      const yaw = me.role === 'killer' ? me.yaw : this.camYaw;
+      const yaw = me.role === 'killer' || me.br ? me.yaw : this.camYaw;
       const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -Math.cos(yaw), rz = Math.sin(yaw);
       let mx = fx * mi.f + rx * mi.r, mz = fz * mi.f + rz * mi.r;
       const m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; }
@@ -895,7 +901,7 @@ export class Game {
       c.spd += (spd - c.spd) * Math.min(1, dt * 8);
       c.yaw += angDiff(c.yaw, tyaw) * (local ? 1 : 1 - Math.exp(-dt * (interp ? 30 : 12)));
       // scratch marks: a running survivor leaves a trail every half metre or so, scattered either side
-      if (p.role === 'survivor' && p.st === 'ok' && !p.disguise && !p.vault && !p.fl && (p.mv === 2 || c.spd > 3.2) && jump <= 4) {
+      if (p.role === 'survivor' && p.st === 'ok' && !p.br && !p.disguise && !p.vault && !p.fl && (p.mv === 2 || c.spd > 3.2) && jump <= 4) {
         c.scratchD = (c.scratchD || 0) + Math.hypot(c.x - ox, c.z - oz);
         if (c.scratchD > 0.55) {
           c.scratchD = 0;
@@ -1252,6 +1258,7 @@ export class Game {
   updateCamera(dt, S, me) {
     const cam = this.camera;
     if (!me) return;
+    if (this.br) { this.br.camera(dt, S, me); return; }
     let target = me;
     if (me.role === 'survivor' && (me.st === 'dead' || me.st === 'out')) {
       if (!this.spectate || !['ok', 'down', 'carried', 'caged'].includes(this.spectate.st)) this.cycleSpectate(true);
@@ -1686,6 +1693,7 @@ export class Game {
 
   // ---------------- auras ----------------
   updateAuras(S, me) {
+    if (this.br) return;
     if (!me) return;
     const K = killerOf(S);
     const killerView = me.role === 'killer';
@@ -1750,6 +1758,7 @@ export class Game {
 
   // ---------------- events from the host ----------------
   onEvents(evs) {
+    if (this.br) this.br.onEvents(evs);
     if (!evs || !evs.length || this.disposed) return;
     const S = this.S || this.session.state(), me = this.mine();
     const name = id => { const p = S && playerById(S, id); return p ? p.name : '?'; };
@@ -2220,6 +2229,12 @@ export class Game {
   }
   updateHUD(dt, S, me) {
     if (!me) return;
+    if (this.br) {
+      this.flash = Math.max(0, this.flash - dt * 2.5);
+      if (this.post) { const u = this.post.uniforms; u.red.value = me.st === 'ok' && me.life < 30 ? 0.3 : 0; u.flash.value = this.flash; u.pulse.value = 0; u.desat.value += ((me.st === 'ok' ? 0.04 : 0.7) - u.desat.value) * Math.min(1, dt * 2); }
+      else $('fx-red').style.opacity = Math.min(1, this.flash * 0.8).toFixed(2);
+      return;
+    }
     if (me.role === 'survivor' && me.item !== this.hudItem) this.renderItemHUD(me);
     // flashlight battery, and the killer's view whiting out when a torch is in his eyes
     if (me.role === 'survivor') {
@@ -2402,6 +2417,7 @@ export class Game {
     if (document.pointerLockElement) { this.skipPause = true; document.exitPointerLock(); }
     $('pause').classList.add('hidden');
     const me = playerById(S, this.myId);
+    if (this.br) { const r = this.br.results(S, me); $('results-title').textContent = r.title; $('results-list').innerHTML = r.rows; $('results').classList.remove('hidden'); if (this.o.onEnd) this.o.onEnd(S, me); return; }
     const cats = { survivor: ['Objectives', 'Altruism', 'Survival', 'Boldness'], killer: ['Brutality', 'Deviousness', 'Hunter', 'Sacrifice'] };
     const rows = S.players.map(p => {
       const c = cats[p.role];
@@ -2448,6 +2464,7 @@ export class Game {
 
   dispose() {
     this.disposed = true;
+    if (this.br) { this.br.dispose(); this.br = null; }
     this.unbind();
     if (document.pointerLockElement) { this.skipPause = true; document.exitPointerLock(); }
     sound.stopAll();

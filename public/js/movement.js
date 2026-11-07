@@ -54,7 +54,7 @@ export function stepMover(M, S, p, intent, dt) {
   const v = dt > 0 ? moved / dt : 0;
   p.mv = v > 3.0 ? 2 : v > 0.25 ? 1 : 0;
   p.cr = intent.crouch && p.role === 'survivor' ? 1 : 0;
-  if (p.role === 'survivor' && mag > 0.1) {
+  if (p.role === 'survivor' && mag > 0.1 && !p.br) {
     const target = Math.atan2(mx, mz);
     p.yaw += angDiff(p.yaw, target) * (1 - Math.exp(-dt * 12));
   }

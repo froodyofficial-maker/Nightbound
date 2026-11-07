@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { HALF } from './config.js';
 import { realistic } from './gfx.js';
 import { cloneScene } from './sceneGlb.js';
-import { rng, barBox } from './map.js';
+import { rng, barBox, terrainH } from './map.js';
 import { tex } from './textures.js';
 import { photoGround } from './pbr.js';
 import { buildMeatWorld, updateMeatLights } from './meatworld.js';
@@ -30,7 +30,7 @@ const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)
 export function buildWorld(M, quality = 'medium') {
   const HF = M.half || HALF;
   if (M.indoor) return buildMeatWorld(M, quality);
-  const LK = LOOK[M.map] || LOOK.woods, FOG_COLOR = LK.fog;
+  const LK = M.br ? LOOK.isle : LOOK[M.map] || LOOK.woods, FOG_COLOR = LK.fog;
   const q = QUALITY[quality] || QUALITY.medium;
   setDetail(quality);
   const lite = quality === 'potato' || quality === 'low';
@@ -82,7 +82,7 @@ export function buildWorld(M, quality = 'medium') {
   const starsGeo = new THREE.BufferGeometry(), sp = [];
   for (let i = 0; i < 1600; i++) { const a = R() * 6.283, e = 0.2 + R() * 1.3, r = 420; sp.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r); }
   starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
-  sky.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc0cce8, size: 1.2, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75 })));
+  if (!LK.day) sky.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc0cce8, size: 1.2, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75 })));
   const moonDir = new THREE.Vector3(30, 60, 20).normalize();
   const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshBasicMaterial({ color: LK.moonDisc, fog: false }));
   moonDisc.position.copy(moonDir).multiplyScalar(396); moonDisc.lookAt(0, 0, 0); sky.add(moonDisc);
@@ -133,6 +133,8 @@ export function buildWorld(M, quality = 'medium') {
     gcol[i * 3] = tmp.r * v; gcol[i * 3 + 1] = tmp.g * v; gcol[i * 3 + 2] = tmp.b * v;
   }
   gGeo.setAttribute('color', new THREE.BufferAttribute(gcol, 3));
+  // Fortnight's island: hills and mountains
+  if (M.terrain) { for (let i = 0; i < gp.count; i++) gp.setY(i, terrainH(M, gp.getX(i), gp.getZ(i))); gGeo.computeVertexNormals(); gGeo.computeBoundingSphere(); }
   gGeo.setAttribute('pathK', new THREE.BufferAttribute(gpk, 1));
   const gt = tex(LK.groundTex);
   const groundMat = lite ? new THREE.MeshLambertMaterial({ map: gt.map, vertexColors: true })
@@ -377,8 +379,31 @@ export function buildWorld(M, quality = 'medium') {
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({ map: t, color: LK.groundFog, transparent: true, opacity: (0.05 - i * 0.015) * LK.groundFogK, depthWrite: false }));
     plane.rotation.x = -Math.PI / 2; plane.position.y = 0.3 + i * 0.5; plane.renderOrder = 2;
     scene.add(plane); W.fogLayers.push({ t, v: 0.004 + i * 0.002, d: i % 2 ? 1 : -1 });
+    plane.userData.flat = true; if (M.terrain) plane.visible = false;
   }
+  if (M.terrain) liftToTerrain(scene, M, new Set([sky, ground]));
   return W;
+}
+// everything built on the flat plane is set down on the terrain: instanced things one by one,
+// merged geometry vertex by vertex (walls on flat building plots don't move at all)
+function liftToTerrain(scene, M, skip) {
+  const v = new THREE.Vector3(), m4 = new THREE.Matrix4(), inv = new THREE.Matrix4(), pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  scene.updateMatrixWorld(true);
+  for (const o of scene.children) {
+    if (skip.has(o) || o.isLight || o.isCamera || o.userData.flat || o.material && o.material.fog === false) continue;
+    const atOrigin = Math.abs(o.position.x) < 1e-3 && Math.abs(o.position.z) < 1e-3;
+    if (!atOrigin) { o.position.y += terrainH(M, o.position.x, o.position.z); continue; }
+    o.traverse(c => {
+      if (c.isInstancedMesh) {
+        for (let i = 0; i < c.count; i++) { c.getMatrixAt(i, m4); m4.decompose(pos, q, sc); v.copy(pos).applyMatrix4(c.matrixWorld); pos.y += terrainH(M, v.x, v.z); m4.compose(pos, q, sc); c.setMatrixAt(i, m4); }
+        c.instanceMatrix.needsUpdate = true; if (c.computeBoundingSphere) c.computeBoundingSphere(); c.frustumCulled = false;
+      } else if ((c.isMesh || c.isPoints || c.isLineSegments) && c.geometry && c.geometry.attributes.position) {
+        const g = c.geometry.clone(), p = g.attributes.position; inv.copy(c.matrixWorld).invert();
+        for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(c.matrixWorld); v.y += terrainH(M, v.x, v.z); v.applyMatrix4(inv); p.setXYZ(i, v.x, v.y, v.z); }
+        p.needsUpdate = true; g.computeBoundingSphere(); c.geometry = g;
+      }
+    });
+  }
 }
 
 // generators, cages, barricades and exit gates (shared by every map)

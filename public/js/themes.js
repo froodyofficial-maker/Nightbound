@@ -190,11 +190,15 @@ const snow = {
 };
 
 export const THEMES = { marsh, carnival, snow };
-export const MAP_NAMES = { woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name, quarantine: 'Quarantine Woods', outbreak: 'Outbreak Fairground', granny: "Granny's House" };
+export const MAP_NAMES = { isle: 'Nightfall Isle', woods: 'Gravemoor Woods', meatworks: 'Hollow Pines Meatworks', marsh: marsh.name, carnival: carnival.name, snow: snow.name, quarantine: 'Quarantine Woods', outbreak: 'Outbreak Fairground', granny: "Granny's House" };
 // Infection maps: twice the area of a regular map (7x7 cells instead of 5x5), built for a dozen
 // players: more generators, long sight lines broken up by loops, and spawns spread around the edges.
 export const BIG_MAPS = {
   quarantine: { base: 'woods', N: 7, gens: 11, cages: 4 },
   outbreak: { base: 'carnival', N: 7, gens: 11, cages: 4 },
 };
-export const REGULAR_MAPS = Object.keys(MAP_NAMES).filter(k => !BIG_MAPS[k]);
+// Fortnight (battle royale): one huge island, 11x11 cells, nothing to repair and nowhere to escape to
+export const BR_MAPS = {
+  isle: { base: 'woods', N: 11, gens: 0, cages: 0, br: true },
+};
+export const REGULAR_MAPS = Object.keys(MAP_NAMES).filter(k => !BIG_MAPS[k] && !BR_MAPS[k]);

@@ -144,6 +144,18 @@ export class Sound {
         break;
       }
       case 'thwip': if (!(d = o(4, 40))) return; this.noise(d, t, 0.16, 'bandpass', 5200, 1600, 3, 0.55, 0.002); this.tone(d, t, 0.1, 'triangle', 1400, 500, 0.15, 0.002); break;
+      // Fortnight guns and feedback
+      case 'pistol': if (!(d = o(8, 110))) return; this.noise(d, t, 0.22, 'lowpass', 6000, 400, 1.6, 0.8, 0.001); this.tone(d, t, 0.14, 'sine', 160, 50, 0.9, 0.001); break;
+      case 'smg': if (!(d = o(6, 90))) return; this.noise(d, t, 0.09, 'bandpass', 3200, 900, 1.2, 0.55, 0.001); this.tone(d, t, 0.06, 'square', 140, 70, 0.25, 0.001); break;
+      case 'rifle': if (!(d = o(8, 130))) return; this.noise(d, t, 0.16, 'lowpass', 7000, 500, 1.4, 0.7, 0.001); this.tone(d, t, 0.1, 'sine', 120, 45, 0.8, 0.001); break;
+      case 'sniper': if (!(d = o(14, 200))) return; this.noise(d, t, 0.9, 'lowpass', 8000, 180, 2.5, 1, 0.001); this.tone(d, t, 0.45, 'sine', 90, 30, 1.4, 0.001); this.noise(d, t + 0.15, 0.7, 'bandpass', 600, 200, 1, 0.25, 0.1); break;
+      case 'brhit': d = o(); this.tone(d, t, 0.05, 'square', opt.head ? 2600 : 1700, null, 0.08, 0.001); break;
+      case 'brward': d = o(); this.noise(d, t, 0.25, 'highpass', 4000, 9000, 2, 0.35, 0.002); this.tone(d, t, 0.2, 'triangle', 1800, 600, 0.12); break;
+      case 'brkill': d = o(); this.tone(d, t, 0.12, 'triangle', 880, null, 0.18); this.tone(d, t + 0.09, 0.25, 'triangle', 1320, null, 0.18); break;
+      case 'brreload': if (!(d = o(3, 25))) return; this.noise(d, t, 0.06, 'bandpass', 2400, null, 3, 0.4); this.noise(d, t + 0.35, 0.08, 'bandpass', 1800, null, 3, 0.45); break;
+      case 'brpick': if (!(d = o(3, 25))) return; this.tone(d, t, 0.12, 'triangle', 520, 780, 0.12); this.noise(d, t, 0.08, 'bandpass', 2000, null, 2, 0.2); break;
+      case 'brfog': d = o(); this.tone(d, t, 1.6, 'sawtooth', 70, 52, 0.22, 0.2); this.tone(d, t, 1.6, 'sine', 140, 104, 0.2, 0.2); break;
+      case 'brwin': d = o(); for (const [f, dt] of [[392, 0], [523, 0.15], [659, 0.3], [784, 0.45]]) this.tone(d, t + dt, 1.8, 'triangle', f, null, 0.17); break;
       case 'shotgun': if (!(d = o(10, 110))) return; this.noise(d, t, 0.5, 'lowpass', 5200, 260, 2.2, 0.9, 0.001); this.tone(d, t, 0.32, 'sine', 120, 38, 1.4, 0.001); this.noise(d, t + 0.42, 0.07, 'bandpass', 1800, 900, 0.6, 0.5); this.noise(d, t + 0.58, 0.08, 'bandpass', 1400, 700, 0.6, 0.5); break;
       case 'thud': if (!(d = o(5, 40))) return; this.tone(d, t, 0.18, 'sine', 95, 40, 1, 0.003); this.noise(d, t, 0.09, 'lowpass', 900, 200, 1, 0.8); break;
       case 'lightsout': d = o(); this.tone(d, t, 1.2, 'sawtooth', 120, 30, 0.35, 0.01); this.noise(d, t, 0.25, 'highpass', 3000, null, 1, 0.5); this.tone(d, t + 0.05, 2.5, 'sine', 45, 38, 0.5, 0.3); break;

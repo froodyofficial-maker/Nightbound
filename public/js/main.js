@@ -1,8 +1,10 @@
 // Entry point: menus, loadouts, bot matches, online lobby, match sessions and the main loop.
 import * as THREE from 'three';
-import { buildMap } from './map.js';
+import { buildMap , terrainH } from './map.js';
 import { Sim } from './sim.js';
 import { Bots } from './bots.js';
+import { BRSim, BRBots } from './brsim.js';
+import { BR_PLAYERS } from './brdata.js';
 import { Game } from './game.js';
 import { QUALITY } from './world.js';
 import { setDetail } from './models.js';
@@ -18,12 +20,13 @@ import { loadStatic } from './glbModels.js';
 import { loadScene, sceneReady } from './sceneGlb.js';
 import { loadGranny, grannyReady, onGrannyReady, loadGrandpa, loadSpiderMom } from './grannyGlb.js';
 import { SnapWriter, SnapReader, Track } from './snap.js';
-import { MAP_NAMES, BIG_MAPS, REGULAR_MAPS } from './themes.js';
+import { MAP_NAMES, BIG_MAPS, REGULAR_MAPS, BR_MAPS } from './themes.js';
 import { icon, POWER_ICON } from './icons.js';
 import { sound, loadClip } from './audio.js';
 import { showTrailer, trailerPlaying } from './trailer.js';
 import { ACTIONS, bound, keyName, RESERVED } from './keybinds.js';
 import { hostRoom, joinRoom, relayAvailable } from './net.js';
+import { FN, FnEvent, fnActive, fnLeft, fmtLeft } from './event.js';
 import { KILLERS, SURVIVORS, SURV_PERKS, KILLER_PERKS, DEFAULT_SURV_PERKS, DEFAULT_KILLER_PERKS, BOT_NAMES, SNAP_RATE, NET_PROTOCOL, MODES, LORE, PERK_PRICES, PERK_SLOTS, SIDEKICKS, SKINS, INBOX, VERSION, CHAPTERS, CHAPTER_OF , NEWSLETTER , POWERUPS, POWER_LV, powerReach } from './config.js';
 import { art, forget as forgetArt } from './portraits.js';
 import { levelOf, rankOf, rankBadge, applyMatch, SEASON, seasonTier, seasonEnds, TIERS, PIPS_PER_GRADE } from './progress.js';
@@ -247,6 +250,7 @@ const navActions = {
   store: () => openStore(),
   pass: () => openPanel('p-pass', 'Progress', true),
   test: () => { renderTest(); openPanel('p-test', 'Testing Area', true); },
+  fortnight: () => openFortnightHub(),
 };
 for (const b of $('mainnav').children) {
   b.addEventListener('mouseenter', () => { sound.init(); sound.play('hover'); if (b.dataset.scene) setScene(b.dataset.scene); });
@@ -532,6 +536,7 @@ function renderStore() {
   else if (storeTab === 'powerups') body.innerHTML = powerupsHTML();
   else body.innerHTML = charactersHTML();
   bindStore(body);
+  if (fnActive() && storeTab !== 'app') { body.insertAdjacentHTML('afterbegin', `<button class="store-fn"><div class="fn-art"></div><div><b>Fortnight event · ends in ${fmtLeft(fnLeft())}</b><span>Battle royale: wear any character you own. Most wins takes ${FN.prize.toLocaleString()} Embers.</span></div></button>`); body.querySelector('.store-fn').onclick = () => { sound.play('click'); $('store').classList.add('hidden'); $('menu').classList.remove('store-open'); openFortnightHub(); }; }
   $('show-drag').style.display = storeTab === 'sidekicks' && editTed ? 'none' : ''; // no turntable hint over the line editor
   if (menu && storeTab === 'sidekicks') { const role = storePetRole; menu.setShowcase(profile[role].char, skinId(profile[role].char), 0.3, storePet); menu.setMode('show'); menu.showFor = null; }
   else if (menu) { if (storeTab === 'characters') { if (!menu.showRig || menu.showFor !== storeChar + ':' + (storePreview || skinId(storeChar))) { menu.showFor = storeChar + ':' + (storePreview || skinId(storeChar)); previewSkin(storePreview || skinId(storeChar)); } else menu.setMode('show'); } else menu.setMode(menuMode); }
@@ -754,7 +759,7 @@ if (profile.lastVersion !== VERSION) {
 // ---------- bot match ----------
 const botsCfg = { role: 'survivor', team: 3, surv: 4, killer: 'random', diff: 'normal', map: 'vote', gm: 'classic' };
 // game mode pickers (bot match and lobby)
-const gmOptions = () => Object.entries(MODES).map(([id, m]) => `<option value="${id}">${m.name} (${m.short})</option>`).join('');
+const gmOptions = () => Object.entries(MODES).filter(([, m]) => !m.event).map(([id, m]) => `<option value="${id}">${m.name} (${m.short})</option>`).join('');
 $('bots-gm').innerHTML = gmOptions(); $('lobby-gm').innerHTML = gmOptions();
 const gmDesc = gm => (MODES[gm] || MODES.classic).desc;
 $('bots-gm-desc').textContent = gmDesc('classic');
@@ -807,8 +812,8 @@ function renderTest() {
   $('test-item-row').classList.toggle('hidden', role !== 'survivor'); $('test-item').value = T.item;
   $('test-opp-row').classList.toggle('hidden', role !== 'survivor'); $('test-surv-row').classList.toggle('hidden', role !== 'killer');
   $('test-opp').innerHTML = '<option value="random">Random</option>' + Object.values(KILLERS).map(d => `<option value="${d.id}" ${d.id === T.opp ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
-  $('test-map').innerHTML = ['random', ...Object.keys(MAP_NAMES)].map(m => `<option value="${m}" ${m === T.map ? 'selected' : ''}>${m === 'random' ? 'Random' : esc(MAP_NAMES[m])}</option>`).join('');
-  $('test-gm').innerHTML = Object.entries(MODES).map(([id, m]) => `<option value="${id}" ${id === T.gm ? 'selected' : ''}>${m.name} (${m.short})</option>`).join('');
+  $('test-map').innerHTML = ['random', ...Object.keys(MAP_NAMES).filter(m => !BR_MAPS[m])].map(m => `<option value="${m}" ${m === T.map ? 'selected' : ''}>${m === 'random' ? 'Random' : esc(MAP_NAMES[m])}</option>`).join('');
+  $('test-gm').innerHTML = Object.entries(MODES).filter(([, m]) => !m.event).map(([id, m]) => `<option value="${id}" ${id === T.gm ? 'selected' : ''}>${m.name} (${m.short})</option>`).join('');
   const L = role === 'killer' && POWER_LV[c];
   $('test-reach-row').classList.toggle('hidden', !L);
   if (L) { const r = $('test-reach'); r.min = L.base; r.max = L.max; r.step = L.step; r.value = T.reach[c] ?? L.max; $('test-reach-l').textContent = `${L.power} reach: ${r.value}m`; }
@@ -922,6 +927,7 @@ const MAPS = MAP_NAMES;
 // Infection is played on its own big maps; the other modes on the regular ones (unless picked by name)
 function resolveMap(m, mode) {
   const pick = ids => ids[Math.floor(Math.random() * ids.length)];
+  if (MODES[mode] && MODES[mode].br) return 'isle';
   if (MODES[mode] && MODES[mode].bigMap) return BIG_MAPS[m] ? m : pick(Object.keys(BIG_MAPS));
   return MAPS[m] ? m : pick(REGULAR_MAPS);
 }
@@ -938,10 +944,11 @@ class HostSession {
     this.seed = Math.floor(Math.random() * 1e9);
     this.map = resolveMap(this.opts.map, this.opts.mode);
     this.M = buildMap(this.seed, this.map);
-    this.sim = new Sim(this.M, this.roster, { difficulty: this.opts.difficulty, mode: this.opts.mode });
+    const br = MODES[this.opts.mode] && MODES[this.opts.mode].br;
+    this.sim = br ? new BRSim(this.M, this.roster, { difficulty: this.opts.difficulty, mode: this.opts.mode }) : new Sim(this.M, this.roster, { difficulty: this.opts.difficulty, mode: this.opts.mode });
     if (this.opts.passive) for (const q of this.sim.S.players) if (q.bot && q.role === 'killer') q.harmless = true;
     if (this.opts.taser) { const q = this.sim.S.players.find(x => x.id === this.myId); if (q) { q.item = 'taser'; q.tasers = 3; q.flash = 0; q.traps = 0; } }
-    this.bots = new Bots(this.sim);
+    this.bots = br ? new BRBots(this.sim) : new Bots(this.sim);
     if (this.net) this.net.broadcast({ t: 'start', seed: this.seed, map: this.map, roster: this.roster, difficulty: this.opts.difficulty, mode: this.opts.mode });
     this.game = new Game({ renderer, M: this.M, myId: this.myId, isHost: true, session: this, settings, onEnd: (S, me) => onMatchEnd(S, me, this) });
     this.game.start();
@@ -1073,6 +1080,39 @@ class ClientSession {
   dispose() { this.game && this.game.dispose(); }
 }
 
+// ---------- Fortnight (battle royale event) ----------
+// Everyone picks any killer or survivor to wear (no powers); bots fill the island up to 16.
+function fnBot(i, used) {
+  const pool = [...Object.keys(SURVIVORS).filter(c => !LIMITED(c)).map(c => ['survivor', c]), ...Object.keys(KILLERS).map(c => ['killer', c])].filter(([, c]) => !used.includes(c) || used.length > 20);
+  const [role, char] = pool[Math.floor(Math.random() * pool.length)] || ['survivor', 'mara'];
+  used.push(char);
+  used.names ||= [];
+  const names = BOT_NAMES.filter(n => !used.names.includes(n)); const nm = names[Math.floor(Math.random() * names.length)] || 'Bot ' + i; used.names.push(nm);
+  const outfits = (SKINS[char] || []).slice(1).filter(k => !k.god);
+  const skin = !outfits.length || Math.random() < 0.55 ? 'default' : outfits[Math.floor(Math.random() * outfits.length)].id;
+  return { id: 'bot' + i, name: nm + ' (bot)', role, char, skin, perks: [], pet: '', bot: true };
+}
+export function fnRoster(humans) {
+  const used = humans.map(h => h.char), roster = humans.slice();
+  for (let i = 1; roster.length < BR_PLAYERS; i++) roster.push(fnBot(i, used));
+  return roster;
+}
+function fnMe(id = 'me') {
+  const look = fnLook();
+  return { id, name: settings.name, role: look.role, char: look.char, skin: skinId(look.char), perks: [], pet: '', bot: false };
+}
+// the body you wear in Fortnight: your pick on the event screen (any owned killer or survivor)
+function fnLook() {
+  const L = profile.fnLook || { role: 'survivor', char: profile.survivor.char };
+  const ok = (L.role === 'killer' ? KILLERS : SURVIVORS)[L.char] && ownsChar(L.char);
+  return ok ? L : { role: 'survivor', char: playableSurvivor() };
+}
+function startFortnightSolo(diff = 'normal') {
+  sound.init();
+  startHostMatch(fnRoster([fnMe('me')]), { myId: 'me', difficulty: diff, net: null, kind: 'bots', map: 'isle', mode: 'fortnight', fn: true });
+}
+window.__fnSolo = startFortnightSolo; window.__TH = terrainH;
+
 async function startHostMatch(roster, opts) {
   loading(true, 'Entering the fog…');
   await nextFrame();
@@ -1094,7 +1134,31 @@ function endSession() {
   startBG();
 }
 
+// Fortnight: Embers for placement, eliminations and damage; wins count toward the event prize
+function fnMatchEnd(S, me, sess) {
+  if (me && me.score) {
+    const tot = Math.round(me.score.a + me.score.b + me.score.c + me.score.d);
+    profile.stats.embers += tot; profile.stats.matches++;
+    (profile.played ||= {})[me.char] = (profile.played[me.char] || 0) + 1;
+    const ev = fnEvent ? fnEvent.record(me, S) : null;
+    saveProfile();
+    $('results-list').insertAdjacentHTML('afterbegin', `<div class="prog-sum fn-sum"><div class="ps-xp"><b>+${tot} Embers</b><span>#${me.place} of ${S.players.length} · ${me.kills || 0} elimination${me.kills === 1 ? '' : 's'}</span></div>${ev ? `<div class="ps-pass">Fortnight wins: <b>${ev.w}</b>${ev.rank ? ` · #${ev.rank} on the leaderboard` : ''}</div>` : ''}</div>`);
+  }
+  const A = $('results-actions'); A.innerHTML = '';
+  const btn = (label, cls, fn) => { const b = document.createElement('button'); b.textContent = label; b.className = 'btn ' + (cls === 'primary' ? 'primary big' : ''); b.onclick = () => { sound.play('click'); fn(); }; A.appendChild(b); };
+  if (sess.kind === 'bots') {
+    btn('Event Lobby', 'back', () => { endSession(); openFortnight(); });
+    btn('Play Again', 'primary', () => { endSession(); fnPlay(); });
+  } else {
+    btn('Event Lobby', 'back', () => { leaveOnline(true); openFortnight(); });
+    btn('Play Again', 'primary', () => { leaveOnline(true); fnPlay(); });
+  }
+}
+let fnEvent = null; // the event (leaderboard, prize, matchmaking): set up below
+function openFortnight() { if (window.__fnOpen) window.__fnOpen(); else show('p-main'); }
+function fnPlay() { if (window.__fnPlay) window.__fnPlay(); else startFortnightSolo(); }
 function onMatchEnd(S, me, sess) {
+  if (S.mode === 'fortnight') { fnMatchEnd(S, me, sess); return; }
   if (sess.opts && sess.opts.sandbox) {
     $('results-list').insertAdjacentHTML('beforeend', '<div class="prog-sum"><div class="ps-xp"><b>Testing Area</b><span>No XP, Embers or rank in test matches</span></div></div>');
     me = null; // nothing below is recorded
@@ -1202,6 +1266,14 @@ function hostMsg(id, m) {
         : `This room runs Nightbound ${VERSION}. Refresh the page (or download the latest copy) and join again.` });
       return;
     }
+    if (lobby.gm === 'fortnight') {
+      // Fortnight: anyone can join (bots fill whatever's left); wear the body you picked
+      const L = m.fn || {}, role = L.role === 'killer' ? 'killer' : 'survivor', defs = role === 'killer' ? KILLERS : SURVIVORS, char = defs[L.char] ? L.char : role === 'killer' ? 'butcher' : 'mara';
+      if (!lobby.players.some(x => x.id === id)) lobby.players.push({ id, name: String(m.name || 'Player').slice(0, 16), role, char, skin: cleanSkin(char, L.skin), perks: [], pet: '', loadouts: {} });
+      lobby.net.send(id, { t: 'welcome', id });
+      broadcastLobby(); fnRender();
+      return;
+    }
     const cap = lobbyCaps();
     if (lobby.players.length >= cap.k + cap.s) { lobby.net.send(id, { t: 'reject', reason: 'The lobby is full.' }); return; }
     const killerTaken = lobby.players.filter(p => p.role === 'killer').length >= cap.k;
@@ -1246,7 +1318,7 @@ function voteWinner() {
   const tied = cands.filter(c => n(c) === top);
   return tied[Math.floor(Math.random() * tied.length)];
 }
-function lobbyCaps() { const m = MODES[lobby && lobby.gm] || MODES.classic; return { k: m.killers || 1, s: m.survivors || 4 }; }
+function lobbyCaps() { if (lobby && lobby.gm === 'fortnight') return { k: 9999, s: 9999 }; const m = MODES[lobby && lobby.gm] || MODES.classic; return { k: m.killers || 1, s: m.survivors || 4 }; }
 function applyLoadout(p, m) {
   let role = m.role === 'killer' ? 'killer' : 'survivor';
   const cap = lobbyCaps();
@@ -1260,7 +1332,7 @@ function applyLoadout(p, m) {
 }
 function broadcastLobby() {
   if (!lobby || !lobby.isHost) return;
-  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, map: lobby.map || 'vote', gm: lobby.gm || 'classic', code: lobby.code, cands: lobby.cands || [], votes: lobby.votes || {} });
+  lobby.net.broadcast({ t: 'lobby', players: lobby.players.map(({ loadouts, ...p }) => p), fill: lobby.fill, diff: lobby.diff, map: lobby.map || 'vote', gm: lobby.gm || 'classic', code: lobby.code, cands: lobby.cands || [], votes: lobby.votes || {}, fnAt: lobby.fn ? lobby.fn.at : 0 });
   renderLobby();
 }
 
@@ -1287,7 +1359,7 @@ function clientMsg(m) {
   if (!m || typeof m !== 'object' || !lobby) return;
   switch (m.t) {
     case 'welcome': lobby.myId = m.id; break;
-    case 'lobby': lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; lobby.gm = MODES[m.gm] ? m.gm : 'classic'; lobby.cands = Array.isArray(m.cands) ? m.cands : []; lobby.votes = m.votes || {}; renderLobby(); break;
+    case 'lobby': if (lobby.fn) { lobby.fn.at = m.fnAt || lobby.fn.at; setTimeout(fnRender, 0); } lobby.players = m.players; lobby.fill = m.fill; lobby.diff = m.diff; lobby.map = m.map; lobby.gm = MODES[m.gm] ? m.gm : 'classic'; lobby.cands = Array.isArray(m.cands) ? m.cands : []; lobby.votes = m.votes || {}; renderLobby(); break;
     case 'reject': toast(m.reason); leaveOnline(true); break;
     case 'chat': addChat(m.name, m.text); break;
     case 'mapvote': showVote(m); break;
@@ -1312,6 +1384,7 @@ setInterval(() => {
 }, 2000);
 
 async function startClientMatch(m) {
+  if (m.mode === 'fortnight') closeFortnight();
   loading(true, 'Entering the fog…');
   await nextFrame();
   await waitForModels({ spider: (m.roster || []).some(r => r.char === 'spiderman'), granny: (m.roster || []).some(r => r.char === 'granny') || m.mode === 'infection', chucky: (m.roster || []).some(r => r.char === 'chucky') || m.mode === 'infection' });
@@ -1446,6 +1519,7 @@ function returnToLobby() {
   broadcastLobby();
 }
 function leaveOnline(silent) {
+  if (lobby && lobby.fn) fnStopLobby();
   if (lobby) { try { lobby.net.close(); } catch {} lobby = null; }
   if (session) endSession();
   $('chat-log').innerHTML = '';
@@ -1559,6 +1633,162 @@ friends.on('invite', (id, name, code) => {
 $('friends-btn').onclick = () => { sound.init(); sound.play('click'); openPanel('p-friends', 'Friends'); };
 // ---------- weekly awards: Best Survivor and Best Killer of the whole player base ----------
 const awards = new Awards(profile, saveProfile, friends);
+
+// ================= Fortnight: the event screen, matchmaking and the leaderboard =================
+fnEvent = new FnEvent(profile, saveProfile, friends); window.__fnEvent = fnEvent;
+const FN_WAIT = 25000; // a new lobby waits this long for players, then bots fill the island
+const fnCfg = { diff: 'normal' };
+let fnHub = null, fnState = 'idle', fnTimer = null, fnAdTimer = null;
+function fnBuildHub() {
+  if (fnHub) return fnHub;
+  fnHub = document.createElement('div'); fnHub.id = 'fn-hub'; fnHub.className = 'hidden';
+  fnHub.innerHTML = `<div class="fh-shade"></div>
+    <div class="fh-left">
+      <div class="fh-kicker">Limited event · <span id="fh-left"></span></div>
+      <div class="fh-logo">FORT<span>NIGHT</span></div>
+      <div class="fh-tag">Battle royale on Nightfall Isle</div>
+      <div class="fh-prize"><b>${FN.prize.toLocaleString()}</b><span>Embers to the player with the most wins when the event ends</span></div>
+      <div class="fh-me" id="fh-me"></div>
+      <div class="fh-how">Wear any killer or survivor you own (no powers). Loot guns and heals from chests and the ground, stay inside the fog ring, and be the last one standing. Every win counts.</div>
+    </div>
+    <div class="fh-right"><div class="fh-h">Leaderboard</div><div id="fh-board"></div></div>
+    <div class="fh-bottom">
+      <div class="fh-look"><div class="fh-h">Your character</div><div id="fh-looks"></div></div>
+      <div class="fh-play">
+        <div id="fh-queue"></div>
+        <div class="fh-diff"><span>Bots</span><div class="seg" id="fh-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div></div>
+        <div class="fh-btns"><button class="btn" id="fh-back">Back</button><button class="btn primary big" id="fh-go">PLAY</button></div>
+      </div>
+    </div>`;
+  document.body.appendChild(fnHub);
+  $('fh-back').onclick = () => { sound.play('click'); if (lobby && lobby.fn) leaveOnline(true); closeFortnight(); };
+  $('fh-go').onclick = () => { sound.init(); sound.play('click'); if (fnState === 'idle') fnPlayNow(); else if (fnState === 'lobby' && lobby && lobby.isHost) fnStartLobby(); };
+  fnHub.querySelectorAll('#fh-diff button').forEach(b => b.onclick = () => { fnCfg.diff = b.dataset.v; fnRender(); });
+  return fnHub;
+}
+function fnLookList() {
+  const s = Object.keys(SURVIVORS).filter(ownsChar).map(c => ['survivor', c]), k = Object.keys(KILLERS).filter(ownsChar).map(c => ['killer', c]);
+  return [...s, ...k];
+}
+function fnShowLook() {
+  const L = fnLook();
+  // your character on show in the middle of the lobby
+  if (menu) { menu.setShowcase(L.char, skinId(L.char), -0.32); menu.setMode('show'); menu.showFor = null; menu.setShift(false); }
+}
+function fnRender() {
+  if (!fnHub || fnHub.classList.contains('hidden')) return;
+  const active = fnActive(), done = profile.fn && profile.fn.done && profile.fn.done[FN.id];
+  $('fh-left').textContent = active ? 'ends in ' + fmtLeft(fnLeft()) : Date.now() < FN.start ? 'starts soon' : 'event over';
+  const me = fnEvent.me, rank = fnEvent.rank();
+  $('fh-me').innerHTML = `<div><b>${me.w}</b><span>Wins</span></div><div><b>${me.k}</b><span>Eliminations</span></div><div><b>${me.m}</b><span>Matches</span></div><div><b>${rank ? '#' + rank : '–'}</b><span>Rank</span></div>`;
+  const rows = fnEvent.board().slice(0, 10);
+  $('fh-board').innerHTML = (done ? `<div class="fh-champ">${done.fid ? `Champion: <b>${esc(done.n)}</b> · ${done.w} wins` : 'No champion this time'}</div>` : '') +
+    (rows.length ? rows.map((r, i) => `<div class="fh-row ${r.fid === friends.id ? 'me' : ''}"><i>${i + 1}</i><span>${esc(r.n)}</span><b>${r.w}</b><small>${r.k} elims</small></div>`).join('') : '<div class="fh-empty">No wins yet. Be the first on the board.</div>') +
+    (rank > 10 ? `<div class="fh-row me"><i>${rank}</i><span>${esc(settings.name)} (you)</span><b>${me.w}</b><small>${me.k} elims</small></div>` : '') +
+    `<div class="fh-note">${friends.mq ? 'Live from every Nightbound player' : 'Offline: the leaderboard updates when you reconnect'}</div>`;
+  const L = fnLook();
+  $('fh-looks').innerHTML = fnLookList().map(([role, c]) => `<button class="fh-ch ${role} ${L.char === c && L.role === role ? 'on' : ''}" data-r="${role}" data-c="${c}">${esc((role === 'killer' ? KILLERS : SURVIVORS)[c].name)}</button>`).join('');
+  $('fh-looks').querySelectorAll('button').forEach(b => b.onclick = () => { if (fnState !== 'idle') { toast('Pick your character before you queue.'); return; } sound.play('click'); profile.fnLook = { role: b.dataset.r, char: b.dataset.c }; saveProfile(); fnShowLook(); fnRender(); });
+  fnHub.querySelectorAll('#fh-diff button').forEach(b => b.classList.toggle('on', b.dataset.v === fnCfg.diff));
+  // the queue
+  const go = $('fh-go'), q = $('fh-queue');
+  go.disabled = !active;
+  if (!active) { go.textContent = done || Date.now() >= FN.end ? 'EVENT OVER' : 'SOON'; q.innerHTML = ''; return; }
+  if (fnState === 'idle') { go.textContent = 'PLAY'; q.innerHTML = `<span class="fh-sub">${friends.mq ? 'Matchmaking with everyone online · bots fill the rest' : 'Offline · you and 15 bots'}</span>`; }
+  else if (fnState === 'search') { go.textContent = 'SEARCHING…'; q.innerHTML = '<span class="fh-sub">Looking for an open lobby…</span>'; }
+  else if (fnState === 'lobby' && lobby) {
+    const left = Math.max(0, (lobby.fn.at || 0) - Date.now()), n = lobby.players.length;
+    go.textContent = lobby.isHost ? 'START NOW' : 'READY';
+    q.innerHTML = `<div class="fh-qn"><b>${n}</b> player${n === 1 ? '' : 's'} in the lobby · ${Math.max(0, 16 - n)} bot${16 - n === 1 ? '' : 's'} will join</div><div class="fh-qt">Dropping in <b>${Math.ceil(left / 1000)}</b>s</div><div class="fh-qp">${lobby.players.map(p => `<span>${esc(p.name)}${p.id === lobby.myId ? ' (you)' : ''}</span>`).join('')}</div><button class="btn small" id="fh-leaveq">Leave lobby</button>`;
+    $('fh-leaveq').onclick = () => { sound.play('click'); leaveOnline(true); fnState = 'idle'; openFortnight(); };
+  }
+}
+function openFortnightHub() {
+  fnBuildHub();
+  closePanel();
+  $('menu').classList.remove('hidden'); $('menu').classList.add('fn-open');
+  fnHub.classList.remove('hidden');
+  if (!(lobby && lobby.fn)) fnState = 'idle';
+  fnShowLook(); fnRender();
+  clearInterval(fnTimer); fnTimer = setInterval(() => { fnRender(); if (fnState === 'lobby' && lobby && lobby.isHost && Date.now() >= lobby.fn.at) fnStartLobby(); }, 500);
+}
+function closeFortnight() {
+  if (fnHub) fnHub.classList.add('hidden');
+  $('menu').classList.remove('fn-open');
+  clearInterval(fnTimer); fnState = 'idle';
+  setScene('survivor');
+}
+window.__fnOpen = openFortnightHub;
+window.__fnPlay = () => { openFortnightHub(); fnPlayNow(); };
+fnEvent.on('board', fnRender); fnEvent.on('ads', () => {});
+// Play: join the fullest open lobby anyone is running, or open one; offline, straight into a bot match
+async function fnPlayNow() {
+  if (!fnActive()) { toast('The Fortnight event is not running right now.'); return; }
+  if (session) return;
+  fnState = 'search'; fnRender();
+  // still connecting to the relay: give it a few seconds before playing offline
+  if (!friends.mq) friends.connect();
+  for (let i = 0; i < 40 && !friends.mq; i++) await new Promise(r => setTimeout(r, 200));
+  if (!friends.mq) { fnState = 'idle'; closeFortnight(); startFortnightSolo(fnCfg.diff); return; }
+  await new Promise(r => setTimeout(r, 1200));
+  const tried = new Set();
+  for (let i = 0; i < 3 && fnState === 'search'; i++) {
+    const ad = fnEvent.openLobbies(NET_PROTOCOL).find(a => !tried.has(a.code));
+    if (!ad) break;
+    tried.add(ad.code);
+    if (await fnJoinLobby(ad.code)) return;
+  }
+  if (fnState === 'search') await fnHostLobby();
+}
+async function fnHostLobby() {
+  try {
+    const net = await hostRoom('online');
+    lobby = { isHost: true, net, code: net.code, mode: 'online', myId: 'host', players: [], fill: true, diff: fnCfg.diff, gm: 'fortnight', map: 'isle', inGame: false, chat: [], fn: { at: Date.now() + FN_WAIT } };
+    const me = fnMe('host'); lobby.players.push({ ...me, host: true, loadouts: {} });
+    net.on('msg', (id, m) => hostMsg(id, m));
+    net.on('leave', id => { if (!lobby) return; const p = lobby.players.find(x => x.id === id); if (!p) return; lobby.players = lobby.players.filter(x => x.id !== id); if (session && session.isHost && lobby.inGame) session.playerLeft(id); broadcastLobby(); fnRender(); });
+    net.on('closed', r => { toast(r); leaveOnline(true); });
+    const ad = () => { if (lobby && lobby.fn && !lobby.inGame) fnEvent.advertise({ code: lobby.code, h: settings.name, n: lobby.players.length, at: lobby.fn.at, v: NET_PROTOCOL }); };
+    ad(); clearInterval(fnAdTimer); fnAdTimer = setInterval(ad, 4000);
+    fnState = 'lobby'; fnRender();
+  } catch (e) { console.error(e); toast('Could not open a lobby (' + (e.message || e) + '). Starting a match with bots.'); fnState = 'idle'; closeFortnight(); startFortnightSolo(fnCfg.diff); }
+}
+async function fnJoinLobby(code) {
+  try {
+    const net = await joinRoom('online', code);
+    lobby = { isHost: false, net, code, mode: 'online', myId: net.id, players: [], fill: true, diff: 'normal', gm: 'fortnight', inGame: false, chat: [], fn: { at: Date.now() + FN_WAIT } };
+    let rejected = false;
+    net.on('msg', m => { if (m && m.t === 'reject') rejected = true; clientMsg(m); });
+    net.on('closed', r => { if (lobby && !lobby.inGame && fnState === 'lobby') { toast(r); lobby = null; fnState = 'idle'; fnRender(); } else { toast(r); leaveOnline(true); } });
+    const L = fnLook();
+    net.send({ t: 'hello', name: settings.name, role: L.role, fn: { role: L.role, char: L.char, skin: skinId(L.char) }, proto: NET_PROTOCOL, ver: VERSION });
+    await new Promise(r => setTimeout(r, 1500));
+    if (rejected || !lobby) { try { net.close(); } catch {} lobby = null; return false; }
+    fnState = 'lobby'; fnRender();
+    return true;
+  } catch (e) { console.warn('join failed', e); lobby = null; return false; }
+}
+function fnStopLobby() { clearInterval(fnAdTimer); fnAdTimer = null; if (lobby && lobby.isHost && lobby.code) fnEvent.unadvertise(lobby.code); }
+function fnStartLobby() {
+  if (!lobby || !lobby.isHost || lobby.inGame) return;
+  fnStopLobby();
+  lobby.inGame = true;
+  const humans = lobby.players.map(p => ({ id: p.id, name: p.name, role: p.role, char: p.char, skin: p.skin || 'default', perks: [], pet: '', bot: false }));
+  closeFortnight();
+  startHostMatch(fnRoster(humans), { myId: 'host', difficulty: fnCfg.diff, net: lobby.net, kind: 'online', map: 'isle', mode: 'fortnight' });
+}
+// the event's last day: the champion is announced to everyone, and paid
+fnEvent.on('reveal', (res, mine) => {
+  setTimeout(() => {
+    const A = $('announce');
+    A.innerHTML = `<div class="an-bg fn-bg"></div><div class="an-inner"><div class="an-kicker">Fortnight · the event is over</div>
+      <div class="an-x">${res.fid ? `<span>${esc(res.n)}</span> wins` : 'No champion'}</div>
+      <p class="an-sub">${res.fid ? `${res.w} wins, ${res.k} eliminations. ${mine ? `That's you! ${FN.prize.toLocaleString()} Embers are in your account.` : `They take home ${FN.prize.toLocaleString()} Embers.`}` : 'Nobody won a match during the event.'}</p>
+      <div class="an-actions"><button class="btn primary big" id="an-close">Close</button></div></div>`;
+    A.classList.remove('hidden'); $('an-close').onclick = () => { sound.play('click'); A.classList.add('hidden'); renderShowcase(); };
+    if (mine) sound.play('brwin');
+  }, 1200);
+});
 function awardsHTML() {
   const W = awards.ensureWeek(), next = revealOf(W.w), ms = next - Date.now(), h = Math.max(0, Math.floor(ms / 36e5));
   const when = h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${h}h ${Math.max(0, Math.floor(ms / 6e4) % 60)}m`;
@@ -1638,8 +1868,20 @@ const AN_GRANNY = `<div class="an-bg granny"></div><div class="an-inner">
   <ul class="an-list"><li>New killer: <b>Granny</b> (Bat Rush, I Hear You, Creep, Body Swap)</li><li>Her helper: <b>Spider Mom</b></li><li>New map: <b>Granny's House</b> (free for everyone)</li><li>New execution: <b>Bedtime Trap</b></li></ul>
   <div class="an-actions"><button class="btn primary big" id="an-store">Get the Chapter</button><button class="btn big" id="an-play">Play Granny's House</button><button class="btn" id="an-trailer">Watch Trailer</button><button class="btn" id="an-close">Close</button></div>
   <p class="gb-note">Fan-made crossover. Granny and Spider Mom are characters by DVloper; not affiliated with or endorsed by them.</p></div>`;
+const AN_FN = `<div class="an-bg fn-bg"></div><div class="an-inner"><div class="an-kicker">Limited event · 5 days · now live</div>
+  <div class="msg-banner fn-art" style="height:min(34vh,300px);margin:10px auto 14px;max-width:780px;border:1px solid rgba(181,108,255,.5)"></div>
+  <div class="an-x fn-x">FORT<span>NIGHT</span></div>
+  <p class="an-sub">Battle royale comes to Nightbound, in broad daylight. Drop onto Nightfall Isle (mountains, hills, farms and cabins to search) with up to 16 players, wearing any killer or survivor you own (no powers). Loot guns from chests, stay inside the fog, and be the last one standing.</p>
+  <ul class="an-list"><li>The player with the <b>most wins</b> when the event ends gets <b>${FN.prize.toLocaleString()} Embers</b></li><li>Matchmaking with everyone online; bots fill the empty spots</li><li>5 guns in 5 grades, chests, sacks and rucksacks to search, heals and ward, a closing fog</li></ul>
+  <div class="an-actions"><button class="btn primary big" id="an-play">Play Fortnight</button><button class="btn" id="an-close">Close</button></div></div>`;
 function showAnnounce(kind = 'offal') {
   closePanel();
+  if (kind === 'fn') {
+    const A = $('announce'); A.innerHTML = AN_FN; A.classList.remove('hidden');
+    $('an-play').onclick = () => { sound.play('click'); hideAnnounce(); openFortnightHub(); };
+    $('an-close').onclick = () => { sound.play('click'); hideAnnounce(); };
+    profile.seen.fn1 = true; saveProfile(); sound.init(); sound.play('brfog'); return;
+  }
   const A = $('announce'); A.innerHTML = kind === 'gb' ? AN_GB : kind === 'granny' ? AN_GRANNY : AN_OFFAL; A.classList.remove('hidden');
   if (kind === 'granny') {
     $('an-store').onclick = () => { sound.play('click'); hideAnnounce(); openStore('chapters'); };
@@ -1663,10 +1905,25 @@ function showAnnounce(kind = 'offal') {
   saveProfile(); sound.init(); sound.play('caged');
 }
 function hideAnnounce() { $('announce').classList.add('hidden'); }
-$('news-card').onclick = () => { sound.init(); showTrailer(() => showAnnounce('granny'), true); };
+$('news-card').onclick = () => { sound.init(); if (fnActive()) { openFortnightHub(); return; } showTrailer(() => showAnnounce('granny'), true); };
+// the Fortnight event everywhere on the menu while it runs
+function fnPromo() {
+  const on = fnActive(), shown = Date.now() < FN.end + 3 * 864e5;
+  $('fn-nav').classList.toggle('hidden', !shown);
+  $('fn-nav').querySelector('small').textContent = on ? `Battle royale · ${FN.prize.toLocaleString()} Embers prize · ${fmtLeft(fnLeft())} left` : 'The event is over: see who won';
+  const nc = $('news-card');
+  if (on) { nc.classList.add('fn'); nc.innerHTML = `<div class="fn-art"></div><div class="nc-txt"><span>Limited event · ends in ${fmtLeft(fnLeft())}</span><b>Fortnight <i>· 500K Embers</i></b></div>`; }
+  else if (nc.classList.contains('fn')) { nc.classList.remove('fn'); nc.innerHTML = '<div class="granny-art"></div><div class="nc-txt"><span>New chapter · Watch the trailer</span><b>Granny <i>×</i> Nightbound</b></div>'; }
+  let bar = document.querySelector('.fn-bar');
+  if (on && !bar) { bar = document.createElement('div'); bar.className = 'fn-bar'; bar.onclick = () => { sound.init(); sound.play('click'); openFortnightHub(); }; $('menu').appendChild(bar); }
+  if (bar) { bar.classList.toggle('hidden', !on); bar.innerHTML = `FORTNIGHT EVENT LIVE · <b>${FN.prize.toLocaleString()} EMBERS</b> FOR THE MOST WINS · ENDS IN ${fmtLeft(fnLeft()).toUpperCase()} · PLAY NOW ›`; }
+  document.querySelectorAll('.fn-card').forEach(c => { c.classList.toggle('hidden', !on); c.onclick = () => { sound.play('click'); openFortnightHub(); }; });
+}
+fnPromo(); setInterval(fnPromo, 30000);
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('announce').classList.contains('hidden')) hideAnnounce(); });
 // new chapter: everyone is greeted with its trailer once, then the announcement
-if (!profile.seen.grannyTrailer) setTimeout(() => { if (!session && !lobby) { profile.seen.grannyTrailer = true; saveProfile(); showTrailer(() => showAnnounce('granny')); } }, 900);
+if (fnActive() && !profile.seen.fn1) setTimeout(() => { if (!session && !lobby) showAnnounce('fn'); }, 900);
+else if (!profile.seen.grannyTrailer) setTimeout(() => { if (!session && !lobby) { profile.seen.grannyTrailer = true; saveProfile(); showTrailer(() => showAnnounce('granny')); } }, 900);
 
 startBG();
 requestAnimationFrame(loop);

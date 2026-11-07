@@ -42,6 +42,14 @@ export function terrorRadius(p) {
 // Max movement speed given the synced state + local intent (sprint/crouch).
 export function speedOf(p, S, sprint, crouch) {
   if (p.act || p.stun > 0 || p.vault || p.tele || p.reel || p.pull || p.leap) return 0;
+  if (p.br) {
+    // Fortnight: everyone moves the same, whatever body they wear
+    if (p.st !== 'ok') return 0;
+    let s = crouch ? 2.2 : sprint && !p.ads ? 6.2 : 4.4;
+    if (p.ads) s *= 0.62;
+    if (p.heal) s *= 0.5;
+    return s;
+  }
   if (p.role === 'survivor') {
     if (p.st === 'down') {
       // can't crawl away while being picked up or helped up

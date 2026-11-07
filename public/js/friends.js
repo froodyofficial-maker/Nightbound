@@ -42,7 +42,7 @@ export class Friends {
       try { const m = new Mqtt(url); await m.connect(6000); this.mq = m; break; } catch {}
     }
     this.connecting = false;
-    if (!this.mq) { this.emit('change'); setTimeout(() => this.connect(), 30000); return; }
+    if (!this.mq) { this.emit('change'); setTimeout(() => this.connect(), 8000); return; }
     const me = T(this.id);
     this.mq.on('message', (topic, text) => this.onMessage(topic, text));
     this.mq.on('closed', () => { this.mq = null; clearInterval(this.beat); setTimeout(() => this.connect(), 5000); this.emit('change'); });

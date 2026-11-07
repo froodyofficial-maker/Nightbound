@@ -7,6 +7,9 @@ import { tex } from './textures.js';
 import { mat, mergeGeos } from './models.js';
 
 export const LOOK = {
+  // Fortnight's island: broad daylight (the only map that isn't played at night)
+  isle: { day: true, fog: 0xa9c4dc, density: 0.42, hemi: [0xd6e8ff, 0x5a5236, 2.3], amb: 0x8a96a8, moon: [0xfff0d4, 3.6], sky: [0x2f6fc4, 0x86b6e6], moonDisc: 0xfffbe8, halo: 0xffe8b0,
+    ground: [0x5c7d34, 0x6f9040, 0x8a7350, 0x5e4a32, 0x6c5c3a, 0x3e5228], groundTex: 'ground2', ruins: false, trees: 'pine', bushes: 1, bush: 0x3e5a28, grass: 1, grassTint: 0xb8c878, lamp: 0xffd090, groundFog: 0xe0ecf8, groundFogK: 0.2 },
   woods: { fog: 0x1b2126, density: 1, hemi: [0x5e6878, 0x30261a, 1.75], amb: 0x2e3440, moon: [0xcad6f2, 2.7], sky: [0x04060b, 0x0e1520], moonDisc: 0xf2f4ff, halo: 0x9fb0d8,
     ground: [0x3d4a2c, 0x56603a, 0x5a4632, 0x3a2c20, 0x4a3a26, 0x2c2a1e], groundTex: 'ground2', ruins: true, trees: 'pine', bushes: 1, bush: 0x2a3420, grass: 1, grassTint: 0x9aa070, lamp: 0xffb060, groundFog: 0x6a7480, groundFogK: 1 },
   marsh: { fog: 0x161e14, density: 1.35, hemi: [0x5e7a62, 0x2a2414, 1.6], amb: 0x24302a, moon: [0xd0e8c0, 2.2], sky: [0x040805, 0x0e1a10], moonDisc: 0xe8f8d8, halo: 0x9ac890,

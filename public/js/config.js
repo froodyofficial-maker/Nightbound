@@ -3,7 +3,7 @@
 export const HALF = 56;                 // map spans -HALF..HALF on x and z
 export const TICK = 1 / 60;
 // bump when host and clients can no longer understand each other's network messages
-export const NET_PROTOCOL = 12;
+export const NET_PROTOCOL = 13;
 export const SNAP_RATE = 30;            // snapshots per second sent to clients (relay players get ~15)
 
 export const SPEED = {
@@ -59,6 +59,8 @@ export const MODES = {
   glass: { name: 'Glass Bones', short: 'One hit', desc: 'Every hit puts a survivor straight down. To make up for it, generators repair 40% faster. One mistake and you are on the floor.' },
   adrenaline: { name: 'Adrenaline', short: 'Fast', desc: 'Everyone moves 30% faster, generators and exit gates go 25% faster, and killer powers recharge 40% faster. Chases are frantic.' },
   bloodmoon: { name: 'Blood Moon', short: 'Tasers', desc: 'A red moon over the map. Every 45 seconds the killer sees every survivor for 4 seconds, but every survivor starts with a 2-shot Taser instead of their item.' },
+  // Fortnight: the 5-day battle royale event (not picked from the mode lists; played from the event screen)
+  fortnight: { name: 'Fortnight', short: 'Event', br: true, event: true, desc: 'Battle royale on Nightfall Isle. Pick any killer or survivor (no powers), loot guns from chests and the ground, stay inside the fog ring, and be the last one standing.' },
   infection: { name: 'Infection', short: '2 vs 10', killers: 2, survivors: 10, bigMap: true, desc: 'No hooks. Two killers, ten survivors, on big maps built for it. Downed survivors rise as killers a few seconds later, and every 60s the infected sense every survivor. Escape through the gates, or be the last survivor standing and survive a 45-second last stand.' },
 };
 // killers an infected survivor can turn into
@@ -449,10 +451,21 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.54.0';
+export const VERSION = '2.55.0';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.55.0', version: '2.55.0', date: 'Nov 2026', title: 'Fortnight: a 5-day battle royale event', tag: 'Event', email: true, banner: 'fn', image: 'public/img/fortnight-email.jpg',
+    body: [
+      'For five days only, Nightbound becomes a battle royale. Drop onto Nightfall Isle in broad daylight: a brand new map five times the size of a regular one, with mountains to climb, rolling hills, farms, chapels and 30 little cabins to explore, for up to 16 players.',
+      'Wear any killer or survivor you own. Nobody has powers: everyone plays by the same rules.',
+      'Loot Revolvers, Trench SMGs, Pump Shotguns, Ranger Rifles and Hunting Rifles from chests, the ground, and the sacks and rucksacks hidden all over the island, in five grades from Worn to Bloodied. Patch up with Bandages and Med Kits, and stack Ward on top of your health.',
+      'The fog closes in round by round. Stay inside the ring and be the last one standing.',
+      'Grand prize: the player with the most wins when the event ends gets 500,000 Embers. The leaderboard is live for everyone on the event screen.',
+      'Press Play to matchmake with everyone online. Any number of real players can join a lobby; bots fill the rest of the island.',
+    ],
+  },
   {
     id: 'v2.54.0', version: '2.54.0', date: 'Nov 2026', title: 'Online Rebuilt', tag: 'Update', email: true,
     body: [
