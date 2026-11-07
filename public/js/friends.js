@@ -39,19 +39,25 @@ export class Friends {
     if (this.mq || this.connecting) return;
     this.connecting = true;
     for (const url of MQTT_BROKERS) {
-      try { const m = new Mqtt(url); await m.connect(6000); this.mq = m; break; } catch {}
+      try { const m = new Mqtt(url); await m.connect(12000); this.mq = m; break; } catch {}
     }
     this.connecting = false;
-    if (!this.mq) { this.emit('change'); setTimeout(() => this.connect(), 8000); return; }
+    if (!this.mq) {
+      // try again soon (a page still busy loading can miss the first handshake), backing off to 8s
+      this.fails = (this.fails || 0) + 1; this.emit('change');
+      setTimeout(() => this.connect(), Math.min(8000, 1000 * 2 ** this.fails)); return;
+    }
+    this.fails = 0;
     const me = T(this.id);
     this.mq.on('message', (topic, text) => this.onMessage(topic, text));
     this.mq.on('closed', () => { this.mq = null; clearInterval(this.beat); setTimeout(() => this.connect(), 5000); this.emit('change'); });
-    for (const t of [me + '/req/+', me + '/acc/+', me + '/inv', me + '/msg', me + '/gift/+']) this.mq.subscribe(t);
+    for (const t of [me + '/req/+', me + '/acc/+', me + '/inv', me + '/inv/+', me + '/msg', me + '/gift/+']) this.mq.subscribe(t);
     for (const f of this.p.friends) this.mq.subscribe(T(f.id) + '/st');
     for (const t of this.extra || []) this.mq.subscribe(t);
     this.heartbeat(); clearInterval(this.beat); this.beat = setInterval(() => this.heartbeat(), 15000);
     this.ticker ||= setInterval(() => this.emit('change'), 10000);
     addEventListener('beforeunload', () => this.publish(T(this.id) + '/st', JSON.stringify({ name: this.getName(), t: Date.now(), state: 'offline' }), true));
+    if (!this.wakeHooked) { this.wakeHooked = true; const wake = () => { if (!this.mq && !this.connecting) this.connect(); }; addEventListener('focus', wake); document.addEventListener('visibilitychange', wake); }
     this.emit('change'); this.emit('connected');
   }
   // other modules (weekly awards) listen on extra topics through this connection
@@ -90,8 +96,12 @@ export class Friends {
       this.p.giftsGot[gid] = Date.now(); this.save();
       this.log(m.from, { me: false, text: `🎁 sent you ${amount.toLocaleString()} Embers`, t: Date.now() });
       this.emit('gift', m.from, String(m.name || 'A friend').slice(0, 24), amount);
-    } else if (topic === me + '/inv') {
-      if (m && m.from && m.code && this.p.friends.some(f => f.id === m.from)) this.emit('invite', m.from, m.name, m.code, m.kind || '');
+    } else if (topic === me + '/inv' || topic.startsWith(me + '/inv/')) {
+      if (!m || !m.from || !m.code || !this.p.friends.some(f => f.id === m.from)) return;
+      if (m.t && Date.now() - m.t > 120000) { if (topic !== me + '/inv') this.clearInvite(m.from); return; } // stale
+      const key = m.from + ':' + (m.n || m.code); this.seenInv ||= new Set();
+      if (this.seenInv.has(key)) return; this.seenInv.add(key); // the same invite arrives on both topics
+      this.emit('invite', m.from, m.name, m.code, m.kind || '');
     } else if (topic === me + '/msg') {
       if (!m || !m.from || !this.p.friends.some(f => f.id === m.from)) return;
       this.log(m.from, { me: false, text: String(m.text || '').slice(0, 300), t: Date.now() });
@@ -147,5 +157,11 @@ export class Friends {
     this.log(id, { me: true, text: `🎁 gifted ${amount.toLocaleString()} Embers`, t: Date.now() }); this.emit('change');
     return '';
   }
-  invite(id, code, kind = '') { this.publish(T(id) + '/inv', JSON.stringify({ from: this.id, name: this.getName(), code, kind })); }
+  invite(id, code, kind = '') {
+    const m = JSON.stringify({ from: this.id, name: this.getName(), code, kind, t: Date.now(), n: Math.random().toString(36).slice(2, 8) });
+    this.publish(T(id) + '/inv/' + this.id, m, true); // waits on the relay even if they're reconnecting
+    this.publish(T(id) + '/inv', m);                   // (older versions listen here)
+  }
+  // an invite we've answered (or that expired): take it off the relay
+  clearInvite(from) { this.publish(T(this.id) + '/inv/' + from, '', true); }
 }

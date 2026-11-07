@@ -933,3 +933,8 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 #fn-hub .fh-fr b { font-weight: 600; } #fn-hub .fh-fr small { color: var(--dim); flex: 1; }
 #fn-hub .fh-fr .dot { width: 8px; height: 8px; border-radius: 50%; background: #5a5; }
 #fn-hub .fh-fr .btn.small { padding: 3px 10px; font-size: 12px; }
+
+#fn-hub .fh-code { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+#fn-hub .fh-code #fh-party { font-size: 13px; color: var(--dim); margin-right: 6px; }
+#fn-hub .fh-code #fh-party b { font-family: var(--display); font-size: 26px; letter-spacing: .14em; color: var(--fn2); vertical-align: middle; margin: 0 4px; }
+#fn-hub .fh-code input { width: 84px; padding: 5px 8px; background: rgba(0,0,0,.4); border: 1px solid var(--line); color: #fff; font-family: var(--display); font-size: 18px; letter-spacing: .14em; text-transform: uppercase; }

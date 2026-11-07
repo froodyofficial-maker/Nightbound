@@ -1270,6 +1270,7 @@ function hostMsg(id, m) {
       // Fortnight: anyone can join (bots fill whatever's left); wear the body you picked
       const L = m.fn || {}, role = L.role === 'killer' ? 'killer' : 'survivor', defs = role === 'killer' ? KILLERS : SURVIVORS, char = defs[L.char] ? L.char : role === 'killer' ? 'butcher' : 'mara';
       if (!lobby.players.some(x => x.id === id)) lobby.players.push({ id, name: String(m.name || 'Player').slice(0, 16), role, char, skin: cleanSkin(char, L.skin), perks: [], pet: '', loadouts: {} });
+      if (lobby.fn) lobby.fn.at = Math.max(lobby.fn.at, Date.now() + 8000);
       lobby.net.send(id, { t: 'welcome', id });
       broadcastLobby(); fnRender();
       return;
@@ -1626,8 +1627,8 @@ friends.on('invite', (id, name, code, kind) => {
   const c = $('invite-card');
   c.innerHTML = `<b>${esc(name || 'A friend')}</b> invited you to ${kind === 'fn' ? 'drop into <b>Fortnight</b> with them' : 'their lobby'}<div><button class="btn primary" id="inv-join">Join</button><button class="btn" id="inv-no">Not now</button></div>`;
   c.classList.remove('hidden'); sound.play('click');
-  $('inv-no').onclick = () => c.classList.add('hidden');
-  $('inv-join').onclick = () => { c.classList.add('hidden'); if (session) { toast('Finish or leave your match first.'); return; } if (lobby) leaveOnline(true); if (kind === 'fn') fnJoinFriend(code); else doJoin(code); };
+  $('inv-no').onclick = () => { c.classList.add('hidden'); friends.clearInvite(id); };
+  $('inv-join').onclick = () => { c.classList.add('hidden'); friends.clearInvite(id); if (session) { toast('Finish or leave your match first.'); return; } if (lobby) leaveOnline(true); if (kind === 'fn') fnJoinFriend(code); else doJoin(code); };
   clearTimeout(c.hideT); c.hideT = setTimeout(() => c.classList.add('hidden'), 30000);
 });
 $('friends-btn').onclick = () => { sound.init(); sound.play('click'); openPanel('p-friends', 'Friends'); };
@@ -1654,7 +1655,8 @@ function fnBuildHub() {
     <div class="fh-right"><div class="fh-h">Leaderboard</div><div id="fh-board"></div></div>
     <div class="fh-bottom">
       <div class="fh-look"><div class="fh-h">Your character</div><div id="fh-looks"></div>
-        <div class="fh-h" style="margin-top:12px">Friends</div><div id="fh-friends"></div></div>
+        <div class="fh-h" style="margin-top:12px">Friends</div><div id="fh-friends"></div>
+        <div class="fh-code"><span id="fh-party"></span><input id="fh-codein" maxlength="5" placeholder="CODE" spellcheck="false"><button class="btn small" id="fh-codego">Join with code</button></div></div>
       <div class="fh-play">
         <div id="fh-queue"></div>
         <div class="fh-diff"><span>Bots</span><div class="seg" id="fh-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div></div>
@@ -1666,6 +1668,8 @@ function fnBuildHub() {
   $('fh-back').onclick = () => { sound.play('click'); if (lobby && lobby.fn) leaveOnline(true); closeFortnight(); };
   $('fh-go').onclick = () => { sound.init(); sound.play('click'); if (fnState === 'idle') fnPlayNow(); else if (fnState === 'lobby' && lobby && lobby.isHost) fnStartLobby(); };
   fnHub.querySelectorAll('#fh-diff button').forEach(b => b.onclick = () => { fnCfg.diff = b.dataset.v; fnRender(); });
+  const goCode = () => { const c = $('fh-codein').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length !== 5) { toast('Party codes are 5 letters'); return; } sound.play('click'); fnJoinFriend(c); };
+  $('fh-codego').onclick = goCode; $('fh-codein').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') goCode(); };
   fnHub.querySelectorAll('#fh-view button').forEach(b => b.onclick = () => { settings.fnFP = b.dataset.v === 'fp'; saveSettings(); sound.play('click'); fnRender(); });
   return fnHub;
 }
@@ -1689,6 +1693,10 @@ function fnRender() {
     (rows.length ? rows.map((r, i) => `<div class="fh-row ${r.fid === friends.id ? 'me' : ''}"><i>${i + 1}</i><span>${esc(r.n)}</span><b>${r.w}</b><small>${r.k} elims</small></div>`).join('') : '<div class="fh-empty">No wins yet. Be the first on the board.</div>') +
     (rank > 10 ? `<div class="fh-row me"><i>${rank}</i><span>${esc(settings.name)} (you)</span><b>${me.w}</b><small>${me.k} elims</small></div>` : '') +
     `<div class="fh-note">${friends.mq ? 'Live from every Nightbound player' : 'Offline: the leaderboard updates when you reconnect'}</div>`;
+  // your party code (friends can type it in), shown while you're in a lobby
+  const pc = lobby && lobby.fn && !lobby.inGame ? lobby.code : '';
+  if ($('fh-party').dataset.c !== pc) { $('fh-party').dataset.c = pc; $('fh-party').innerHTML = pc ? `Party code <b>${pc}</b> <button class="btn small" id="fh-copy">Copy</button>` : '<small>Got a friend\'s party code?</small>';
+    const cp = document.getElementById('fh-copy'); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(pc); toast('Party code copied'); } catch { toast('Party code: ' + pc); } }; }
   // friends: invite them in, or join the lobby they're in
   const fl = profile.friends.filter(f => friends.online(f.id)), stOf = id => friends.status.get(id) || {};
   $('fh-friends').innerHTML = fl.length ? fl.map(f => { const st = stOf(f.id), inFn = st.state === 'fortnight' && st.code && !(lobby && lobby.code === st.code);
@@ -1804,13 +1812,14 @@ async function fnInvite(fid) {
   if (lobby.isHost) { lobby.fn.at = Math.max(lobby.fn.at, Date.now() + 30000); broadcastLobby(); }
   toast('Invite sent'); fnRender();
 }
-async function fnJoinFriend(code) {
+async function fnJoinFriend(code, retry = true) {
   if (!fnActive()) { toast('The Fortnight event is not running right now.'); return; }
   if (session) { toast('Finish or leave your match first.'); return; }
   if (lobby) leaveOnline(true);
   openFortnightHub(); fnState = 'search'; fnRender();
   if (!friends.mq) friends.connect();
-  const ok = await fnJoinLobby(String(code).toUpperCase());
+  let ok = await fnJoinLobby(String(code).toUpperCase());
+  if (!ok && retry && !session) { await new Promise(r => setTimeout(r, 1500)); ok = await fnJoinLobby(String(code).toUpperCase()); }
   if (!ok) { fnState = 'idle'; fnRender(); toast('That lobby has already dropped in (or closed). Press Play to queue, or ask them to invite you again.'); }
 }
 // the event's last day: the champion is announced to everyone, and paid

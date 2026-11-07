@@ -451,10 +451,19 @@ export const NEWSLETTER = 'nightbound';
 export const POWERUPS = {
   phantomtraps: { name: 'Phantom Traps', price: 20000, role: 'survivor', desc: 'Your Ghost Traps are invisible to the killer. Your team still sees them; the killer only finds out when they step in one.' },
 };
-export const VERSION = '2.56.1';
+export const VERSION = '2.56.2';
 // Inbox entries with `email: true` are big updates: they are emailed to newsletter subscribers
 // automatically (tools/email-updates.mjs). Small tweaks leave it out and are never mailed.
 export const INBOX = [
+  {
+    id: 'v2.56.2', version: '2.56.2', date: 'Nov 2026', title: 'Fortnight: party codes, invites that arrive', tag: 'Update',
+    body: [
+      'Party codes: in a Fortnight lobby your 5-letter party code is shown on the event screen (with a Copy button). Friends type it into "Join with code" to join you, no friend request needed.',
+      'Invites no longer get lost: they wait on the relay for 2 minutes, so a friend still gets yours if their game was loading or briefly offline.',
+      'The game reconnects to the online relay much faster after a slow start or a dropped connection.',
+      'Joining a friend retries once by itself, and the drop waits a few seconds for anyone who joins at the last moment.',
+    ],
+  },
   {
     id: 'v2.56.1', version: '2.56.1', date: 'Nov 2026', title: 'Fortnight: play with friends', tag: 'Update',
     body: [
